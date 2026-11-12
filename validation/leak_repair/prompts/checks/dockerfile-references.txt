@@ -1,0 +1,17 @@
+The tasks in {tasks_dir} failed the dockerfile-references check.
+The check flags tasks whose `environment/Dockerfile` mentions the reference solution (`solution/solve.sh`) or the
+verifier's test files (`tests/test.sh`, or a `test_*.py` file that is also in the task's `tests/` folder), because
+the Dockerfile may copy them into the image, where the agent can read them.
+
+The implementation of dockerfile-references is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, the file names the check found in the Dockerfile.
+
+The agent's environment is the image built from `environment/Dockerfile`, after `setup_files/setup.sh` (if present)
+has run. The agent can read every file in it.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: the image contains part or all of the reference solution or the verifier's tests;
+- `false_positive`: the mention reveals nothing, e.g. it is a file of the project with the same name, or a command
+  that only deletes the file;
+- `not_fixable`: the environment needs the file in the image, and it reveals part of the solution or the tests.

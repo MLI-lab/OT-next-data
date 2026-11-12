@@ -115,21 +115,21 @@ def test_pass_at_k_counts_only_the_final_batch():
     assert c.pass_at_k(unsolved, 4)['successes'] == 0 and not c.pass_at_k(unsolved, 4)['solved']
 
 
-def test_requirements_follow_mimo_sizing_and_never_drop_below_calibration_or_upstream():
-    measured = classified([attempt(memory=2600, disk=1200), attempt(memory=3100, disk=900)])
+def test_requirements_follow_mimo_headroom_without_upstream_floors():
+    measured = classified([attempt(memory=2600, disk=1200), attempt(memory=3100, disk=900)] * 2)
     need = c.requirements(measured, BASE, {'cpus': 1, 'memory_mb': 2048}, POLICY)
-    assert (need['cpus'], need['memory_mb'], need['storage_mb']) == (2, 5 * 1024, 10 * 1024)  # ceil(3.03)+1 = 5; max(10, 2+2)
-    # An OOM at 8 GiB is a truncated peak: floor = 8 GiB + 1, even if the 16 GiB batch peaked lower.
+    assert (need['cpus'], need['memory_mb'], need['storage_mb']) == (1, 5 * 1024, 4 * 1024)  # ceil(3.03)+1 = 5; ceil(1200/1024)+2 = 4
+    # An earlier OOM is excluded; use maxima from the first clean batch.
     oom = classified([attempt(reward=None, oom=1, memory=8192)])
     big = {**BASE, 'memory_mb': 16384}
     after = classified([attempt(memory=6000)] * 4, big)
-    need = c.requirements(oom + after, big, {}, POLICY)
-    assert need['memory_mb'] == 9 * 1024
-    # Disk that reached the 20 GiB limit has an unknown peak: double the limit (MiMo's 40 GiB case).
+    need = c.requirements(oom + after, big, {}, POLICY, rounds=[{'attempts': oom}, {'attempts': after}])
+    assert need['memory_mb'] == 7 * 1024 and need['selected_batch_index'] == 1
+    # A disk limit without a clean batch is unresolved, not a settled doubled estimate.
     full = classified([attempt(reward=None, disk_exceeded=True, disk=20480)])
-    assert c.requirements(full, BASE, {}, POLICY)['storage_mb'] == 40 * 1024
-    # A higher upstream requirement wins.
-    assert c.requirements(measured, BASE, {'memory_mb': 32768}, POLICY)['memory_mb'] == 32768
+    assert c.requirements(full, BASE, {}, POLICY)['storage_mb'] is None
+    # Original resource declarations are provenance, not a sizing floor.
+    assert c.requirements(measured, BASE, {'memory_mb': 32768}, POLICY)['memory_mb'] == 5 * 1024
 
 
 def test_policy_from_args_overrides_only_given_values():
@@ -143,11 +143,11 @@ def test_requirements_follow_the_solved_attempts():
     attempts = classified([attempt(reward=1, memory=200), attempt(reward=1, memory=210), attempt(reward=1, memory=190),
                            attempt(reward=None, oom=1, memory=8000)])
     need = c.requirements(attempts, BASE, {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 10240}, POLICY)
-    assert need['memory_mb'] == 2048 and need['sized_from'] == 'smallest solved attempt'   # upstream, not 8 GiB + 1
-    # Nothing solved: all attempts count, the OOM floor included.
+    assert need['memory_mb'] == 2048 and need['sized_from'] == 'smallest solved attempt'   # measured peak + headroom, not 8 GiB + 1
+    # Nothing solved and no clean batch: unresolved.
     failed = classified([attempt(reward=0, memory=200), attempt(reward=None, oom=1, memory=8000)])
     need = c.requirements(failed, BASE, {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 10240}, POLICY)
-    assert need['memory_mb'] == BASE['memory_mb'] + 1024 and need['sized_from'] == 'all attempts (none solved)'
+    assert need['memory_mb'] is None and need['status'] == 'unresolved'
 
 
 def test_requirements_take_the_smallest_solved_attempt():
@@ -156,7 +156,7 @@ def test_requirements_take_the_smallest_solved_attempt():
         classified([attempt(reward=1, memory=3000, disk=500), attempt(reward=1, memory=9000, disk=6000)]),
         [BASE, {**BASE, 'cpus': 4}])]
     need = c.requirements(attempts, BASE, {}, POLICY)
-    assert (need['cpus'], need['memory_mb'], need['storage_mb']) == (2, 4 * 1024, 10 * 1024)
+    assert (need['cpus'], need['memory_mb'], need['storage_mb']) == (1, 4 * 1024, 3 * 1024)
 
 
 def test_a_solve_stops_escalation_and_limit_hits_count_as_failures():

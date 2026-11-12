@@ -1,3 +1,5904 @@
+"""CalibForge conversion, runtime preparation, and reviewed task metadata.
+
+All datasource-specific preparation code and role tables live in this file.
+Check-derived conversion repairs are in repairs.py; validated agent repairs
+and their receipts are in leak_repairs/.
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import copy
+
+# ==============================================================================
+# Python Roles
+# ==============================================================================
+
+"""Source-bound roles for independently measured nested grading interpreters."""
+import ast
+import hashlib
+import json
+import re
+from pathlib import Path, PurePosixPath
+from functools import lru_cache
+from contextvars import ContextVar
+
+# The task being converted. Reviewed records name their task; the file hashes
+# they also carry bind them to the exact files the decision is about.
+current_task = ContextVar('calibforge_task', default=None)
+
+
+def for_task(record):
+    return record['task'] == current_task.get()
+
+
+@lru_cache(maxsize=1)
+def installation_roles():
+    return copy.deepcopy(_TASK_INSTALLATION_ROLES)
+
+
+@lru_cache(maxsize=1)
+def service_roles():
+    return copy.deepcopy(_TASK_SERVICE_ROLES)
+
+
+@lru_cache(maxsize=1)
+def reviewed_module_roles():
+    return copy.deepcopy(_TASK_MODULE_ROLES)
+
+
+def task_module_roles(files):
+    """Named agent modules reviewed against the instruction and supplied sources.
+
+    The original grader hash is provenance; transformations of that grader do
+    not change the instruction's ownership of these specific task modules.
+    """
+    return [record for record in reviewed_module_roles() if for_task(record)
+            and all(path in files and hashlib.sha256(files[path]).hexdigest()==digest
+                    for path,digest in record['evidence_sha256'].items())]
+
+
+def task_extension_loader(node, tree, files):
+    """Recognize reviewed loaders that choose a submitted /app extension.
+
+    Bind the entire loader function, not just its final call: the preceding
+    directory search establishes that the selected library is task code.
+    """
+    parents={child:parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+    function=parents.get(node)
+    while function is not None and not isinstance(function,ast.FunctionDef):
+        function=parents.get(function)
+    if function is None:return False
+    digest=hashlib.sha256(ast.dump(function,include_attributes=False).encode()).hexdigest()
+    return any(digest in role.get('extension_loader_functions',[]) for role in task_module_roles(files))
+
+
+@lru_cache(maxsize=1)
+def reviewed_initialization_roles():
+    return copy.deepcopy(_TASK_INITIALIZATION_ROLES)
+
+
+def task_initialization_roles(files):
+    script=hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()
+    return [record for record in reviewed_initialization_roles() if for_task(record)
+            and record['test_script_sha256']==script]
+
+
+def restored_shell_helpers(files):
+    """Restore source-bound initialization scripts before running them."""
+    assets,commands={},{}
+    for role in task_initialization_roles(files):
+        for line,name in role.get('tool_replacements',{}).items():
+            path=role.get('tools',{}).get(name)
+            if not path or line not in role['lines'] or not line.startswith(path+' '):
+                raise ValueError('Initialization tool replacement differs')
+            commands[line]='"${OT_VERIFIER_BIN:?prepared verifier runtime required}/'+name+'"'+line[len(path):]
+        for item in role.get('restored_shell_helpers',[]):
+            source,target,command=item['source'],item['target'],item['command']
+            if (not re.fullmatch(r'tests/ot_[A-Za-z0-9_]+\.sh',target)
+                    or source not in files
+                    or hashlib.sha256(files[source]).hexdigest()!=item['sha256']
+                    or command not in role['lines']
+                    or not re.fullmatch(r'bash /[A-Za-z0-9_./-]+\.sh',command)):
+                raise ValueError('CalibForge shell initialization source differs')
+            if target in assets or target in files:
+                raise ValueError('CalibForge shell initialization target collision')
+            assets[target]=files[source]
+            commands[command]='bash /'+target
+    return assets,commands
+
+
+def shell_package_installation(files, image_sha256):
+    """Install the submitted project at its original grading step, privately."""
+    assets,commands={},{}
+    for role in task_module_roles(files):
+        item=role.get('shell_package_installation')
+        if not item:continue
+        if (item['image_sha256']!=image_sha256
+                or hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()!=item['test_script_sha256']
+                or item['command'] not in files['tests/test.sh'].decode().splitlines()
+                or item['argv'] not in (['install','--break-system-packages','-e','.'],['install','.'])):
+            raise ValueError('CalibForge shell project installation differs')
+        target='tests/ot_install_submitted_package.py'
+        if target in assets or target in files:raise ValueError('Shell package helper collision')
+        body='''import os,subprocess,sys
+env={k:v for k,v in os.environ.items() if not k.startswith(('PYTHON','PIP_'))}
+env['PIP_CONFIG_FILE']=os.devnull
+offline=os.environ.get('OT_VERIFIER_OFFLINE')
+options=['--no-index','--find-links',offline+'/wheels'] if offline else []
+if offline:
+    env.update(PIP_NO_INDEX='1',PIP_FIND_LINKS=offline+'/wheels')
+raise SystemExit(subprocess.call([sys.executable,'-I','-m','pip','--isolated','install',*options,'--break-system-packages',*INSTALL_ARGS],env=env))
+'''
+        body=body.replace('INSTALL_ARGS',repr(['-e','.'] if '-e' in item['argv'] else ['.']))
+        assets[target]=body.encode()
+        command='"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I /'+target
+        # Original pip3/pip fallback resolves to the same measured interpreter.
+        if item['argv']==['install','.']:
+            if item['command']!='    pip install . 2>/dev/null || true':
+                raise ValueError('CalibForge project install fallback differs')
+            commands[item['command'].strip()]=command+' 2>/dev/null || true'
+        else:
+            commands[item['command']]='cd /app && '+command+' 2>/dev/null || '+command+' 2>/dev/null || true'
+    return assets,commands
+
+
+def task_installation_role(call, paths, files):
+    """Keep reviewed installation checks on the environment being evaluated.
+
+    Bind the instruction, complete call AST and resolved executable. The call
+    binding survives unrelated clean-child rewrites in the same source file.
+    It never grants an exception to another call or an entire helper function.
+    """
+    if not files or not call.args or not isinstance(call.args[0], (ast.List, ast.Tuple)):
+        return None
+    argv = call.args[0]
+    if len(argv.elts) < 3 or paths(argv.elts[1]) != {'-c'}:
+        return None
+    digest = hashlib.sha256(ast.dump(call, include_attributes=False).encode()).hexdigest()
+    for record in installation_roles():
+        if record.get('requires_source_binding') and not any(
+                path.startswith('tests/') and path.endswith('.py')
+                and hashlib.sha256(body).hexdigest() == record['source_sha256']
+                for path, body in files.items()):
+            continue
+        executables = paths(argv.elts[0])
+        if record['executables'] == ['sys.executable']:
+            if (ast.unparse(argv.elts[0]) != 'sys.executable'
+                    or not any(path.startswith('tests/') and path.endswith('.py')
+                               and hashlib.sha256(body).hexdigest() == record['source_sha256']
+                               for path, body in files.items())):
+                continue
+            executables = {'sys.executable'}
+        if (for_task(record) and record['call_ast_sha256'] == digest
+                and set(record['executables']) == executables):
+            return record
+    return None
+
+
+def adapt_selector(files, record, name, measured):
+    source_file=record.get('source_file')
+    if (not isinstance(source_file,str) or not source_file.startswith('tests/') or source_file not in files
+            or record.get('source_sha256')!=hashlib.sha256(files[source_file]).hexdigest()):
+        raise ValueError('CalibForge auxiliary Python source binding requires review')
+    source=files[source_file].decode();tree=ast.parse(source)
+    parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    def owner(node):
+        node=parents.get(node)
+        while node is not None and not isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+            node=parents.get(node)
+        return node
+    selector=record.get('selector')
+    definitions=[node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name==selector]
+    if len(definitions)!=1 or definitions[0].decorator_list or definitions[0].args.args:
+        raise ValueError('CalibForge auxiliary Python selector definition requires review')
+    definition=definitions[0]
+    probed=[node for node in ast.parse(record.get('selector_code','')).body if isinstance(node,ast.FunctionDef) and node.name==selector]
+    if len(probed)!=1 or ast.dump(probed[0])!=ast.dump(definition):
+        raise ValueError('CalibForge auxiliary Python selector probe differs')
+    aliases={};direct_calls=set()
+    for node in ast.walk(tree):
+        if isinstance(node,ast.Name) and node.id==selector and isinstance(node.ctx,ast.Load):
+            call=parents[node];assignment=parents.get(call)
+            if (isinstance(call,ast.Call) and call.func is node and not call.args and not call.keywords
+                    and isinstance(assignment,(ast.List,ast.Tuple)) and assignment.elts[0] is call
+                    and isinstance(parents.get(assignment),ast.Call)
+                    and ast.unparse(parents[assignment].func) in ('subprocess.run','subprocess.call','subprocess.check_call','subprocess.check_output','subprocess.Popen')
+                    and parents[assignment].args and parents[assignment].args[0] is assignment):
+                direct_calls.add(call)
+                continue
+            if (not isinstance(call,ast.Call) or call.func is not node or call.args or call.keywords
+                    or not isinstance(assignment,ast.Assign) or assignment.value is not call
+                    or len(assignment.targets)!=1 or not isinstance(assignment.targets[0],ast.Name)):
+                raise ValueError('CalibForge auxiliary Python selector use requires review')
+            target=assignment.targets[0];scope=owner(target)
+            stores=[n for n in ast.walk(scope or tree) if isinstance(n,ast.Name) and n.id==target.id
+                    and isinstance(n.ctx,(ast.Store,ast.Del))]
+            if scope is None and any(isinstance(n,ast.arg) and n.arg==target.id
+                    or isinstance(n,ast.alias) and (n.asname or n.name.split('.')[0])==target.id
+                    for n in ast.walk(tree)):
+                raise ValueError('CalibForge global auxiliary Python alias binding requires review')
+            if len(stores)!=1:
+                raise ValueError('CalibForge auxiliary Python alias rebinding requires review')
+            aliases[(scope,target.id)]=target
+    if not aliases and not direct_calls:
+        raise ValueError('CalibForge auxiliary Python selector has no reviewed callers')
+    def alias_key(node):
+        key=(owner(node),node.id)
+        return key if key in aliases else (None,node.id) if (None,node.id) in aliases else None
+    paths=static_paths(tree,'/'+source_file)
+    # Preserve the named package under test in each original selector candidate
+    # environment, without exposing those sites to unrelated grading imports.
+    task_prefixes=[]
+    for node in ast.walk(definition):
+        if (isinstance(node,ast.Constant) and isinstance(node.value,str)
+                and re.fullmatch(r'/[A-Za-z0-9_./-]+/bin/python3?(?:\.\d+)?',node.value)
+                and '..' not in node.value.split('/')):
+            prefix=str(PurePosixPath(node.value).parent.parent)
+            if prefix not in task_prefixes:task_prefixes.append(prefix)
+    for prefix in (measured['prefix'],str(PurePosixPath(record.get('main_executable',measured['executable'])).parent.parent)):
+        if prefix not in task_prefixes:task_prefixes.append(prefix)
+    executable="(__import__('os').environ['OT_VERIFIER_BIN'] + '/../aux/"+name+"/bin/python3')"
+    replacements=[(definition,'def '+selector+'():\n    return '+executable)]
+    calls={(node.lineno,node.col_offset):node for node in ast.walk(tree) if isinstance(node,ast.Call)}
+    reviewed_names=set();uses=[];helpers={};dynamic=False
+    package_helper=''
+    package=record.get('package_installation')
+    if package:
+        package_edits,package_names,package_helper=selector_package_calls(
+            tree,parents,aliases,alias_key,package,name)
+        replacements.extend(package_edits);reviewed_names.update(package_names)
+    for use in record['uses']:
+        call=calls.get((use.get('line'),use.get('column')))
+        if (call is None or ast.unparse(call.func) not in ('subprocess.run','subprocess.call','subprocess.check_call','subprocess.check_output','subprocess.Popen')
+                or not call.args or not isinstance(call.args[0],(ast.List,ast.Tuple)) or len(call.args[0].elts)<2):
+            raise ValueError('CalibForge auxiliary Python invocation binding requires review')
+        argv=call.args[0];python=argv.elts[0]
+        if ((python not in direct_calls and (not isinstance(python,ast.Name) or alias_key(python) not in aliases))
+                or python in reviewed_names):
+            raise ValueError('CalibForge auxiliary Python invocation alias requires review')
+        reviewed_names.add(python);targets=paths(argv.elts[1]);role=use.get('role')
+        if role=='task':
+            if not targets or not all(path.startswith(('/app/','/workspace/')) and '..' not in path.split('/') for path in targets):
+                raise ValueError('CalibForge auxiliary task-program target requires review')
+            replacements.append((python,json.dumps(measured['executable'])))
+        elif role=='task_package':
+            if not task_package_command(argv,paths,files,parents):
+                raise ValueError('CalibForge auxiliary task package command requires review')
+            replacements.append((python,json.dumps(measured['executable'])))
+        elif role=='grading_script':
+            if not targets or not all(target.startswith('/tests/') and target[1:] in files
+                    and target.endswith('.py') and '..' not in target.split('/') for target in targets):
+                raise ValueError('CalibForge auxiliary grading script requires fresh source')
+            for target in targets:
+                body=files[target[1:]].decode();context={**measured,'test_file':target}
+                adapted,_=task_python_calls(body,measured['executable'],files=files,image=context)
+                review_imports(ast.parse(adapted),files,context)
+                if adapted!=body or preserve_cwd_task_imports(body,files,context)!=body:
+                    raise ValueError('CalibForge auxiliary grading script adaptations require review')
+                helpers[target[1:]]=hashlib.sha256(files[target[1:]]).hexdigest()
+            replacements.append((python,executable+', "-E", "-s"'))
+        elif role=='grading':
+            snippets=paths(argv.elts[2]) if len(argv.elts)>2 and targets=={'-c'} else set()
+            template=grading_snippet_template(argv.elts[2],tree) if len(argv.elts)>2 and targets=={'-c'} and not snippets else None
+            choices=grading_helper_templates(argv.elts[2],tree) if len(argv.elts)>2 and targets=={'-c'} and not snippets and not template else None
+            if template:snippets={template[0]}
+            if choices:snippets={value[0] for value in choices}
+            if not snippets:
+                raise ValueError('CalibForge auxiliary grading snippet requires review')
+            adapted={}
+            for snippet in sorted(snippets):
+                context={**measured,'test_file':'/'+source_file,'task_package_prefixes':task_prefixes}
+                rewritten,_=task_python_calls(snippet,measured['executable'],files=files,image=context)
+                review_imports(ast.parse(rewritten),files,context)
+                adapted[snippet]=preserve_cwd_task_imports(rewritten,files,context)
+            replacements.append((python,executable+', "-I"'))
+            expression=ast.get_source_segment(source,argv.elts[2])
+            if choices or template:
+                if '_ot_checked_literal_snippet' in source:
+                    raise ValueError('CalibForge auxiliary snippet helper collision')
+                options=choices or [template]
+                replacements.append((argv.elts[2],'_ot_checked_snippet_choices('+expression+', '+repr([(value,adapted[value],holes) for value,holes in options])+')'))
+                dynamic=True
+            elif any(before!=after for before,after in adapted.items()):
+                expression=ast.get_source_segment(source,argv.elts[2])
+                replacements.append((argv.elts[2],'('+repr(adapted)+')['+expression+']'))
+        else:
+            raise ValueError('CalibForge auxiliary Python role requires review')
+        uses.append({**use,'targets':sorted(targets)})
+    for node in ast.walk(tree):
+        if (isinstance(node,ast.Name) and isinstance(node.ctx,ast.Load) and alias_key(node) in aliases
+                and node not in reviewed_names):
+            raise ValueError('CalibForge unreviewed auxiliary Python alias use')
+    if not direct_calls <= reviewed_names:
+        raise ValueError('CalibForge unreviewed direct auxiliary Python selector use')
+    data=source.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(replacements,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+value.encode()+data[end:]
+    if dynamic:data+=DYNAMIC_SNIPPET_HELPER.encode()
+    data+=package_helper.encode()
+    ast.parse(data.decode())
+    return source_file,data.decode(),dict(source_sha256=record['source_sha256'],selector=selector,uses=uses,
+                                          python=measured['python'],executable=measured['executable'],task_package_prefixes=task_prefixes,helpers=helpers)
+
+
+def shell_task_launcher(line, files):
+    """Move a literal submitted-program launch into a fresh, non-grading helper."""
+    import shlex
+    instruction=files.get('instruction.md',b'').decode()
+    service_role = next((record for record in service_roles()
+                         if record['line']==line and for_task(record)
+                         and record['test_script_sha256']==hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()),None)
+    background=line.endswith(' &')
+    original_command=line[:-2] if background else line
+    command=original_command.removesuffix(' || true')
+    optional=command!=original_command
+    cwd=None
+    match=re.match(r'^cd (/(?:app|workspace)(?:/[A-Za-z0-9_.-]+)*) && ',command)
+    if match:
+        cwd=match[1]
+        if '..' in cwd.split('/'):return None
+        command=command[match.end():]
+    virtualenv=service_role.get('virtualenv') if service_role else None
+    if virtualenv:
+        if (not re.fullmatch(r'/(?:app|workspace)(?:/[A-Za-z0-9_.-]+)+',virtualenv)
+                or '..' in virtualenv.split('/') or not command.startswith('source '+virtualenv+'/bin/activate && ')):
+            return None
+        command=command.removeprefix('source '+virtualenv+'/bin/activate && ')
+    if any(char in command for char in ('$', '`', ';', '|', '&', '<', '>')):
+        return None
+    try:
+        argv=shlex.split(command)
+    except ValueError:
+        return None
+    module=(argv[2] if len(argv)==3 and argv[1]=='-m' and service_role
+            and re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*',argv[2]) else None)
+    target=argv[1] if len(argv)>1 else ''
+    if cwd and not target.startswith('/'):
+        target=cwd+'/'+target
+    if (len(argv)<2 or not re.fullmatch(r'(?:/[A-Za-z0-9_./-]+/)?python3?(?:\.\d+)?',argv[0])
+            or (not module and (not target.startswith(('/app/','/workspace/')) or not target.endswith('.py')))
+            or '..' in argv[1].split('/') or '..' in argv[0].split('/')):
+        return None
+    if module:target='module:'+module
+    if target not in instruction and service_role is None:
+        return None
+    key=hashlib.sha256(line.encode()).hexdigest()[:20]
+    path='tests/ot_task_program_'+key+'.py'
+    if path in files:
+        raise ValueError('CalibForge task-program helper filename collision requires review')
+    environment=('os.environ["VIRTUAL_ENV"]='+repr(virtualenv)+'\n'
+                 'os.environ["VIRTUAL_ENV_PROMPT"]='+repr(virtualenv.rsplit('/',1)[-1])+'\n'
+                 'os.environ["PATH"]='+repr(virtualenv+'/bin:')+'+os.environ.get("PATH", "")\n'
+                 'os.environ.pop("PYTHONHOME",None)\n') if virtualenv else ''
+    source=('"""Execute the submitted task program; grading remains in the clean parent."""\n'
+            'import os\nargv='+repr(argv)+'\n'+('os.chdir('+repr(cwd)+')\n' if cwd else '')+environment+'os.execvp(argv[0],argv)\n')
+    replacement='"${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" -I /'+path
+    if optional:replacement+=' || true'
+    if background:replacement+=' &'
+    elif cwd:replacement='cd '+shlex.quote(cwd)+' && '+replacement
+    return path,source,replacement,dict(original_command=line,task_program=target,task_interpreter=argv[0],
+                                        task_cwd=cwd,background=background,task_virtualenv=virtualenv,
+                                        service_role=service_role,
+                                        helper=path,helper_sha256=hashlib.sha256(source.encode()).hexdigest())
+
+
+def adapt_literal(files, record, name, measured):
+    """Adapt independently measured literal -c graders, keeping task imports."""
+    path=record.get('source_file')
+    if (not isinstance(path,str) or not path.startswith('tests/') or path not in files
+            or record.get('source_sha256')!=hashlib.sha256(files[path]).hexdigest()):
+        raise ValueError('CalibForge literal Python source binding requires review')
+    source=files[path].decode();tree=ast.parse(source);paths=static_paths(tree,'/'+path)
+    calls={(node.lineno,node.col_offset):node for node in ast.walk(tree) if isinstance(node,ast.Call)}
+    executable="__import__('sys').executable" if name is None else "(__import__('os').environ['OT_VERIFIER_BIN'] + '/../aux/"+name+"/bin/python3')"
+    edits=[];proof=[];required_modules={};dynamic=False
+    for use in record['uses']:
+        call=calls.get((use.get('line'),use.get('column')))
+        if (call is None or ast.unparse(call.func) not in ('subprocess.run','subprocess.call','subprocess.check_call','subprocess.check_output','subprocess.Popen')
+                or not call.args or not isinstance(call.args[0],(ast.List,ast.Tuple)) or len(call.args[0].elts)<3
+                or use.get('role')!='grading'):
+            raise ValueError('CalibForge literal Python invocation role requires review')
+        environment = next((keyword.value for keyword in call.keywords if keyword.arg=='env'), None)
+        pythonpath = None
+        environment_role = next((role['literal_environment'] for role in task_module_roles(files)
+            if role.get('test_source_sha256') == hashlib.sha256(source.encode()).hexdigest()
+            and role.get('literal_environment',{}).get('image_sha256') == record.get('sha256')
+            and role['literal_environment'].get('executable') == measured.get('executable')
+            and role['literal_environment'].get('python') == measured.get('python')), None)
+        if environment is not None and environment_role:
+            if ast.unparse(environment) != environment_role['variable']:
+                raise ValueError('Literal Python environment source differs')
+            pythonpath = environment_role['task_root']
+        elif environment is not None:
+            # -I ignores PYTHONPATH. Restore only proven task modules through
+            # the selective finder, never the complete task directory.
+            if (not isinstance(environment, ast.Dict) or len(environment.keys)!=2
+                    or environment.keys[0] is not None or ast.unparse(environment.values[0])!='os.environ'
+                    or not isinstance(environment.keys[1],ast.Constant) or environment.keys[1].value!='PYTHONPATH'
+                    or not isinstance(environment.values[1],ast.Constant)
+                    or not isinstance(environment.values[1].value,str)
+                    or not re.fullmatch(r'/(?:app|workspace)(?:/[A-Za-z0-9_.-]+)*',environment.values[1].value)
+                    or '..' in environment.values[1].value.split('/')):
+                raise ValueError('CalibForge literal Python invocation environment requires review')
+            pythonpath = environment.values[1].value
+        argv=call.args[0]
+        if (paths(argv.elts[0])!={record.get('probe_invocation')} or paths(argv.elts[1])!={'-c'}
+                or use.get('call_sha256')!=hashlib.sha256(ast.get_source_segment(source,call).encode()).hexdigest()):
+            raise ValueError('CalibForge literal Python invocation binding differs')
+        context={**measured,'test_file':'/'+path}
+        if pythonpath:
+            context['implicit_task_root']=pythonpath
+        cwd_argument=next((kw.value for kw in call.keywords if kw.arg=='cwd'),None)
+        if cwd_argument is not None:
+            cwd=paths(cwd_argument)
+        else:
+            workdirs=re.findall(r'^WORKDIR\s+(\S+)\s*$',files.get('environment/Dockerfile',b'').decode(),re.M)
+            cwd=set(workdirs) if len(workdirs)==1 and not re.search(r'\b(?:cd|pushd|popd)\b',files['tests/test.sh'].decode()) else set()
+        if not pythonpath and len(cwd)==1 and all(p in ('/app','/workspace') or p.startswith(('/app/','/workspace/')) for p in cwd):
+            context['implicit_task_root']=next(iter(cwd))
+        snippets=paths(argv.elts[2]);template=grading_snippet_template(argv.elts[2],tree) if not snippets else None
+        choices=grading_helper_templates(argv.elts[2],tree) if not snippets and not template else None
+        if template:snippets={template[0]}
+        if choices:snippets={value[0] for value in choices}
+        if not snippets:raise ValueError('CalibForge literal Python grading snippet requires review')
+        adapted={}
+        for snippet in sorted(snippets):
+            inner=ast.parse(snippet)
+            # A bare import probe may be checking an installation the agent was
+            # asked to change. Do not classify that environment check as grading.
+            def installation_probe(node):
+                if isinstance(node,(ast.Import,ast.ImportFrom)):return True
+                if not isinstance(node,ast.Expr) or not isinstance(node.value,ast.Call) or ast.unparse(node.value.func)!='print':return False
+                return all(isinstance(value,ast.Constant) or isinstance(value,ast.Attribute) and value.attr=='__version__' for value in node.value.args)
+            imported = {alias.name.split('.')[0] for node in inner.body if isinstance(node,ast.Import) for alias in node.names}
+            imported.update(node.module.split('.')[0] for node in inner.body if isinstance(node,ast.ImportFrom) and node.module)
+            instruction = files.get('instruction.md',b'').decode()
+            explicit_source_probe = bool(choices and imported) and all(
+                any(root+'/'+module+'.py' in instruction for root in ('/app','/workspace')) for module in imported)
+            from packaging.utils import canonicalize_name
+            installed_modules = {module for role in task_module_roles(files) for module in role.get('installed_modules', [])}
+            submitted_packages = {canonicalize_name(module) for module in imported - installed_modules} <= task_distributions(files)
+            if imported and all(installation_probe(node) for node in inner.body) and not explicit_source_probe and not submitted_packages:
+                raise ValueError('CalibForge literal Python installation check requires task role review')
+            prepared=preserve_task_metadata(adapt_snippet(snippet,files),files,context)
+            rewritten,_=task_python_calls(prepared,measured['executable'],files=files,image=context)
+            imports,task_imports=review_imports(ast.parse(rewritten),files,context)
+            for module in set(imports)-set(task_imports):
+                origin=measured.get('unversioned_module_origins',{}).get(module)
+                if origin:required_modules[module]=origin
+            adapted[snippet]=preserve_cwd_task_imports(rewritten,files,context)
+            if environment_role:
+                finder=installed_task_import_adapter(environment_role['modules'], measured['prefix'], roots=environment_role['roots'])
+                adapted[snippet]=finder+adapted[snippet]
+        edits.append((argv.elts[0],executable+', "-I"'))
+        expression=ast.get_source_segment(source,argv.elts[2])
+        if choices:
+            if '_ot_checked_literal_snippet' in source:raise ValueError('CalibForge literal snippet helper collision')
+            options=[(value,adapted[value],holes) for value,holes in choices]
+            edits.append((argv.elts[2], '_ot_checked_snippet_choices('+expression+', '+repr(options)+')'))
+            dynamic=True
+        elif template:
+            if '_ot_checked_literal_snippet' in source:raise ValueError('CalibForge literal snippet helper collision')
+            edits.append((argv.elts[2], '_ot_checked_literal_snippet('+expression+', '+repr(template[0])+', '+repr(adapted[template[0]])+', '+repr(template[1])+')'))
+            dynamic=True
+        elif any(before!=after for before,after in adapted.items()):
+            edits.append((argv.elts[2],'('+repr(adapted)+')['+expression+']'))
+        proof.append(use)
+    # Return original-source offsets so several distinct child runtimes can
+    # safely adapt one uploaded test module without shifting each other's uses.
+    offsets=[0]
+    for line in source.encode().splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    encoded=[(offsets[node.lineno-1]+node.col_offset,offsets[node.end_lineno-1]+node.end_col_offset,value) for node,value in edits]
+    return path,encoded,(DYNAMIC_SNIPPET_HELPER if dynamic else ''),required_modules,dict(
+        source_sha256=record['source_sha256'],uses=proof,python=measured['python'],executable=measured['executable'])
+
+
+DYNAMIC_TASK_IMPORT_HELPER = '''
+def _ot_import_submitted_module(name):
+    import importlib.machinery as machinery
+    import importlib.util as util
+    import pathlib
+    import sys
+    if not isinstance(name, str) or not name.isidentifier() or name in sys.stdlib_module_names or name in ('pytest', 'pluggy', 'pip'):
+        raise ImportError('Invalid submitted module name')
+    spec = machinery.PathFinder.find_spec(name, ['/app'])
+    if spec is None or spec.loader is None or spec.origin is None:
+        raise ImportError('Submitted module not found: ' + name)
+    origin = pathlib.Path(spec.origin).resolve()
+    if not origin.is_relative_to('/app') or not origin.is_file():
+        raise ImportError('Submitted module escaped /app')
+    existing = sys.modules.get(name)
+    if existing is not None and getattr(existing, '__file__', None) == spec.origin:
+        return existing
+    module = util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
+    return module
+'''
+
+
+def remove_unused_task_paths(text, files):
+    """Remove reviewed path insertions that import no task module from that root."""
+    original = hashlib.sha256(text.encode()).hexdigest()
+    for role in task_module_roles(files):
+        if role.get('test_source_sha256') == original:
+            for line in role.get('unused_import_path_lines', []):
+                if text.count(line) != 1:
+                    raise ValueError('Unused import path source differs')
+                text = text.replace(line, '', 1)
+    return text
+
+
+def adapt_dynamic_task_imports(text, files):
+    """Preserve source-bound submitted module discovery without exposing /app globally."""
+    records = [role for role in task_module_roles(files)
+               if role.get('test_source_sha256') == hashlib.sha256(text.encode()).hexdigest()
+               and role.get('dynamic_import_calls')]
+    if not records:
+        return text, ''
+    if '_ot_import_submitted_module' in text:
+        raise ValueError('Submitted module helper collision')
+    expected = {digest for role in records for digest in role['dynamic_import_calls']}
+    edits = []
+    found = set()
+    for node in ast.walk(ast.parse(text)):
+        if not isinstance(node, ast.Call):
+            continue
+        digest = hashlib.sha256(ast.dump(node, include_attributes=False).encode()).hexdigest()
+        if digest in expected:
+            if ast.unparse(node.func) not in ('__import__', 'importlib.import_module') or len(node.args) != 1 or node.keywords:
+                raise ValueError('Submitted module import call differs')
+            edits.append(node.func)
+            found.add(digest)
+    if found != expected:
+        raise ValueError('Submitted module import source differs')
+    data = text.encode()
+    offsets = [0]
+    for line in data.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    for node in sorted(edits, key=lambda n: (n.lineno, n.col_offset), reverse=True):
+        start, end = offsets[node.lineno-1]+node.col_offset, offsets[node.end_lineno-1]+node.end_col_offset
+        data = data[:start] + b'_ot_import_submitted_module' + data[end:]
+    return data.decode(), DYNAMIC_TASK_IMPORT_HELPER
+
+
+def adapt_generated_scripts(text, files, image):
+    """Review literal temporary graders before writing them; run with clean Python."""
+    records = [role for role in task_module_roles(files)
+               if role.get('test_source_sha256') == hashlib.sha256(text.encode()).hexdigest()
+               and role.get('generated_script_write_calls')]
+    if not records:
+        return text, ''
+    if len(records) != 1 or '_ot_generated_' in text:
+        raise ValueError('Generated grading script roles overlap')
+    record = records[0]
+    invocation = record.get('generated_script_invocation')
+    if invocation and image.get('original_native_invocation') != invocation:
+        raise ValueError('Generated grader requires its measured original interpreter')
+    tree = ast.parse(text)
+    writes, runs = set(record['generated_script_write_calls']), set(record['generated_script_run_calls'])
+    found_writes, found_runs, edits, sources = set(), set(), [], {}
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call):
+            continue
+        digest = hashlib.sha256(ast.dump(call, include_attributes=False).encode()).hexdigest()
+        if digest in writes:
+            if len(call.args) != 1 or call.keywords:
+                raise ValueError('Generated script writer differs')
+            choices = grading_helper_templates(call.args[0], tree)
+            if not choices or any(holes for _, holes in choices):
+                raise ValueError('Generated script content is not fully literal')
+            for source, _ in choices:
+                if any(isinstance(n, ast.Attribute) and ast.unparse(n) == 'sys.executable'
+                       for n in ast.walk(ast.parse(source))):
+                    raise ValueError('Generated script nested interpreter requires review')
+                sources[source] = preserve_cwd_task_imports(source, files, {**image, 'implicit_task_root': record['generated_script_cwd']})
+            expression = ast.get_source_segment(text, call.args[0])
+            edits.append((call.args[0], '_ot_generated_source(' + expression + ')'))
+            found_writes.add(digest)
+        if digest in runs:
+            if (ast.unparse(call.func) != 'subprocess.run' or len(call.args) != 1
+                    or not isinstance(call.args[0], ast.List) or len(call.args[0].elts) != 2):
+                raise ValueError('Generated script invocation differs')
+            edits.extend([(call.func, '_ot_generated_run'), (call.args[0].elts[0], repr('ot-clean-python'))])
+            found_runs.add(digest)
+    if found_writes != writes or found_runs != runs:
+        raise ValueError('Generated script source binding differs')
+    data = text.encode(); offsets = [0]
+    for line in data.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    for node, replacement in sorted(edits, key=lambda item:(item[0].lineno,item[0].col_offset), reverse=True):
+        start, end = offsets[node.lineno-1]+node.col_offset, offsets[node.end_lineno-1]+node.end_col_offset
+        data = data[:start] + replacement.encode() + data[end:]
+    helper = '\n_ot_generated_sources = ' + repr(sources) + '''
+def _ot_generated_source(content):
+    return _ot_generated_sources[content]
+
+def _ot_generated_run(argv, **kwargs):
+    import pathlib
+    import subprocess
+    import sys
+    if len(argv) != 2 or argv[0] != 'ot-clean-python' or kwargs.get('shell'):
+        raise ValueError('Unexpected generated grader invocation')
+    script = pathlib.Path(argv[1])
+    if not script.is_absolute() or script.read_text() not in _ot_generated_sources.values():
+        raise ValueError('Generated grader content changed')
+    return subprocess.run([sys.executable, '-I', str(script)], **kwargs)
+'''
+    return data.decode(), helper
+
+
+def restore_verifier_helpers(files):
+    """Restore explicitly reviewed Docker COPY helpers from immutable task bytes."""
+    restored = dict(files)
+    for role in task_module_roles(files):
+        for target, source in role.get('verifier_helper_sources', {}).items():
+            if (not re.fullmatch(r'tests/[A-Za-z0-9_]+\.py', target)
+                    or not source.startswith('environment/files/')
+                    or source not in role['evidence_sha256']):
+                raise ValueError('Verifier helper source binding requires review')
+            if target in restored and restored[target] != files[source]:
+                raise ValueError('Verifier helper conflicts with supplied tests')
+            restored[target] = files[source]
+    return restored
+
+
+def adapt_project_tests(text, files, image):
+    """Run reviewed pristine regression suites from freshly uploaded /tests code."""
+    records=[r for r in task_module_roles(files) if r.get('test_source_sha256')==hashlib.sha256(text.encode()).hexdigest()
+             and r.get('project_test_calls')]
+    if not records:return text,''
+    if len(records)!=1 or '_ot_project_pytest' in text:raise ValueError('Project test role collision')
+    record=records[0];sources={}
+    for target,entry in record['project_test_sources'].items():
+        if 'text' in entry:
+            body=entry['text']
+            if (hashlib.sha256(body.encode()).hexdigest()!=entry['sha256']
+                    or record.get('project_image_sha256')!=image.get('source_image_sha256')):
+                raise ValueError('Pristine project test image or source differs')
+        else:
+            body=files[entry['source_file']].decode()
+        tree=ast.parse(body)
+        # These source-bound suites use __file__ only to construct this import
+        # path. Resolve it against its original location before relocation.
+        edits=[]
+        for call in ast.walk(tree):
+            if isinstance(call,ast.Call) and ast.unparse(call.func)=='sys.path.insert':
+                edits.append((call.args[1],repr(entry['import_root'])))
+        data=body.encode();offsets=[0]
+        for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+        for node,value in sorted(edits,key=lambda x:(x[0].lineno,x[0].col_offset),reverse=True):
+            a,b=offsets[node.lineno-1]+node.col_offset,offsets[node.end_lineno-1]+node.end_col_offset
+            data=data[:a]+value.encode()+data[b:]
+        body=data.decode()
+        rewritten_tree=ast.parse(body)
+        parents={child:parent for parent in ast.walk(rewritten_tree) for child in ast.iter_child_nodes(parent)}
+        for node in ast.walk(rewritten_tree):
+            if not isinstance(node,ast.Name) or node.id!='__file__':continue
+            child=node;ancestor=parents.get(node)
+            while ancestor is not None:
+                if (isinstance(ancestor,ast.If) and ast.unparse(ancestor.test)=="__name__ == '__main__'"
+                        and child in ancestor.body):break
+                child=ancestor;ancestor=parents.get(ancestor)
+            if ancestor is None:
+                raise ValueError('Relocated project test file semantics require review')
+        if any(isinstance(n,ast.Attribute) and ast.unparse(n)=='sys.executable' for n in ast.walk(ast.parse(body))):
+            raise ValueError('Project test nested interpreter requires review')
+        sources[target]=preserve_cwd_task_imports(body,files,{**image,'implicit_task_root':entry['import_root'],'test_file':target})
+    expected=set(record['project_test_calls']);found=set();edits=[]
+    for call in ast.walk(ast.parse(text)):
+        if not isinstance(call,ast.Call):continue
+        digest=hashlib.sha256(ast.dump(call,include_attributes=False).encode()).hexdigest()
+        if digest not in expected:continue
+        if (ast.unparse(call.func)!='subprocess.run' or len(call.args)!=1
+                or not isinstance(call.args[0],ast.List) or len(call.args[0].elts)<4):
+            raise ValueError('Project test invocation differs')
+        edits.extend([(call.func,'_ot_project_pytest'),(call.args[0].elts[0],repr('ot-clean-python'))]);found.add(digest)
+    if found!=expected:raise ValueError('Project test source differs')
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(edits,key=lambda x:(x[0].lineno,x[0].col_offset),reverse=True):
+        a,b=offsets[node.lineno-1]+node.col_offset,offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:a]+value.encode()+data[b:]
+    groups=record.get('project_test_groups',{})
+    if any(not group or not set(group)<=sources.keys() for group in groups.values()):
+        raise ValueError('Project test group includes unreviewed sources')
+    helper='\n_ot_project_test_sources = '+repr(sources)+'\n_ot_project_test_groups = '+repr(groups)+'''
+def _ot_project_pytest(argv, **kwargs):
+    import os
+    import pathlib
+    import subprocess
+    import sys
+    import tempfile
+    if (argv[:3] != ['ot-clean-python','-m','pytest']
+            or argv[3] not in {*_ot_project_test_sources,*_ot_project_test_groups} or kwargs.get('shell')):
+        raise ValueError('Unexpected project regression invocation')
+    with tempfile.TemporaryDirectory(prefix='.ot-project-tests-',dir='/tests') as directory:
+        members=_ot_project_test_groups.get(argv[3],[argv[3]])
+        for member in members:
+            target=pathlib.Path(directory)/pathlib.Path(member).name
+            target.write_text(_ot_project_test_sources[member])
+        if argv[3] in _ot_project_test_groups:
+            target=pathlib.Path(directory)
+        env=dict(kwargs.pop('env',os.environ))
+        env['PYTEST_DISABLE_PLUGIN_AUTOLOAD']='1'
+        env.pop('PYTEST_ADDOPTS',None)
+        env.pop('PYTEST_PLUGINS',None)
+        return subprocess.run([sys.executable,'-I','-m','pytest','--import-mode=importlib','--noconftest',str(target),*argv[4:]],env=env,**kwargs)
+'''
+    return data.decode(),helper
+
+
+def adapt_wrapped_grading(text, files):
+    """Expose an exact reviewed Valgrind child for ordinary clean-Python review."""
+    records=[role for role in task_module_roles(files)
+             if role.get('test_source_sha256')==hashlib.sha256(text.encode()).hexdigest()
+             and role.get('valgrind_call_ast_sha256')]
+    if not records:return text,''
+    if len(records)!=1 or '_ot_valgrind_' in text:
+        raise ValueError('Valgrind grading wrapper collision')
+    edits=[];record=records[0]
+    for node in ast.walk(ast.parse(text)):
+        if not isinstance(node,ast.Call) or hashlib.sha256(ast.dump(node).encode()).hexdigest()!=record['valgrind_call_ast_sha256']:
+            continue
+        if ast.unparse(node.func)!='subprocess.run' or len(node.args)!=1 or not isinstance(node.args[0],ast.List):
+            raise ValueError('Valgrind grading invocation differs')
+        argv=node.args[0]
+        if (len(argv.elts)!=6 or [ast.literal_eval(n) for n in argv.elts[:3]]!=['valgrind','--leak-check=full','--error-exitcode=99']
+                or ast.unparse(argv.elts[3])!='sys.executable' or ast.literal_eval(argv.elts[4])!='-c'
+                or any(k.arg not in ('cwd','capture_output','text','timeout') for k in node.keywords)):
+            raise ValueError('Valgrind grading arguments differ')
+        edits.extend([(node.func,'_ot_valgrind_run'),(argv,ast.unparse(ast.List(elts=argv.elts[3:],ctx=ast.Load())))])
+    if len(edits)!=2:raise ValueError('Valgrind grading call binding differs')
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(edits,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+value.encode()+data[end:]
+    helper='''
+def _ot_valgrind_run(argv, **kwargs):
+    import os, subprocess, sys
+    if argv[:3] != [sys.executable, '-I', '-c'] or len(argv) != 4:
+        raise ValueError('Valgrind requires the isolated clean grading interpreter')
+    env = dict(os.environ)
+    env['VALGRIND_LIB'] = env['OT_VERIFIER_BIN'] + '/../native-resources/valgrind'
+    env['LD_LIBRARY_PATH'] = (env['LD_LIBRARY_PATH'] + ':' if env.get('LD_LIBRARY_PATH') else '') + '/usr/lib/debug'
+    env['GLIBCPP_FORCE_NEW'] = env['GLIBCXX_FORCE_NEW'] = '1'
+    return subprocess.run([env['OT_VERIFIER_BIN']+'/valgrind', '--leak-check=full', '--error-exitcode=99', *argv], env=env, **kwargs)
+'''
+    return data.decode(),helper
+
+
+def adapt_stdin_grading(text, files, image):
+    """Separate literal stdin graders from a reviewed supplied regression script."""
+    records=[role for role in task_module_roles(files)
+             if role.get('test_source_sha256')==hashlib.sha256(text.encode()).hexdigest()
+             and role.get('stdin_grading_helper')]
+    if not records:return text,''
+    if len(records)!=1 or '_ot_stdin_' in text or not image.get('original_uvx_path'):
+        raise ValueError('Stdin grading helper requires its original primary Python')
+    record=records[0]['stdin_grading_helper'];tree=ast.parse(text);paths=static_paths(tree)
+    if any(not re.fullmatch(r'/tests/[A-Za-z0-9_]+\.py',target) or target[1:] not in files
+           for target in record['scripts'].values()):
+        raise ValueError('Stdin grader requires fresh supplied regression scripts')
+    definitions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==record['function']]
+    if len(definitions)!=1 or hashlib.sha256(ast.dump(definitions[0]).encode()).hexdigest()!=record['function_ast_sha256']:
+        raise ValueError('Stdin grading helper source differs')
+    parent={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    sources={};seen=set()
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.Name) or node.id!=record['function'] or not isinstance(node.ctx,ast.Load):continue
+        call=parent.get(node)
+        if not isinstance(call,ast.Call) or call.func is not node or len(call.args)!=1:
+            raise ValueError('Stdin grading helper has an unreviewed caller')
+        target=paths(call.args[0])
+        if target=={'/dev/stdin'}:
+            value=next((k.value for k in call.keywords if k.arg=='input_data'),None)
+            snippets=paths(value) if value is not None else set()
+            if len(snippets)!=1:raise ValueError('Stdin grading caller is not literal')
+            source=next(iter(snippets));context={**image,'implicit_task_root':'/app'}
+            reviewed,_=task_python_calls(source,None,files=files,image=context)
+            sources[source]=preserve_cwd_task_imports(reviewed,files,context)
+        elif len(target)==1 and next(iter(target)) in record['scripts']:
+            if any(k.arg=='input_data' for k in call.keywords):raise ValueError('File grader has unexpected stdin')
+            seen.update(target)
+        else:raise ValueError('Stdin grading caller target differs')
+    if seen!=set(record['scripts']) or not sources:raise ValueError('Stdin grading caller coverage differs')
+    calls=[n for n in ast.walk(definitions[0]) if isinstance(n,ast.Call) and ast.unparse(n.func)=='subprocess.run']
+    if len(calls)!=1:raise ValueError('Stdin grading invocation differs')
+    call=calls[0];argv=call.args[0]
+    if not isinstance(argv,ast.List) or len(argv.elts)!=2 or ast.unparse(argv.elts[0])!='sys.executable':
+        raise ValueError('Stdin grading interpreter differs')
+    edits=[(call.func,'_ot_stdin_run'),(argv.elts[0],repr('ot-clean-python'))]
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(edits,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+value.encode()+data[end:]
+    helper='\n_ot_stdin_sources='+repr(sources)+'\n_ot_stdin_scripts='+repr(record['scripts'])+'''
+def _ot_stdin_run(argv, **kwargs):
+    import sys, subprocess
+    if len(argv)!=2 or argv[0]!='ot-clean-python' or kwargs.get('shell'):
+        raise ValueError('Unexpected stdin grading invocation')
+    if argv[1]=='/dev/stdin':
+        kwargs['input']=_ot_stdin_sources[kwargs['input']]
+        target='/dev/stdin'
+    else:
+        target=_ot_stdin_scripts[argv[1]]
+    return subprocess.run([sys.executable,'-I',target],**kwargs)
+'''
+    return data.decode(),helper
+
+
+def pristine_project_suite(files, image_sha256, image):
+    """Restore a source-bound upstream suite, retaining its submitted package imports."""
+    records=[role for role in task_module_roles(files) if role.get('pristine_suite')
+             and hashlib.sha256(files.get('tests/test_outputs.py',b'')).hexdigest()==role.get('test_source_sha256')]
+    if not records:return {},None,''
+    if len(records)!=1:raise ValueError('Pristine suite roles overlap')
+    record=records[0]['pristine_suite'];package=record['package']
+    if image_sha256!=record['image_sha256'] or not re.fullmatch(r'[A-Za-z_]\w*',package):
+        raise ValueError('Pristine suite image binding differs')
+    root='/tests/ot_pristine_'+package
+    assets={'tests/ot_pristine_'+package+'/'+package+'/__init__.py':b''}
+    for path,entry in record['files'].items():
+        is_test = bool(re.fullmatch(re.escape(package)+r'/tests/[A-Za-z0-9_]+\.py',path))
+        is_resource = bool(re.fullmatch(re.escape(package)+r'/test_images/[A-Za-z0-9_.-]+\.fits\.fz',path))
+        if not (is_test or is_resource):
+            raise ValueError('Pristine suite member path requires review')
+        import base64
+        body=entry['text'].encode() if 'text' in entry else base64.b64decode(entry['base64'],validate=True)
+        if hashlib.sha256(body).hexdigest()!=entry['sha256'] or len(body)!=entry['bytes']:
+            raise ValueError('Pristine suite member digest differs')
+        if is_resource:
+            assets[root[1:]+'/'+path]=body
+            continue
+        tree=ast.parse(body)
+        for node in ast.walk(tree):
+            if isinstance(node,ast.Import):imports={alias.name.split('.')[0] for alias in node.names}
+            elif isinstance(node,ast.ImportFrom) and not node.level:imports={node.module.split('.')[0]}
+            else:imports=set()
+            if imports-set(image['stdlib'])-set(image.get('import_names',[]))-{'pytest'}:
+                raise ValueError('Pristine suite dependency missing from clean runtime')
+            if (isinstance(node,ast.Attribute) and ast.unparse(node)=='sys.executable'
+                    or isinstance(node,ast.Call) and ast.unparse(node.func).startswith(('subprocess.','os.exec'))):
+                raise ValueError('Pristine suite child execution requires review')
+            if isinstance(node,ast.ImportFrom) and node.level>2:
+                raise ValueError('Pristine suite relative import escapes its package')
+        text=body.decode()
+        for node in ast.walk(tree):
+            if isinstance(node,ast.Call) and ast.unparse(node.func)=='importlib.resources.files':
+                if (len(node.args)!=1 or not isinstance(node.args[0],ast.Constant) or node.args[0].value!=package
+                        or not any(p.startswith(package+'/test_images/') for p in record['files'])):
+                    raise ValueError('Pristine suite resource source requires review')
+                original=ast.get_source_segment(body.decode(),node)
+                text=text.replace(original,"__import__('pathlib').Path("+repr(root+'/'+package)+")")
+        body=text.encode()
+        assets[root[1:]+'/'+path]=body
+    source=files['tests/test_outputs.py'].decode();tree=ast.parse(source);edits=[]
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.Call) or hashlib.sha256(ast.dump(node).encode()).hexdigest()!=record['call_ast_sha256']:continue
+        if (ast.unparse(node.func)!='subprocess.run' or not node.args or not isinstance(node.args[0],ast.List)
+                or len(node.args[0].elts)!=5 or ast.unparse(node.args[0].elts[0])!='sys.executable'):
+            raise ValueError('Pristine suite invocation differs')
+        edits.extend([(node.func,'_ot_pristine_suite_run'),(node.args[0].elts[0],repr('ot-clean-python'))])
+    if len(edits)!=2:raise ValueError('Pristine suite call binding differs')
+    data=source.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(edits,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+value.encode()+data[end:]
+    suite=root+'/'+package+'/tests'
+    bootstrap=installed_task_import_adapter({package},image['prefix'])+'\n'+'''import importlib, importlib.util, sys
+importlib.import_module(PACKAGE)
+class SuiteFinder:
+    @staticmethod
+    def find_spec(fullname,path=None,target=None):
+        if fullname==PACKAGE+'.tests':
+            return importlib.util.spec_from_file_location(fullname,SUITE+'/__init__.py',submodule_search_locations=[SUITE])
+sys.meta_path.insert(0,SuiteFinder)
+importlib.import_module(PACKAGE+'.tests')
+import pytest
+raise SystemExit(pytest.main(['-c','/dev/null','--rootdir',SUITE,'--confcutdir',SUITE,'--import-mode=importlib',SUITE,*sys.argv[1:]]))
+'''.replace('PACKAGE',repr(package)).replace('SUITE',repr(suite))
+    helper='\n_ot_pristine_suite_bootstrap='+repr(bootstrap)+'\n_ot_pristine_suite_targets='+repr(record['targets'])+'''
+def _ot_pristine_suite_run(argv, **kwargs):
+    import sys,subprocess
+    if (len(argv)!=5 or argv[:3]!=['ot-clean-python','-m','pytest']
+            or argv[3] not in _ot_pristine_suite_targets or argv[4]!='-v' or kwargs.get('shell')):
+        raise ValueError('Unexpected pristine suite invocation')
+    return subprocess.run([sys.executable,'-I','-c',_ot_pristine_suite_bootstrap,argv[4]],**kwargs)
+'''
+    return assets,data.decode(),helper
+
+
+def preserve_task_metadata(text, files, image):
+    """Read only the named submitted distribution's version, without importing it."""
+    names=set(task_distributions(files))|{name for role in task_module_roles(files) for name in role.get('installed_modules',[])}
+    calls=[node for node in ast.walk(ast.parse(text)) if isinstance(node,ast.Call)
+           and ast.unparse(node.func)=='importlib.metadata.version' and len(node.args)==1
+           and isinstance(node.args[0],ast.Constant) and node.args[0].value in names and not node.keywords]
+    if not calls:return text
+    prefix=image.get('task_package_prefixes',image.get('prefix'))
+    prefixes=prefix if isinstance(prefix,list) else [prefix]
+    if not prefixes or any(not isinstance(path,str) or not path.startswith('/') or '..' in path.split('/') for path in prefixes):
+        raise ValueError('Submitted distribution metadata prefix requires review')
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for call in sorted(calls,key=lambda n:(n.lineno,n.col_offset),reverse=True):
+        node=call.func;a=offsets[node.lineno-1]+node.col_offset;b=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:a]+b'_ot_task_distribution_version'+data[b:]
+    helper='\n_ot_task_metadata_names='+repr(sorted({call.args[0].value for call in calls}))+'\n_ot_task_metadata_prefixes='+repr(prefixes)+'''
+def _ot_task_distribution_version(name):
+    from importlib import metadata as _ot_metadata
+    import pathlib,site,re
+    if name not in _ot_task_metadata_names:raise ValueError('Unreviewed task distribution')
+    roots=site.getsitepackages(_ot_task_metadata_prefixes)
+    for root in list(roots):
+        for pth in pathlib.Path(root).glob('*.pth'):
+            for line in pth.read_text(errors='replace').splitlines():
+                if line.startswith('/') and pathlib.Path(line).is_dir():roots.append(line)
+    normalize=lambda value:re.sub('[-_.]+','-',value).lower()
+    for distribution in _ot_metadata.distributions(path=roots):
+        if normalize(distribution.metadata.get('Name',''))==normalize(name):return distribution.version
+    raise _ot_metadata.PackageNotFoundError(name)
+'''
+    # The helper must be defined before an immediate -c metadata lookup.
+    return helper+'\n'+data.decode()
+
+
+def selector_package_calls(tree, parents, aliases, alias_key, record, name):
+    """Review composite pip argv uses, preserving their original install points."""
+    alias=record['alias']
+    assignments=[n for n in ast.walk(tree) if isinstance(n,ast.Assign)
+                 and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id==alias]
+    stores=[n for n in ast.walk(tree) if isinstance(n,ast.Name) and n.id==alias and isinstance(n.ctx,(ast.Store,ast.Del))]
+    if len(assignments)!=1 or len(stores)!=1:
+        raise ValueError('Composite package alias binding differs')
+    value=assignments[0].value
+    if (not isinstance(value,ast.List) or len(value.elts)!=3
+            or not isinstance(value.elts[0],ast.Name) or alias_key(value.elts[0]) not in aliases
+            or [ast.literal_eval(n) for n in value.elts[1:]]!=['-m','pip']):
+        raise ValueError('Composite package argv differs')
+    expected=set(record['calls']);seen=set();edits=[]
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.Name) or node.id!=alias or not isinstance(node.ctx,ast.Load):continue
+        binary=parents[node];call=parents.get(binary)
+        if (not isinstance(binary,ast.BinOp) or not isinstance(binary.op,ast.Add) or binary.left is not node
+                or not isinstance(binary.right,ast.List) or not binary.right.elts
+                or not isinstance(binary.right.elts[0],ast.Constant) or binary.right.elts[0].value not in ('install','show')
+                or not isinstance(call,ast.Call) or ast.unparse(call.func)!='subprocess.run'
+                or not call.args or call.args[0] is not binary):
+            raise ValueError('Composite package alias use requires review')
+        digest=hashlib.sha256(ast.dump(call).encode()).hexdigest()
+        if digest not in expected:raise ValueError('Composite package call differs')
+        seen.add(digest);edits.append((call.func,'_ot_selector_package_run'))
+    if seen!=expected:raise ValueError('Composite package call coverage differs')
+    helper='\n_ot_selector_package_name='+repr(name)+'''
+def _ot_selector_package_run(argv, **kwargs):
+    import os as _ot_package_os
+    import subprocess as _ot_package_subprocess
+    clean=_ot_package_os.environ['OT_VERIFIER_BIN']+'/../aux/'+_ot_selector_package_name+'/bin/python3'
+    if argv[:3]!=[clean,'-m','pip'] or argv[3] not in ('install','show') or kwargs.get('shell'):
+        raise ValueError('Unreviewed composite package command')
+    env=dict(kwargs.pop('env',_ot_package_os.environ))
+    for key in list(env):
+        if key.startswith(('PYTHON','PIP_','UV_')):env.pop(key)
+    env['PIP_CONFIG_FILE']='/dev/null'
+    args=argv[3:]
+    offline=_ot_package_os.environ.get('OT_VERIFIER_OFFLINE')
+    if args[0]=='install' and offline:
+        args=[args[0],'--no-index','--find-links',offline+'/wheels',*args[1:]]
+        env.update(PIP_NO_INDEX='1',PIP_FIND_LINKS=offline+'/wheels')
+    return _ot_package_subprocess.run([clean,'-I','-m','pip','--isolated',*args],env=env,**kwargs)
+'''
+    return edits,{value.elts[0]},helper
+
+
+def shell_dependency_installation(files, image_sha256):
+    """Retain source-bound system dependency installs at their original point."""
+    assets,commands={},{}
+    for role in task_module_roles(files):
+        item=role.get('shell_dependency_installation')
+        if not item:continue
+        script=files.get('tests/test.sh',b'').decode()
+        if (hashlib.sha256(script.encode()).hexdigest()!=item['test_script_sha256']
+                or image_sha256!=item['spec']['image_sha256']
+                or script.count(item['block'])!=1
+                or item['spec'].get('apt')!=['python3-numpy']
+                or item['block']!='apt-get update -qq 2>/dev/null || true\napt-get install -y -qq python3-numpy 2>/dev/null || true'):
+            raise ValueError('System dependency installation binding differs')
+        target='tests/ot_system_numpy.sh'
+        if target in files:raise ValueError('System dependency helper collision')
+        assets[target]=('#!/bin/bash\n'
+            'if [ -n "${OT_VERIFIER_OFFLINE:-}" ]; then\n'
+            '  export APT_CONFIG="$OT_VERIFIER_OFFLINE/apt.conf"\n'
+            '  # A single mapped root UID cannot switch to the _apt user.\n'
+            '  if { read -r _ot_uid_inside _ot_uid_outside _ot_uid_count && ! read -r _ot_uid_extra; } </proc/self/uid_map &&\n'
+            '     [ "$_ot_uid_inside" = 0 ] && [ "$_ot_uid_count" = 1 ]; then\n'
+            '    printf \'APT::Sandbox::User "root";\\n\' >"$OT_VERIFIER_OFFLINE/apt/conf.d/zzzzz-ot-calibforge-rootmap" || exit $?\n'
+            '  fi\nfi\n'+item['block']+'\n').encode()
+        commands[item['block']]='bash /'+target
+    return assets,commands
+
+
+def adapt_selectable_grading(files, records):
+    """Keep a submitted package selector while separating its grading children."""
+    first=next(iter(records.values()));path=first['source_file'];source=files[path].decode()
+    digest=hashlib.sha256(source.encode()).hexdigest()
+    if (any(r['source_file']!=path or r['source_sha256']!=digest or r['selector']!='_find_python_with_faiss'
+            or r['main_executable']!=first['main_executable'] for r in records.values())
+            or '_ot_selectable_' in source):
+        raise ValueError('Selectable grading source binding differs')
+    tree=ast.parse(source);paths=static_paths(tree,'/'+path);calls=[];snippets={'import faiss'};edits=[]
+    for node in ast.walk(tree):
+        if isinstance(node,ast.Attribute) and ast.unparse(node)=='sys.executable':
+            edits.append((node,repr(first['main_executable'])))
+        if not isinstance(node,ast.Call) or ast.unparse(node.func)!='subprocess.run':continue
+        calls.append(hashlib.sha256(ast.dump(node).encode()).hexdigest())
+        edits.append((node.func,'_ot_selectable_run'))
+        argv=node.args[0]
+        if not isinstance(argv,ast.List):raise ValueError('Selectable grading argv differs')
+        if len(argv.elts)==3 and paths(argv.elts[1])=={'-c'}:
+            values=paths(argv.elts[2])
+            if not values:raise ValueError('Selectable grader must have literal source')
+            snippets.update(values)
+    if any(sorted(r['uses'])!=sorted(calls) for r in records.values()):
+        raise ValueError('Selectable grading call coverage differs')
+    if len(snippets)!=3:raise ValueError('Selectable grading literal coverage differs')
+    routes={}
+    for name,record in records.items():
+        prefix=record['observed']['prefix']
+        if not prefix.startswith('/') or '..' in prefix.split('/'):
+            raise ValueError('Selectable task prefix differs')
+        adapter=installed_task_import_adapter({'faiss'},prefix)
+        metadata='''from importlib import metadata
+import site,re,sys
+name=sys.argv[1]
+assert name in ('faiss-cpu','faiss-gpu')
+normalize=lambda value:re.sub('[-_.]+','-',value).lower()
+names={normalize(d.metadata.get('Name','')) for d in metadata.distributions(path=site.getsitepackages(PREFIXES))}
+# The original command also failed when pip was absent in this candidate.
+raise SystemExit(0 if name in names and 'pip' in names else 1)
+'''.replace('PREFIXES',repr([prefix]))
+        for candidate in record['candidates']:
+            if candidate in routes or not candidate.startswith('/') or '..' in candidate.split('/'):
+                raise ValueError('Selectable Python candidate binding differs')
+            routes[candidate]=dict(auxiliary=name,snippets={code:adapter+'\n'+code for code in sorted(snippets)},metadata=metadata)
+    data=source.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(edits,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        a=offsets[node.lineno-1]+node.col_offset;b=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:a]+value.encode()+data[b:]
+    helper='\n_ot_selectable_routes='+repr(routes)+'''
+def _ot_selectable_run(argv, **kwargs):
+    import os as _ot_selectable_os
+    import shutil as _ot_selectable_shutil
+    import subprocess as _ot_selectable_subprocess
+    if kwargs.get('shell'):raise ValueError('Unreviewed selectable shell command')
+    if len(argv)==2 and argv[0]=='which' and argv[1] in ('python3','python'):
+        path=_ot_selectable_shutil.which(argv[1])
+        return _ot_selectable_subprocess.CompletedProcess(argv,0 if path else 1,(path+'\\n') if path else '','')
+    if len(argv)==2 and argv[1]=='/app/benchmark.py':
+        # This is the submitted program, not a grading child.
+        return _ot_selectable_subprocess.run(argv,**kwargs)
+    route=_ot_selectable_routes.get(argv[0])
+    if route is None:raise ValueError('Unprepared original selector Python: '+str(argv[0]))
+    clean=_ot_selectable_os.environ['OT_VERIFIER_BIN']+'/../aux/'+route['auxiliary']+'/bin/python3'
+    if len(argv)==3 and argv[1]=='-c' and argv[2] in route['snippets']:
+        return _ot_selectable_subprocess.run([clean,'-I','-c',route['snippets'][argv[2]]],**kwargs)
+    if len(argv)==5 and argv[1:4]==['-m','pip','show'] and argv[4] in ('faiss-cpu','faiss-gpu'):
+        return _ot_selectable_subprocess.run([clean,'-I','-c',route['metadata'],argv[4]],**kwargs)
+    raise ValueError('Unreviewed selectable grading invocation')
+'''
+    return path,data.decode()+helper
+
+
+# ==============================================================================
+# Packaging Runtime
+# ==============================================================================
+
+"""Reviewed package-installation tests using fresh private child environments.
+
+The submitted project is built at its original test point. Only build inputs,
+never the project or a trial's installed package, belong in the shared cache.
+"""
+import ast
+import hashlib
+import json
+from pathlib import Path
+from functools import lru_cache
+
+
+# This exact pristine image supplies the same managed 3.13.9 interpreter as
+# the reviewed uvx family. Wheel preparation does not use a task installation.
+BUILD_IMAGE = 'f9bd7475220d5526353ef265353308450a7bdd54589cbba6dea167167998caf5'
+
+
+@lru_cache(maxsize=4)
+def _records():
+    return copy.deepcopy(_TASK_PACKAGING_ROLES)
+
+
+def packaging_role(files, source_file, image):
+    records=_records()
+    matches=[record for record in records
+             if record['source_file']==source_file
+             and record['task']==current_task.get()
+             and hashlib.sha256(files.get(source_file,b'')).hexdigest()==record['source_sha256']
+             and all(path in files and hashlib.sha256(files[path]).hexdigest()==digest
+                     for path,digest in record['evidence_sha256'].items())]
+    if not matches:return None
+    if (len(matches)!=1 or image.get('python')!=matches[0].get('python','3.13.9')
+            or bool(image.get('original_uvx_path'))!=matches[0].get('original_uvx',True)):
+        raise ValueError('CalibForge packaging requires its exact original Python selection')
+    return matches[0]
+
+
+def adapt(files, source_file, image):
+    """Return source edits and a helper only for an entirely reviewed test file."""
+    record=packaging_role(files,source_file,image)
+    if record is None:return files[source_file].decode(),'',None
+    source=files[source_file].decode();tree=ast.parse(source)
+    if any(isinstance(n,ast.Name) and n.id.startswith('_ot_packaging_') for n in ast.walk(tree)):
+        raise ValueError('CalibForge packaging helper name collision')
+    parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    edits=[];calls=[]
+    for node in ast.walk(tree):
+        if (isinstance(node,ast.Call) and ast.unparse(node.func)=='os.path.exists'
+                and len(node.args)==1 and isinstance(node.args[0],ast.Constant)
+                and node.args[0].value in record.get('fresh_venv_guards', [])):
+            edits.append((node.func,'_ot_packaging_has_venv'))
+        if not isinstance(node,ast.Call) or ast.unparse(node.func)!='subprocess.run':continue
+        digest=hashlib.sha256(ast.dump(node).encode()).hexdigest()
+        if digest not in record['calls']:
+            raise ValueError('CalibForge packaging invocation requires review')
+        owner=parents.get(node)
+        while owner is not None and not isinstance(owner,ast.FunctionDef):owner=parents.get(owner)
+        if owner is None:raise ValueError('CalibForge packaging cannot run before helper initialization')
+        calls.append(digest)
+        if digest in record.get('primary_python_calls',[]):continue
+        if digest==record.get('shell_call'):
+            edits.append((node.func,'_ot_packaging_shell_run'));continue
+        if digest==record.get('temporary_script_call'):
+            edits.append((node.func,'_ot_packaging_script_run'));continue
+        edits.append((node.func,'_ot_packaging_run'))
+        argv=node.args[0] if node.args else None
+        if (isinstance(argv,ast.List) and len(argv.elts)==4
+                and isinstance(argv.elts[0],ast.Constant) and argv.elts[0].value in ('python','python3')
+                and all(isinstance(value,ast.Constant) for value in argv.elts[1:3])
+                and [value.value for value in argv.elts[1:3]]==['-m','venv']):
+            # The measured uvx family prepends its own bin directory to PATH.
+            # This literal child therefore used the same parent Python.
+            edits.append((argv.elts[0],'_ot_packaging_primary_python'))
+    # A reviewed file may pass creation commands through a local run helper.
+    for child in ast.walk(tree):
+        if isinstance(child,ast.Attribute) and ast.unparse(child)=='sys.executable':
+            edits.append((child,'_ot_packaging_primary_python'))
+    if sorted(calls)!=sorted(record['calls']):
+        raise ValueError('CalibForge packaging call coverage differs')
+    data=source.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,text in sorted(edits,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+text.encode()+data[end:]
+    fixture = record.get('local_http_fixture')
+    if fixture is not None and fixture != {'command':'datafetch','url':'https://httpbin.org/get'}:
+        raise ValueError('CalibForge packaging HTTP fixture requires review')
+    primary = record.get('primary_commands', [])
+    if primary and primary not in (['python','pip','filestats','fs-analyze'],
+            ['python','pip','datapipeline','datapipeline-process','datapipeline-validate','datapipeline-transform'],
+            ['pip','taskflow','tf'], ['pip']):
+        raise ValueError('CalibForge primary packaging commands require review')
+    suffix=''
+    auxiliary=record.get('auxiliary_installer')
+    if auxiliary:
+        if auxiliary!='package_installer' or primary!=['pip','taskflow','tf']:
+            raise ValueError('Auxiliary packaging installer requires review')
+        suffix="\n_ot_packaging_auxiliary = True\n_ot_packaging_primary_python = _ot_packaging_os.environ['OT_VERIFIER_BIN']+'/../aux/package_installer/bin/python3'\n"
+    if record.get('shell_commands'):
+        if primary!=['pip'] or not record.get('grading_scripts'):
+            raise ValueError('Reviewed shell packaging requires literal grading sources')
+        suffix+='\n_ot_packaging_shell_commands='+repr(record['shell_commands'])+'\n_ot_packaging_grading_scripts='+repr(record['grading_scripts'])+'\n'+SHELL_HELPER
+    return data.decode(),HELPER+'\n_ot_packaging_http_fixture='+repr(fixture)+'\n_ot_packaging_primary_commands='+repr(primary)+'\n'+suffix,record
+
+
+def packaging_offline_spec(record):
+    builder=record.get('offline_builder',dict(image_sha256=BUILD_IMAGE,python='/opt/verifier/bin/python'))
+    return dict(apt=[],uv=True,python=[dict(tool='uv',python=builder['python'],
+                requirements=record['build_requirements'])],image_sha256=builder['image_sha256'])
+
+
+HELPER = '''
+# Clean packaging children: no installed submitted project enters a shared cache.
+import os as _ot_packaging_os
+import sys as _ot_packaging_sys
+import sysconfig as _ot_packaging_sysconfig
+import tempfile as _ot_packaging_tempfile
+import subprocess as _ot_packaging_subprocess
+from pathlib import Path as _ot_packaging_Path
+_ot_packaging_primary_python = _ot_packaging_sys.executable
+_ot_packaging_roots = {}
+_ot_packaging_http_fixture = None
+_ot_packaging_primary_commands = []
+_ot_packaging_auxiliary = False
+
+def _ot_packaging_scripts():
+    if not _ot_packaging_auxiliary:
+        return _ot_packaging_sysconfig.get_path('scripts')
+    result=_ot_packaging_subprocess.run([_ot_packaging_primary_python,'-I','-c',"import sysconfig;print(sysconfig.get_path('scripts'))"],capture_output=True,text=True,check=True)
+    return result.stdout.strip()
+
+def _ot_packaging_has_venv(path):
+    return path in _ot_packaging_roots
+
+def _ot_packaging_fetch_fixture(argv, kwargs):
+    import http.server, json, threading
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body=json.dumps({'url':'http://127.0.0.1:'+str(self.server.server_port)+self.path,
+                             'args':{},'headers':dict(self.headers),'origin':self.client_address[0]}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        def log_message(self, *args):
+            pass
+    server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+    thread=threading.Thread(target=server.serve_forever,daemon=True)
+    thread.start()
+    env=dict(_ot_packaging_os.environ if kwargs.get('env') is None else kwargs['env'])
+    env['NO_PROXY']=env['no_proxy']='127.0.0.1,localhost'
+    try:
+        return _ot_packaging_run([argv[0],'http://127.0.0.1:'+str(server.server_port)+'/get'],**{**kwargs,'env':env})
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+def _ot_packaging_run(argv, **kwargs):
+    argv = [str(value) for value in argv]
+    if kwargs.get('shell') or 'executable' in kwargs:
+        raise ValueError('Unreviewed packaging shell invocation')
+    if (_ot_packaging_http_fixture and len(argv)==2
+            and _ot_packaging_Path(argv[0]).name==_ot_packaging_http_fixture['command']
+            and argv[1]==_ot_packaging_http_fixture['url']):
+        return _ot_packaging_fetch_fixture(argv, kwargs)
+    environment = kwargs.get('env')
+    env = dict(_ot_packaging_os.environ if environment is None else environment)
+    for key in list(env):
+        if key.startswith(('PYTHON', 'PIP_', 'UV_')):
+            del env[key]
+    env['PIP_CONFIG_FILE'] = _ot_packaging_os.devnull
+    offline = _ot_packaging_os.environ.get('OT_VERIFIER_OFFLINE')
+    if offline:
+        # python -m build creates another private build environment; its pip
+        # child must use the same prepared inputs as explicit pip invocations.
+        env['PIP_NO_INDEX'] = '1'
+        env['PIP_FIND_LINKS'] = offline + '/wheels'
+    kwargs['env'] = env
+    if _ot_packaging_primary_commands:
+        primary = str(_ot_packaging_Path(_ot_packaging_primary_python).parent.parent)
+        _ot_packaging_roots[primary] = primary
+    if (len(argv)==2 and argv[0]=='which' and argv[1] in _ot_packaging_primary_commands):
+        if kwargs!={'capture_output':True,'text':True,'env':env}:
+            raise ValueError('Unreviewed packaging executable lookup')
+        scripts = _ot_packaging_Path(_ot_packaging_scripts())
+        scripts.resolve().relative_to(_ot_packaging_Path(primary).resolve())
+        candidate=scripts/argv[1]
+        found=candidate.is_file() and _ot_packaging_os.access(candidate,_ot_packaging_os.X_OK)
+        return _ot_packaging_subprocess.CompletedProcess(argv,0 if found else 1,str(candidate)+'\\n' if found else '', '')
+    if argv[0] in _ot_packaging_primary_commands:
+        argv[0] = primary + '/bin/' + argv[0]
+    if len(argv) == 3 and argv[:2] == ['unzip', '-l']:
+        argv[0] = _ot_packaging_os.environ['OT_VERIFIER_BIN'] + '/unzip'
+        return _ot_packaging_subprocess.run(argv, **kwargs)
+    if argv[:3] == [_ot_packaging_primary_python, '-m', 'venv']:
+        if len(argv) != 4 or not _ot_packaging_Path(argv[3]).is_absolute() or argv[3] == '/' or '..' in _ot_packaging_Path(argv[3]).parts:
+            raise ValueError('Unreviewed packaging venv target')
+        private = _ot_packaging_tempfile.mkdtemp(prefix='.ot-calibforge-packaging-', dir='/tests')
+        result = _ot_packaging_subprocess.run([_ot_packaging_primary_python, '-I', '-m', 'venv', private], **kwargs)
+        if result.returncode == 0:
+            _ot_packaging_roots[argv[3]] = private
+        return result
+    if '/' not in argv[0] and env.get('VIRTUAL_ENV') in _ot_packaging_roots:
+        original = env['VIRTUAL_ENV']
+        private = _ot_packaging_roots[original]
+        paths = env.get('PATH', '').split(':')
+        if not paths or paths[0] != original + '/bin':
+            raise ValueError('Packaging CLI PATH does not select its fresh child')
+        # Preserve the original test's venv selection for bare submitted CLIs.
+        # Their shebangs and dependencies now belong to the private child.
+        argv[0] = original + '/bin/' + argv[0]
+        env['PATH'] = ':'.join(private + '/bin' if path == original + '/bin' else path for path in paths)
+        env['VIRTUAL_ENV'] = private
+    matches = [(original, private) for original, private in _ot_packaging_roots.items()
+               if argv[0].startswith(original + '/bin/')]
+    if len(matches) != 1:
+        raise ValueError('Packaging command is not in a fresh verifier-created environment')
+    original, private = matches[0]
+    relative = argv[0][len(original):]
+    if '..' in _ot_packaging_Path(relative).parts:
+        raise ValueError('Packaging executable escapes its private environment')
+    argv[0] = private + relative
+    tool = _ot_packaging_Path(argv[0]).name
+    pip_args = argv[1:] if tool == 'pip' else argv[3:] if tool in ('python','python3') and argv[1:3] == ['-m', 'pip'] else None
+    if pip_args is not None:
+        actions=('install','uninstall','show') if _ot_packaging_primary_commands else ('install',)
+        if not pip_args or pip_args[0] not in actions:
+            raise ValueError('Unreviewed packaging pip action')
+        # Image-native Python can retain Debian's EXTERNALLY-MANAGED marker.
+        # This prefix is the verifier's private writable runtime, never /usr.
+        options = ['--break-system-packages'] if _ot_packaging_primary_commands and pip_args[0] in ('install','uninstall') else []
+        offline = _ot_packaging_os.environ.get('OT_VERIFIER_OFFLINE')
+        if offline and pip_args[0]=='install':
+            options += ['--no-index', '--find-links', offline + '/wheels']
+        argv = [private + '/bin/python', '-I', '-m', 'pip', '--isolated', pip_args[0], *options, *pip_args[1:]]
+    elif tool in ('python','python3'):
+        if _ot_packaging_primary_commands and argv[1:3]==['-m','build']:
+            if not offline:
+                raise ValueError('Primary build requires trusted prepared installer inputs')
+            # Build's isolated backend still runs at the original test point.
+            # Its installer is the prepared uv, avoiding distro ensurepip tools
+            # outside the clean private Python runtime.
+            env['PATH'] = offline+'/bin:'+env.get('PATH','')
+            env['UV_NO_INDEX'] = env['UV_OFFLINE'] = '1'
+            env['UV_FIND_LINKS'] = offline+'/wheels'
+            env['UV_PYTHON_DOWNLOADS'] = 'never'
+            env['UV_NO_CONFIG'] = '1'
+            env['UV_CACHE_DIR'] = _ot_packaging_tempfile.mkdtemp(prefix='.ot-build-cache-',dir='/tests')
+            argv += ['--installer','uv']
+        argv.insert(1, '-I')
+    elif _ot_packaging_primary_commands and tool in _ot_packaging_primary_commands:
+        # Debian Python installs new console scripts in local/bin. Resolve
+        # that scheme from this clean Python, while keeping it in our prefix.
+        scripts = _ot_packaging_Path(_ot_packaging_scripts())
+        scripts.resolve().relative_to(_ot_packaging_Path(private).resolve())
+        argv[0] = str(scripts / tool)
+    return _ot_packaging_subprocess.run(argv, **kwargs)
+'''
+
+
+SHELL_HELPER = r'''
+def _ot_packaging_shell_run(command, **kwargs):
+    if command not in _ot_packaging_shell_commands or kwargs.pop('shell',None) is not True:
+        raise ValueError('Unreviewed package shell command')
+    entry=_ot_packaging_shell_commands[command]
+    result=_ot_packaging_run(entry['argv'],**kwargs)
+    if entry.get('ignore_failure'):
+        result=_ot_packaging_subprocess.CompletedProcess(result.args,0,result.stdout,'')
+    return result
+
+def _ot_packaging_script_run(argv, **kwargs):
+    if len(argv)!=2 or argv[0]!='python3' or kwargs.get('shell'):
+        raise ValueError('Unreviewed temporary package grader')
+    path=_ot_packaging_Path(argv[1])
+    if not path.is_absolute():raise ValueError('Temporary package grader path is not absolute')
+    source=path.read_text()
+    if source not in _ot_packaging_grading_scripts:
+        raise ValueError('Temporary package grader source differs')
+    return _ot_packaging_subprocess.run([_ot_packaging_sys.executable,'-I','-c',source],**kwargs)
+'''
+
+
+# ==============================================================================
+# Source Inputs
+# ==============================================================================
+
+"""Pinned task data and build sources, shared by agent and verifier preparation."""
+import hashlib
+import json
+import re
+
+
+def source_input_record(files):
+    matches=[r['source_inputs'] for r in task_module_roles(files) if r.get('source_inputs')]
+    if not matches:return None
+    if len(matches)!=1:raise ValueError('CalibForge source input roles overlap')
+    value=matches[0]
+    from hpc.offline_prep.offline_sources import validate
+    validate(value['sources'])
+    if not re.fullmatch('[a-f0-9]{64}',value['image_sha256']):
+        raise ValueError('CalibForge source input image requires review')
+    return value
+
+
+def source_input_spec(files, *, verifier=False, image_sha256=None):
+    value=source_input_record(files)
+    if value is None or verifier and not value.get('verifier'):return None
+    if image_sha256 is not None and image_sha256!=value['image_sha256']:
+        raise ValueError('CalibForge source input image differs')
+    python=[]
+    agent=value.get('agent_python') if not verifier else None
+    if agent:
+        if (agent['python']!='/usr/bin/python3'
+                or any(not re.fullmatch(r'[A-Za-z0-9_.-]+==[A-Za-z0-9_.+!-]+',pin) for pin in agent['requirements'])):
+            raise ValueError('Source task Python inputs require exact pins and original system Python')
+        python=[dict(tool='uv',python=agent['python'],requirements=agent['requirements'])]
+    return dict(apt=[],python=python,uv=bool(python),sources=value['sources'],image_sha256=value['image_sha256'])
+
+
+PATH_HELPER = '''
+def _ot_source_input_path(name):
+    import os, pathlib, hashlib, tempfile, urllib.request
+    entry=next(item for item in _ot_source_input_records if item['filename']==name)
+    cached=os.environ.get('OT_VERIFIER_OFFLINE')
+    if cached:
+        target=pathlib.Path(cached)/'sources'/name
+    else:
+        target=pathlib.Path(tempfile.mkdtemp(prefix='.ot-source-input-',dir='/tests'))/name
+        urllib.request.urlretrieve(entry['url'],target)
+    digest=hashlib.sha256()
+    with target.open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''):digest.update(block)
+    if digest.hexdigest()!=entry['sha256']:
+        raise ValueError('Prepared source input checksum differs: '+name)
+    return str(target)
+'''
+
+
+def adapt_snippet(source,files):
+    value=source_input_record(files)
+    if not value or not value.get('verifier'):return source
+    changed=False
+    for replacement in value.get('snippet_replacements',[]):
+        if replacement['before'] not in source:continue
+        if (source.count(replacement['before'])!=1
+                or replacement['filename'] not in {s['filename'] for s in value['sources']}):
+            raise ValueError('CalibForge source input snippet differs')
+        source=source.replace(replacement['before'],'data_path = _ot_source_input_path('+repr(replacement['filename'])+')',1)
+        changed=True
+    if not changed:return source
+    return '_ot_source_input_records='+repr(value['sources'])+'\n'+PATH_HELPER+'\n'+source
+
+
+def task_updates(files,catalog=None):
+    value=source_input_record(files)
+    if not value or not value.get('agent_targets'):return {}
+    if any(path.startswith('setup_files/') for path in files):
+        raise ValueError('CalibForge existing agent initialization requires review')
+    from data.utils.verifier_runtime import offline_package_reference,offline_preparation_command
+    recipe=source_input_spec(files)
+    targets=value['agent_targets']
+    if (set(targets)-{item['filename'] for item in value['sources']}
+            or any(not re.fullmatch(r'/app/(?:data/)?[A-Za-z0-9_.-]+',path) for path in targets.values())):
+        raise ValueError('CalibForge task source target requires review')
+    updates=offline_package_reference(recipe,catalog,phase='task')
+    setup='#!/bin/bash\nset -e\n'+offline_preparation_command(
+        {k:v for k,v in recipe.items() if k!='image_sha256'},image_sha256=recipe['image_sha256'],phase='task')
+    setup+='\npython3 - <<\'OT_SOURCE_INPUTS\'\n'
+    setup+='records='+repr(value['sources'])+'\ntargets='+repr(targets)+'\n'
+    setup+='''import hashlib,os,pathlib,shutil,urllib.request
+for entry in records:
+    if entry['filename'] not in targets:continue
+    target=pathlib.Path(targets[entry['filename']])
+    target.parent.mkdir(parents=True,exist_ok=True)
+    cached=os.environ.get('OT_TASK_OFFLINE')
+    if cached:
+        shutil.copyfile(pathlib.Path(cached)/'sources'/entry['filename'],target)
+    else:
+        urllib.request.urlretrieve(entry['url'],target)
+    digest=hashlib.sha256()
+    with target.open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''):digest.update(block)
+    if digest.hexdigest()!=entry['sha256']:raise ValueError('Task source checksum differs')
+OT_SOURCE_INPUTS
+'''
+    agent=value.get('agent_python')
+    if agent:
+        import shlex
+        pins=shlex.join(agent['requirements'])
+        command=shlex.quote(agent['python'])+' -I -m pip install --break-system-packages '
+        setup+='if [ -n "${OT_TASK_OFFLINE:-}" ]; then\n'
+        setup+='  mkdir -p /app/offline-wheels\n  cp "$OT_TASK_OFFLINE"/wheels/*.whl /app/offline-wheels/\n'
+        setup+='  '+command+'--no-index --find-links /app/offline-wheels '+pins+'\nelse\n'
+        setup+='  '+command+pins+'\nfi\n'
+    updates['setup_files/setup.sh']=setup.encode()
+    updates['instruction.md']=files['instruction.md'].rstrip()+b'\n\n'+value['agent_note'].encode()+b'\n'
+    return updates
+
+
+# ==============================================================================
+# Verifier Runtime
+# ==============================================================================
+
+"""CalibForge exact image-installed verifier family, preserving task imports."""
+import ast
+import json
+import re
+import shlex
+from data.utils.verifier_runtime import preparation_command, runtime_reference, runtime_spec
+
+SCRIPT = b'#!/bin/bash\nset -u\n\nmkdir -p /logs/verifier\n\n# Check if we\'re in a valid working directory\nif [ "$PWD" = "/" ]; then\n    echo "Error: No working directory set. Please set a WORKDIR in your Dockerfile before running this script."\n    echo 0 > /logs/verifier/reward.txt\n    exit 1\nfi\n\nif [ -x /opt/verifier/bin/python ]; then\n  PYTHON=/opt/verifier/bin/python\nelif command -v python3 >/dev/null 2>&1; then\n  PYTHON=python3\nelif command -v python >/dev/null 2>&1; then\n  PYTHON=python\nelse\n  echo "Error: no Python interpreter found. Use the TB2 verifier base image."\n  echo 0 > /logs/verifier/reward.txt\n  exit 1\nfi\n\nif ! "$PYTHON" -c "import pytest" >/dev/null 2>&1; then\n  echo "Error: pytest is not installed for $PYTHON. Use the TB2 verifier base image."\n  echo 0 > /logs/verifier/reward.txt\n  exit 1\nfi\n\n"$PYTHON" -m pytest --ctrf /logs/verifier/ctrf.json /tests/test_outputs.py -rA\n\nif [ $? -eq 0 ]; then\n  echo 1 > /logs/verifier/reward.txt\nelse\n  echo 0 > /logs/verifier/reward.txt\nfi\n\n'
+
+
+BASE_IMAGE = 'aweaiteam/calibforge@sha256:0f61b2776c40231d5d868278ed6042295ddbc9d24b036cd72f0b88ebe9bd621a'
+
+UVX_TEMPLATE = '''#!/bin/bash
+source $HOME/.local/bin/env
+if [ "$PWD" = "/" ]; then
+    echo "Error: No working directory set. Please set a WORKDIR in your Dockerfile before running this script."
+    exit 1
+fi
+OT_PYTEST_COMMAND
+if [ $? -eq 0 ]; then
+  echo 1 > /logs/verifier/reward.txt
+else
+  echo 0 > /logs/verifier/reward.txt
+fi
+'''
+
+UV_PATH = '''case ":$PATH:" in
+  *:"$HOME/.local/bin":*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac'''
+
+CF_UVX_SCRIPT = r'''#!/usr/bin/env bash
+set -u
+
+readonly CF_RESULT_ROOT="/logs/verifier"
+readonly CF_CTRF_FILE="${CF_RESULT_ROOT}/ctrf.json"
+readonly CF_REWARD_FILE="${CF_RESULT_ROOT}/reward.txt"
+mkdir -p "${CF_RESULT_ROOT}"
+
+CF_UVX_BIN="$(command -v uvx 2>/dev/null || true)"
+if [[ -z "${CF_UVX_BIN}" ]]; then
+  readonly CF_BOOTSTRAP="/tmp/calibforge-install-uv.sh"
+  readonly CF_BIN_DIR="/tmp/calibforge-uv-bin"
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --silent --show-error --location \
+      "https://astral.sh/uv/0.9.5/install.sh" --output "${CF_BOOTSTRAP}"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import sys, urllib.request; open(sys.argv[1], "wb").write(urllib.request.urlopen(sys.argv[2]).read())' \
+      "${CF_BOOTSTRAP}" "https://astral.sh/uv/0.9.5/install.sh"
+  else
+    printf '%s\n' 0 > "${CF_REWARD_FILE}"
+    exit 127
+  fi
+  UV_INSTALL_DIR="${CF_BIN_DIR}" sh "${CF_BOOTSTRAP}"
+  CF_UVX_BIN="${CF_BIN_DIR}/uvx"
+fi
+
+readonly CF_PYTHON_RELEASE="3.13"
+readonly CF_PYTEST_PACKAGE="pytest==8.4.1"
+readonly CF_CTRF_PACKAGE="pytest-json-ctrf==0.3.5"
+"${CF_UVX_BIN}" \
+  -w "${CF_CTRF_PACKAGE}" \
+  -p "${CF_PYTHON_RELEASE}" \
+  -w "${CF_PYTEST_PACKAGE}" \
+  pytest /tests/test_outputs.py -q --ctrf "${CF_CTRF_FILE}"
+CF_TEST_STATUS=$?
+
+if (( CF_TEST_STATUS == 0 )); then
+  printf '%s\n' 1 > "${CF_REWARD_FILE}"
+else
+  printf '%s\n' 0 > "${CF_REWARD_FILE}"
+fi
+exit "${CF_TEST_STATUS}"
+'''
+
+UV_BOOTSTRAP_PREFIXES = (
+    '''ensure_uv() {
+  if command -v uvx >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ -f "$HOME/.local/bin/env" ]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.local/bin/env"
+  fi
+  if command -v uvx >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get update
+      apt-get install -y --no-install-recommends ca-certificates curl
+    else
+      echo "Error: uvx is not installed and curl is unavailable."
+      return 1
+    fi
+  fi
+
+  curl -LsSf https://astral.sh/uv/0.9.5/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+  export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+  command -v uvx >/dev/null 2>&1
+}
+
+if ! ensure_uv; then
+  echo 0 > /logs/verifier/reward.txt
+  exit 1
+fi''',
+    '''for i in 1 2 3; do
+    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh && break
+    sleep 5
+done
+
+source $HOME/.local/bin/env || source $HOME/.cargo/env''',
+    '''max_retries=5
+for i in $(seq 1 $max_retries); do
+    echo "Attempt $i to install uv..."
+    if curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh; then
+        break
+    fi
+    echo "Retry $i: uv install failed, waiting 10s..."
+    sleep 10
+done
+
+source $HOME/.local/bin/env || true''',
+)
+
+
+def shell_lines(text):
+    return [line.strip() for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith('#')]
+
+
+def pin_observed_uvx(argv, requirements):
+    """Resolve original requirement constraints against the measured tool env."""
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+    observed = {}
+    for value in requirements:
+        requirement = Requirement(value)
+        observed[canonicalize_name(requirement.name)] = (requirement.name, value.split('==', 1)[1])
+    # Index selection has already happened in the measured original tool env.
+    # The final spec below pins every distribution, including custom wheels.
+    filtered = []
+    index = 0
+    while index < len(argv):
+        if argv[index] in ('--index', '--index-url', '--index-strategy'):
+            option = argv[index]
+            if index + 1 >= len(argv) or argv[index + 1] != (
+                    'unsafe-best-match' if option == '--index-strategy' else 'https://download.pytorch.org/whl/cpu'):
+                raise ValueError('CalibForge custom index requires review')
+            index += 2
+        else:
+            filtered.append(argv[index])
+            index += 1
+    argv = filtered
+    result = list(argv)
+    for index, value in enumerate(argv):
+        if index and argv[index - 1] in ('-w', '--with', '--from'):
+            requirement = Requirement(value)
+            if requirement.url or requirement.marker:
+                raise ValueError('CalibForge URL/conditional uvx requirement requires review')
+            match = observed.get(canonicalize_name(requirement.name))
+            if match is None or not requirement.specifier.contains(match[1], prereleases=True):
+                raise ValueError('CalibForge measured uvx packages disagree with setup: '
+                                 + str(requirement) + '; observed ' + (match[1] if match else 'missing'))
+            extras = '[' + ','.join(sorted(requirement.extras)) + ']' if requirement.extras else ''
+            result[index] = match[0] + extras + '==' + match[1]
+    return result
+
+
+def resolved_runtime_requirements(requirements, sources, source_versions=None):
+    """Keep custom wheel identities as checksum-pinned build inputs."""
+    from data.utils.verifier_runtime import requirement_source
+    from packaging.utils import canonicalize_name, parse_wheel_filename
+    from packaging.version import Version
+    result = []
+    selected = {}
+    for pin in requirements:
+        name, version = pin.split('==', 1)
+        normalized = canonicalize_name(name)
+        if normalized in selected and selected[normalized] != Version(version):
+            raise ValueError('CalibForge conflicting distribution observations require precedence proof: ' + normalized)
+        selected[normalized] = Version(version)
+        if pin in sources:
+            source = requirement_source(sources[pin])
+            if source is None:
+                raise ValueError('CalibForge dependency source is not checksum pinned')
+            name, version = pin.split('==', 1)
+            if source['filename'].endswith('.whl'):
+                wheel_name, wheel_version, _, _ = parse_wheel_filename(source['filename'])
+                if (canonicalize_name(name) != wheel_name or canonicalize_name(source['name']) != wheel_name
+                        or Version(version) != wheel_version):
+                    raise ValueError('CalibForge dependency wheel differs from original observation')
+            else:
+                proof=(source_versions or {}).get(pin,{})
+                if (canonicalize_name(source['name'])!=canonicalize_name(name)
+                        or proof.get('name')!=name or proof.get('version')!=version
+                        or proof.get('sha256')!=source['sha256']):
+                    raise ValueError('CalibForge dependency source version requires measured build proof')
+            result.append(sources[pin])
+        elif '+cpu' in pin:
+            raise ValueError('CalibForge CPU wheel source requires review')
+        else:
+            result.append(pin)
+    return result
+
+
+
+def reviewed_asset_initialization(line, files):
+    """Allow unchanged restoration of literal assets uploaded with the verifier."""
+    import io
+    import tarfile
+    from pathlib import PurePosixPath
+    archive_guard = re.fullmatch(r'if \[ -f (/tests/[A-Za-z0-9_.-]+\.tar\.gz) \] && \[ ! -f (/tests/[A-Za-z0-9_.-]+) \]; then', line)
+    if archive_guard:
+        return archive_guard[1][1:] in files
+    snapshot = re.fullmatch(r'if \[ -f (/(?:app|workspace)/[A-Za-z0-9_./-]+) \]; then cp \1 (/(?:app|workspace)/[A-Za-z0-9_./-]+); fi', line)
+    if snapshot:
+        # Preserve copies of submitted output data, never restoration of graders.
+        return all('..' not in PurePosixPath(path).parts
+                   and PurePosixPath(path).suffix in ('.db', '.csv', '.json', '.txt') for path in snapshot.groups())
+    command = re.sub(r' 2>/dev/null(?: \|\| true)?$', '', line)
+    if any(char in command for char in ('$', '`', ';', '|', '&', '<', '>')):
+        return False
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return False
+    if argv == ['mkdir', '-p', '/tests']:
+        return True
+    if len(argv) == 3 and argv[0] == 'cp':
+        source, target = argv[1:]
+        return (source.startswith('/tests/') and source[1:] in files and '..' not in PurePosixPath(source).parts
+                and target.startswith(('/app/', '/workspace/', '/tests/'))
+                and '..' not in PurePosixPath(target).parts)
+    if len(argv) == 5 and argv[:2] == ['tar', '-xzf'] and argv[3] == '-C' and argv[4].rstrip('/') == '/tests':
+        source = argv[2]
+        if not source.startswith('/tests/') or source[1:] not in files:
+            return False
+        try:
+            with tarfile.open(fileobj=io.BytesIO(files[source[1:]])) as archive:
+                return all((member.isfile() or member.isdir())
+                           and not PurePosixPath(member.name).is_absolute()
+                           and '..' not in PurePosixPath(member.name).parts for member in archive)
+        except tarfile.TarError:
+            return False
+    return False
+
+
+def native_image_binding(measured, image_sha256):
+    if '/cpython-' in measured['resolved_executable']:
+        return None
+    binding = dict(image_sha256=image_sha256, executable=measured['resolved_executable'])
+    # Ubuntu's patched pandas distribution has no matching PyPI artifact.
+    # Copy only this verified distribution, never the whole image site directory.
+    distro_packages = {pin: ['pandas'] for pin in measured['requirements'] if pin == 'pandas==2.1.4+dfsg'}
+    for pin, modules in {
+        'PyGObject==3.48.2': ['gi'],
+        'dbus-python==1.3.2': ['dbus', '_dbus_bindings', '_dbus_glib_bindings'],
+    }.items():
+        if pin in measured['requirements']:
+            distro_packages[pin] = modules
+    # This Ubuntu image installs python3-fpylll through apt; its 0.6.1 sources
+    # cannot be rebuilt with the current PyPI/Cython toolchain on Python 3.12.
+    # Keep the original native distribution bound to the exact source image.
+    if (image_sha256 == '48979fc6bf110fc04b04b084861faadb6c8746884300bd5166ded2168a4111bd'
+            and 'fpylll==0.6.1' in measured['requirements']):
+        # cysignals is an apt dependency with no Python distribution metadata.
+        # Its native modules are also bound by the pristine image checksum.
+        distro_packages['fpylll==0.6.1'] = ['fpylll', 'cysignals']
+    if (image_sha256=='be786b8991e739c1fa62e339598e2c3ea67ab9691f40802c34501c316486b006'
+            and 'gyp==0.1' in measured['requirements']):
+        # Ubuntu's npm dependency is not the unrelated PyPI gyp distribution.
+        # Preserve the measured apt package from this exact original image.
+        distro_packages['gyp==0.1']=['gyp']
+    if distro_packages:
+        binding['packages'] = distro_packages
+    if image_sha256=='fc094ec0f68ffac3ae8861bb304ad96ff0d7c39e55d559ee0b0fbc28d12bae1c':
+        # Apt RDKit 2023.09.3 has no Python distribution metadata. Its module
+        # tree and linked font are copied from this exact pristine image.
+        binding['modules']={'rdkit':'/usr/lib/python3/dist-packages/rdkit'}
+        binding['module_resources']=['/usr/share/fonts/truetype/freefont/FreeSans.ttf']
+    return binding
+
+
+def auxiliary_helper_plan(files, records, image_sha256):
+    """Bind trusted helper scripts to their independently measured clean Python."""
+    import hashlib
+    specs, replacements, guards, helpers, evidence, sources = {}, {}, {}, set(), {}, {}
+    literal_edits, literal_helpers = {}, {}
+    script = files.get('tests/test.sh',b'').decode()
+    for name, record in (records or {}).items():
+        if (not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*',name)
+                or record.get('returncode') != 0 or record.get('sha256') != image_sha256
+                or record.get('test_script_sha256') != hashlib.sha256(files['tests/test.sh']).hexdigest()
+                or not record.get('uses')):
+            raise ValueError('CalibForge auxiliary interpreter binding requires review')
+        measured = verifier_observation(files, record['observed'])
+        child = runtime_spec(python=measured['python'],requirements=resolved_runtime_requirements(
+            measured['requirements'],record.get('requirement_sources',{})),tools=[],install_no_deps=True,
+            image_python=native_image_binding(measured, image_sha256))
+        if record.get('kind') == 'selectable_python':
+            group={key:value for key,value in records.items() if value.get('kind')=='selectable_python'}
+            if name==next(iter(group)):
+                path,source=adapt_selectable_grading(files,group)
+                if path in sources:raise ValueError('Overlapping selectable source')
+                sources[path]=source
+            specs[name]=child
+            evidence[name]=dict(image_sha256=image_sha256,python=measured['python'],prefix=measured['prefix'],candidates=record['candidates'],uses=record['uses'],role='Original dynamic task package selection with clean functional graders')
+            continue
+        if record.get('kind') == 'packaging_tools':
+            source=record['source_file']
+            if (hashlib.sha256(files[source]).hexdigest()!=record['source_sha256']
+                    or record.get('auxiliary_name')!=name):
+                raise ValueError('Auxiliary packaging source differs')
+            role=packaging_role(files,source,record['primary_observed'])
+            if (not role or role.get('auxiliary_installer')!=name
+                    or role.get('installer_python')!=measured['python']
+                    or record['uses']!=role['calls']):
+                raise ValueError('Auxiliary packaging role differs')
+            specs[name]=child
+            evidence[name]=dict(image_sha256=image_sha256,python=measured['python'],role='Original package installer and installed console scripts',uses=record['uses'])
+            continue
+        if record.get('kind') == 'literal_python':
+            path,edits,helper,modules,proof=adapt_literal(files,record,name,measured)
+            if modules:
+                image_python=native_image_binding(measured,image_sha256) or dict(
+                    image_sha256=image_sha256,executable=measured['resolved_executable'])
+                # Debian egg-info may omit top_level.txt even for a versioned
+                # distribution (notably NumPy). Copy its measured distribution
+                # and module together, rather than installing a wheel and then
+                # colliding with a supposedly unversioned module copy.
+                from packaging.utils import canonicalize_name
+                distribution_modules = dict(image_python.get('packages',{}))
+                for module in modules:
+                    pins = [pin for pin in measured['requirements']
+                            if canonicalize_name(pin.split('==')[0]) == canonicalize_name(module)]
+                    if len(pins) == 1:
+                        distribution_modules[pins[0]] = sorted(set(distribution_modules.get(pins[0],[])) | {module})
+                if distribution_modules:
+                    image_python = {**image_python, 'packages': distribution_modules}
+                covered={module for names in image_python.get('packages',{}).values() for module in names}
+                remaining={module:path for module,path in modules.items() if module not in covered}
+                if remaining:image_python={**image_python,'modules':{**image_python.get('modules',{}),**remaining}}
+                if (modules.get('rdkit')=='/usr/lib/python3/dist-packages/rdkit'
+                        and image_sha256 in {
+                            'fc094ec0f68ffac3ae8861bb304ad96ff0d7c39e55d559ee0b0fbc28d12bae1c',
+                            '322405952712fd9c3675b2e773e4d01739561c6b761e3c097010e9f8399d636f',
+                            '7f5c65c18d537e8ce13f095b300c84bb63419703fe33657e7a4ac943d878f2da'}):
+                    image_python['module_resources']=['/usr/share/fonts/truetype/freefont/FreeSans.ttf']
+                child=runtime_spec(python=measured['python'],requirements=resolved_runtime_requirements(
+                    measured['requirements'],record.get('requirement_sources',{})),tools=[],install_no_deps=True,
+                    image_python=image_python)
+            literal_edits.setdefault(path,[]).extend(edits)
+            if helper:literal_helpers[path]=helper
+            specs[name]=child;evidence[name]={**proof,'image_sha256':image_sha256,'image_modules':modules}
+            continue
+        if record.get('kind') == 'python_selector':
+            path,source,proof=adapt_selector(files,record,name,measured)
+            if path in sources:
+                raise ValueError('CalibForge overlapping auxiliary Python roles require review')
+            sources[path]=source;specs[name]=child;evidence[name]={**proof,'image_sha256':image_sha256}
+            helpers.update(proof.get('helpers',{}))
+            continue
+        executable = '"${OT_VERIFIER_BIN:?prepared verifier runtime required}/../aux/' + name + '/bin/python3"'
+        if record.get('kind') == 'shell_pytest':
+            for use in record['uses']:
+                source,target=use['source'],use['target']
+                command=use['command'];argv=shlex.split(command)
+                if (not re.fullmatch(r'tests/ot_[A-Za-z0-9_]+\.py',target)
+                        or source not in files or target in files or target in sources
+                        or hashlib.sha256(files[source]).hexdigest()!=use['source_sha256']
+                        or command not in shell_lines(script)
+                        or argv!=['python','-m','pytest',use['original_path'],'-v','--tb=short']
+                        or use['installer']!='uv pip install --system pytest'
+                        or use['installer'] not in shell_lines(script)
+                        or not any(pin.startswith('pytest==') for pin in measured['requirements'])):
+                    raise ValueError('CalibForge shell regression source or command differs')
+                context={**measured,'test_file':use['original_path'],'implicit_task_root':'/app'}
+                body=files[source].decode()
+                body=preserve_cwd_task_imports(body,files,context)
+                review_imports(ast.parse(body),files,context)
+                sources[target]=body;helpers.add(target)
+                replacements[command]=('PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTEST_ADDOPTS= PYTEST_PLUGINS= '
+                    +executable+' -I -m pytest -c /dev/null --rootdir /tests --confcutdir /tests '
+                    '--noconftest --import-mode=importlib /'+target+' -v --tb=short')
+                replacements[use['installer']]='# Original project pytest supplied by its clean auxiliary runtime'
+            specs[name]=child
+            evidence[name]=dict(image_sha256=image_sha256,python=measured['python'],uses=record['uses'],role='Original project regression before primary security checks')
+            continue
+        if record.get('kind') == 'background_helper':
+            for use in record['uses']:
+                source,target,line=use['source'],use['target'],use['line']
+                argv=shlex.split(line)
+                if (source not in files or hashlib.sha256(files[source]).hexdigest()!=use['source_sha256']
+                        or not re.fullmatch(r'tests/ot_[A-Za-z0-9_]+\.py',target) or target in files
+                        or script.count(line)!=1 or argv!=[record['probe_invocation'],use['original_path'],'--bind','127.0.0.3','8081','&']):
+                    raise ValueError('Background initializer source or arguments differ')
+                body=files[source].decode();context={**measured,'test_file':'/'+target}
+                reviewed,calls=task_python_calls(body,measured['executable'],files=files,image=context)
+                used,task_used=review_imports(ast.parse(reviewed),files,context)
+                if calls or task_used or reviewed!=body or set(used)-set(measured['stdlib']):
+                    raise ValueError('Background initializer dependencies require review')
+                sources[target]=body;helpers.add(target)
+                replacements[line]=executable+' -I /'+target+' --bind 127.0.0.3 8081 &'
+            specs[name]=child;evidence[name]=dict(image_sha256=image_sha256,python=measured['python'],uses=record['uses'],role='Fresh source-bound backend initialization')
+            continue
+        if record.get('kind') == 'shell_heredoc':
+            for use in record['uses']:
+                block=use.get('block','');helper=use.get('helper','')
+                match=re.fullmatch(r"python3 << 'EOF'\n(?P<body>.*?)\nEOF",block,re.S)
+                if (match is None or script.count(block)!=1 or record.get('probe_invocation')!='python3'
+                        or not re.fullmatch(r'tests/ot-initialize-[A-Za-z0-9_-]+\.py',helper)
+                        or helper in files or helper in sources
+                        or hashlib.sha256(match['body'].encode()).hexdigest()!=use.get('body_sha256')):
+                    raise ValueError('CalibForge initializer heredoc source requires review')
+                context={**measured,'test_file':'/'+helper}
+                body=match['body']+'\n'
+                reviewed,calls=task_python_calls(body,measured['executable'],files=files,image=context)
+                used,task_used=review_imports(ast.parse(reviewed),files,context)
+                missing=set(used)-set(measured['stdlib'])-set(measured.get('import_names',[]))
+                if calls or task_used or missing or reviewed!=body:
+                    raise ValueError('CalibForge initializer heredoc dependencies require review')
+                replacements[block]=executable+' -I /'+helper
+                sources[helper]=body;helpers.add(helper)
+            specs[name]=child
+            evidence[name]=dict(python=measured['python'],executable=measured['executable'],
+                                image_sha256=image_sha256,role='source-bound data initialization',
+                                helpers=[use['helper'] for use in record['uses']])
+            continue
+        for use in record['uses']:
+            line, helper = use.get('line',''), use.get('helper','')
+            if (use.get('file') != 'tests/test.sh' or not helper.startswith('tests/') or not helper.endswith('.py')
+                    or '..' in helper.split('/') or helper not in files
+                    or use.get('helper_sha256') != hashlib.sha256(files[helper]).hexdigest()
+                    or [item.strip() for item in script.splitlines()].count(line) != 1):
+                raise ValueError('CalibForge auxiliary helper source binding requires review')
+            try:
+                argv=shlex.split(line)
+            except ValueError as error:
+                raise ValueError('CalibForge auxiliary helper command requires review') from error
+            if (len(argv)<2 or argv[0]!=record.get('probe_invocation') or argv[1]!='/'+helper
+                    or any(char in line for char in ('$','`',';','|','&','<','>'))):
+                raise ValueError('CalibForge auxiliary helper command requires review')
+            context={**measured,'test_file':'/'+helper}
+            original=files[helper].decode()
+            reviewed,calls=task_python_calls(original,measured['executable'],files=files,image=context)
+            reviewed=preserve_cwd_task_imports(reviewed,files,context)
+            review_imports(ast.parse(reviewed),files,context)
+            if calls or reviewed!=original:
+                raise ValueError('CalibForge auxiliary helper interpreter uses require review')
+            replacements[line]=executable+' -E -s '+shlex.join(argv[1:])
+            guards['if [ -x '+argv[0]+' ]; then']='if [ -x '+executable+' ]; then'
+            # The pristine image proved the first branch exists. Its prepared
+            # child is mandatory, so the original main-Python fallback is no
+            # longer reachable; keep both branches on the same clean helper.
+            fallback='"$PYTHON" '+shlex.join(argv[1:])
+            branch=('if [ -x '+argv[0]+' ]; then\n  '+line+'\nelse\n  '+fallback+'\nfi')
+            if script.count(branch)==1:
+                replacements[fallback]=replacements[line]
+            helpers.add(helper)
+        specs[name]=child
+        evidence[name]=dict(python=measured['python'],executable=measured['executable'],image_sha256=image_sha256,
+                            helpers=[use['helper'] for use in record['uses']])
+    for path,edits in literal_edits.items():
+        if path in sources:raise ValueError('CalibForge overlapping auxiliary Python roles require review')
+        edits=sorted(edits)
+        if any(right[0]<left[1] for left,right in zip(edits,edits[1:])):
+            raise ValueError('CalibForge overlapping literal Python invocations require review')
+        source=files[path]
+        for start,end,value in reversed(edits):source=source[:start]+value.encode()+source[end:]
+        sources[path]=source.decode()+literal_helpers.get(path,'')
+        ast.parse(sources[path])
+    return dict(specs=specs,replacements=replacements,guards=guards,helpers=helpers,evidence=evidence,sources=sources)
+
+
+def attach_auxiliary_spec(planned):
+    if planned.get('auxiliary_specs'):
+        planned['spec']=runtime_spec(**{k:v for k,v in planned['spec'].items() if k!='runtime_layout'},
+                                     auxiliary=planned['auxiliary_specs'])
+    return planned
+
+
+def pinned_uv_installer(command):
+    """Recognize only downloads of the pinned installer piped directly to sh."""
+    branches = re.split(r'\s+\|\|\s+', command)
+    for branch in branches:
+        if branch.endswith(' | sh 2>/dev/null'):
+            branch = branch.removesuffix(' 2>/dev/null')
+        if not branch.endswith(' | sh'):
+            return False
+        try:
+            tokens = shlex.split(branch[:-5])
+        except ValueError:
+            return False
+        if not tokens or tokens.pop(0) != 'curl':
+            return False
+        url = 'https://astral.sh/uv/0.9.5/install.sh'
+        if tokens.count(url) != 1:
+            return False
+        tokens.remove(url)
+        index = 0
+        while index < len(tokens):
+            token = tokens[index]
+            if token in ('--connect-timeout', '--max-time', '--retry'):
+                index += 1
+                if index >= len(tokens) or not re.fullmatch(r'[1-9][0-9]{0,2}', tokens[index]):
+                    return False
+            elif token not in ('--insecure', '2>/dev/null') and not re.fullmatch(r'-[LksSf]+', token):
+                return False
+            index += 1
+    return bool(branches)
+
+
+def python_bootstrap_apt(command):
+    """Identify Python/bootstrap packages supplied by the prepared runtime."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if tokens[:2] != ['apt-get', 'install']:
+        return False
+    packages = [token for token in tokens[2:] if token not in ('-y', '-qq', '--no-install-recommends')]
+    return bool(packages) and set(packages) <= {
+        'curl', 'ca-certificates', 'python3', 'python3-pip', 'python3-venv', 'python3-pytest'}
+
+
+def remove_uv_bootstrap_loops(script):
+    """Replace only literal retry loops for the pinned uv installer."""
+    env_file_retry = '''max_retries=3
+for i in $(seq 1 $max_retries); do
+    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh
+    if [ -f "$HOME/.local/bin/env" ]; then
+        break
+    fi
+    echo "Retry $i/$max_retries: uv installation failed, retrying in 5 seconds..."
+    sleep 5
+done
+
+source $HOME/.local/bin/env || { echo "Failed to source uv env"; exit 1; }'''
+    if script.count(env_file_retry) == 1:
+        remainder = script.replace(env_file_retry, '', 1)
+        if not re.search(r'\$(?:\{)?(?:max_retries|i)\b', remainder):
+            script = script.replace(env_file_retry, 'source $HOME/.local/bin/env', 1)
+    for match in list(re.finditer(r'^for i in (?:[1-5](?: [1-5])*|\{1\.\.[1-5]\}); do\n(?:(?!^done$).)*^done$', script, re.M | re.S))[::-1]:
+        lines = shell_lines(match[0])[1:-1]
+        safe = True
+        installer = False
+        for line in lines:
+            if line in ('break', 'fi', 'UV_INSTALLED=true') or re.fullmatch(r'sleep (?:[1-9]|10)', line):
+                continue
+            if re.fullmatch(r'echo "[A-Za-z0-9 .,:$/!-]+"', line):
+                continue
+            command = line.removeprefix('if ').removesuffix('; then').removesuffix(' && break')
+            if pinned_uv_installer(command):
+                installer = True
+                continue
+            safe = False
+            break
+        if safe and installer:
+            script = script[:match.start()] + '# uv installer retries replaced by runtime preparation' + script[match.end():]
+    # This flag was only bookkeeping for the removed installer; never remove a
+    # flag that still controls subsequent task initialization.
+    if 'UV_INSTALLED=true' not in script and script.count('UV_INSTALLED') == 1:
+        script = script.replace('UV_INSTALLED=false\n','',1)
+    return script
+
+
+
+
+def prepared_native_packages(files, records, image_sha256):
+    """Remove redundant package installers proven satisfied in the source image.
+
+    Grading executables and data are copied into the clean runtime. Build-only
+    packages retain their task-image role so submitted sources can still build.
+    """
+    import hashlib
+    bootstrap={'curl','ca-certificates','wget','unzip','vim','python3-pip'}
+    build={'gcc','g++','python3-dev','build-essential','cmake','libboost-all-dev','libeigen3-dev','libhdf5-dev','libnetcdf-dev','libgomp1'}
+    grading={
+        'file':{'file':'/usr/bin/file'},
+        'attr':{'setfattr':'/usr/bin/setfattr','getfattr':'/usr/bin/getfattr'},
+        'dnsutils':{name:'/usr/bin/'+name for name in ('dig','host','nslookup')},
+        'sshpass':{'sshpass':'/usr/bin/sshpass','ssh':'/usr/bin/ssh'},
+        'openssh-client':{name:'/usr/bin/'+name for name in ('ssh','scp','sftp','ssh-keygen','ssh-keyscan')},
+        'ldap-utils':{'ldapsearch':'/usr/bin/ldapsearch'},
+        'procps':{name:'/usr/bin/'+name for name in ('pgrep','pkill','ps')},
+        'binutils':{name:'/usr/bin/'+name for name in ('readelf','nm','objdump','strings')},
+        'iproute2':{'ip':'/usr/sbin/ip','ss':'/usr/bin/ss'},
+    }
+    commands={};tools={};resources={};proof=[]
+    for record in records or []:
+        packages=set(record.get('packages',[]))
+        installed={name.split(':')[0]:version for name,version in record.get('installed',{}).items()}
+        if (record.get('status')!='ready' or record.get('image_sha256')!=image_sha256
+                or not re.fullmatch(r'[a-f0-9]{64}',image_sha256 or '')
+                or not packages or not packages<=bootstrap|build|set(grading)
+                or not packages<=set(installed) or not all(installed[name] for name in packages)
+                or not record.get('source_sha256') or set(record.get('lines',{}))!=set(record['source_sha256'])
+                or any(path not in ('tests/test.sh','tests/setup.sh') or path not in files
+                       or hashlib.sha256(files[path]).hexdigest()!=digest for path,digest in record['source_sha256'].items())):
+            raise ValueError('CalibForge native package preparation provenance requires review')
+        removed=[]
+        for path,lines in record['lines'].items():
+            original=shell_lines(files[path].decode())
+            for line in lines:
+                if line not in original:raise ValueError('CalibForge native package installer source differs')
+                command=re.sub(r'^apt-get update(?: -qq)? && ','',line)
+                command=re.sub(r'\s*(?:[12]?> ?/dev/null|[12]>&[12]|\|\| true)','',command)
+                if any(char in command for char in ('$', '`', ';', '|', '&', '<', '>')):continue
+                argv=shlex.split(command)
+                if argv[:2]!=['apt-get','install']:continue
+                requested={arg for arg in argv[2:] if arg not in ('-y','-qq','--no-install-recommends')}
+                if not requested or not requested<=packages:continue
+                commands[line]='# Native dependencies supplied by the prepared runtime and original task image.'
+                removed.append(dict(file=path,line=line))
+            if any(value['file']==path for value in removed):
+                for line in original:
+                    if re.fullmatch(r'apt-get update(?: -qq)?(?: 2>/dev/null)?(?: \|\| true)?',line):
+                        commands[line]='# Package indexes are not needed for prepared dependencies.'
+        if not removed:raise ValueError('CalibForge native package proof covers no literal installer')
+        for package in packages:tools.update(grading.get(package,{}))
+        if 'file' in packages:resources['magic.mgc']='/usr/share/misc/magic.mgc'
+        # This original image pins the SQL evaluator in /usr/local/bin; its
+        # queries are submitted task code, while DuckDB is a grading tool.
+        if record.get('task')=='multi_solver-data-querying_20260419_023954_001':
+            tools['duckdb']='/usr/local/bin/duckdb'
+        proof.append(dict(image_sha256=image_sha256,installed=record['installed'],source_sha256=record['source_sha256'],
+                          removed_installers=removed,task_image_build_packages=sorted(packages&build),
+                          bootstrap_only_packages=sorted(packages&bootstrap)))
+    return commands,tools,resources,proof
+
+
+def replace_reviewed_shell_lines(script,commands):
+    for original,replacement in commands.items():
+        script=re.sub(r'^([ \t]*)'+re.escape(original)+r'$',lambda match:match[1]+replacement,script,flags=re.M)
+    return script
+
+
+def native_tool_binding(image_sha256,planned):
+    if not planned.get('native_tools') and not planned.get('native_debian'):return None
+    result=dict(image_sha256=image_sha256,executables=planned['native_tools'])
+    if planned.get('native_resources'):result['resources']=planned['native_resources']
+    if planned.get('native_debian'):result['debian']=planned['native_debian']
+    if planned.get('native_node_modules'):result['node_modules']=planned['native_node_modules']
+    return result
+
+
+def downloaded_native_dependencies(files,image_sha256):
+    """Bind reviewed native installers to pristine, checksum-pinned package bytes."""
+    import hashlib
+    from pathlib import Path
+    from hpc.offline_prep.image_verifier_tools import canonical
+    for record in copy.deepcopy(_TASK_NATIVE_DEPENDENCIES):
+        if not for_task(record) or hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()!=record['source_sha256']:
+            continue
+        if (image_sha256!=record['image_sha256']
+                or files['tests/test.sh'].decode().count(record['command'])!=1):
+            raise ValueError('CalibForge native download source binding differs')
+        canonical({key:record[key] for key in ('image_sha256','executables','debian','node_modules') if key in record})
+        return record
+    return None
+
+
+def pristine_verifier_assets(files, records, image_sha256):
+    """Restore image-generated grading inputs from checked bytes in /tests.
+
+    These are task-specific fixtures, not reusable runtime dependencies. The
+    preparation record binds every byte to the original image and test script.
+    """
+    import base64,hashlib
+    assets={};commands={};proof=[]
+    script=files.get('tests/test.sh',b'').decode()
+    for record in records or []:
+        source=record.get('source','');target=record.get('target','')
+        if (record.get('status')!='ready' or record.get('image_sha256')!=image_sha256
+                or not re.fullmatch(r'[a-f0-9]{64}',image_sha256 or '')
+                or record.get('test_script_sha256')!=hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()
+                or not re.fullmatch(r'/(?:app|var/cache)/[A-Za-z0-9_.-]+\.mp4',source)
+                or target!='/tests/'+source.rsplit('/',1)[-1]):
+            raise ValueError('CalibForge verifier fixture provenance requires review')
+        data=base64.b64decode(record.get('data_base64',''),validate=True)
+        if (not data or len(data)!=record.get('size') or len(data)>256*1024*1024
+                or hashlib.sha256(data).hexdigest()!=record.get('sha256')):
+            raise ValueError('CalibForge verifier fixture checksum differs')
+        command='cp '+source+' '+target
+        if shell_lines(script).count(command)!=1 or target[1:] in assets:
+            raise ValueError('CalibForge verifier fixture copy requires review')
+        if target[1:] in files and files[target[1:]]!=data:
+            raise ValueError('CalibForge verifier fixture conflicts with uploaded source')
+        assets[target[1:]]=data
+        commands[command]='test -f '+target
+        guard='if [ -f '+source+' ]; then'
+        if guard in shell_lines(script):commands[guard]='if [ -f '+target+' ]; then'
+        proof.append({key:record[key] for key in ('source','target','image_sha256','test_script_sha256','sha256','size')})
+    return assets,commands,proof
+
+
+def uvx_plan(files, *, python, resolved_requirements=None, source_image_sha256=None, auxiliary=None, auxiliary_files=None, uv_run=False, original_uvx=True, verifier_assets=None, native_package_proofs=None):
+    """Review the original literal uvx family without changing its test arguments.
+
+    The caller supplies the measured uv-selected patch version. Different image
+    interpreter selections require independent evidence, even for the same recipe.
+    """
+    from data.utils.verifier_runtime import prepare_uvx
+    from validation.contract import files_digest
+    # uv 0.9.5 prepends the selected tool environment to PATH for the launched
+    # command. Bare python/python3 children therefore use the primary runtime,
+    # not the interpreter observed before entering uvx/uv run.
+    if original_uvx:
+        auxiliary = {name: record for name,record in (auxiliary or {}).items()
+                     if not (record.get('kind')=='literal_python' and record.get('probe_invocation') in ('python','python3'))}
+    command_environment = 'PATH="${OT_VERIFIER_PYTHON%/*}:$PATH" ' if original_uvx else ''
+    auxiliary_plan = auxiliary_helper_plan(auxiliary_files or files, auxiliary, source_image_sha256)
+    test_assets,asset_commands,asset_proof=pristine_verifier_assets(auxiliary_files or files,verifier_assets,source_image_sha256)
+    shell_assets,shell_commands=restored_shell_helpers(auxiliary_files or files)
+    test_assets.update(shell_assets)
+    asset_commands.update(shell_commands)
+    install_assets,install_commands=shell_package_installation(auxiliary_files or files,source_image_sha256)
+    test_assets.update(install_assets)
+    asset_commands.update(install_commands)
+    dependency_assets,dependency_commands=shell_dependency_installation(auxiliary_files or files,source_image_sha256)
+    test_assets.update(dependency_assets);asset_commands.update(dependency_commands)
+    test_assets.update({path:source.encode() for path,source in auxiliary_plan['sources'].items()
+                       if path in auxiliary_plan['helpers'] and path not in files})
+    package_commands,package_tools,native_resources,package_proof=prepared_native_packages(auxiliary_files or files,native_package_proofs,source_image_sha256)
+    script = replace_reviewed_shell_lines(files.get('tests/test.sh', b'').decode(),package_commands)
+    native_download=downloaded_native_dependencies(auxiliary_files or files,source_image_sha256)
+    if native_download:
+        if package_tools:raise ValueError('Mixed native package sources require review')
+        package_tools.update(native_download['executables'])
+        script=script.replace(native_download['command'],'# Native dependencies supplied by clean runtime')
+        client=native_download.get('client_source')
+        if client:
+            import hashlib
+            path=client['path'];original=(auxiliary_files or files)[path]
+            if hashlib.sha256(original).hexdigest()!=client['sha256'] or path in auxiliary_plan['sources']:
+                raise ValueError('CalibForge native client source binding differs')
+            rewritten=original.decode()
+            for before,after in client['replacements'].items():
+                if before not in rewritten:raise ValueError('CalibForge native client replacement differs')
+                rewritten=rewritten.replace(before,after)
+            ast.parse(rewritten)
+            auxiliary_plan['sources'][path]=rewritten
+    for original,replacement in asset_commands.items():
+        script=re.sub(r'^([ \t]*)'+re.escape(original)+r'$',lambda match:match[1]+replacement,script,flags=re.M)
+    for original, replacement in {**auxiliary_plan['replacements'],**auxiliary_plan['guards']}.items():
+        script = script.replace(original,replacement)
+    # The runner uploads this canonical test file after the agent stops. Never
+    # overwrite it with an agent-writable duplicate from /workspace/tests.
+    if 'tests/test_outputs.py' in files:
+        script = script.replace('mkdir -p /tests\ncp /workspace/tests/test_outputs.py /tests/',
+                                'test -f /tests/test_outputs.py')
+    script = script.replace('source $HOME/.local/bin/env 2>/dev/null || export PATH="$HOME/.local/bin:$PATH"',
+                            'source $HOME/.local/bin/env')
+    script = script.replace('source $HOME/.local/bin/env || export PATH="$HOME/.local/bin:$PATH"',
+                            'source $HOME/.local/bin/env')
+    if script == CF_UVX_SCRIPT:
+        if shell_lines(files.get('tests/setup.sh', b'').decode()):
+            raise ValueError('CalibForge CF verifier setup requires review')
+        argv = ['uvx', '-p', '3.13', '-w', 'pytest==8.4.1', '-w', 'pytest-json-ctrf==0.3.5', 'pytest']
+        if resolved_requirements is not None:
+            argv = pin_observed_uvx(argv, resolved_requirements)
+        spec, command = prepare_uvx(argv, python=python)
+        start = script.index('CF_UVX_BIN=')
+        end = script.index('CF_TEST_STATUS=$?')
+        replacement = (script[:start] + command_environment + command +
+            ' /tests/test_outputs.py -q --ctrf "${CF_CTRF_FILE}"\n' + script[end:])
+        return dict(spec=spec, content_sha256=files_digest(files.items()),
+                    test_script=replacement, interpreter_evidence='measured uvx Python ' + python,
+                    launcher_path_evidence='uv launcher PATH: bare Python children use the selected primary runtime' if original_uvx else None,
+                    auxiliary_specs=auxiliary_plan['specs'], auxiliary_helpers=sorted(auxiliary_plan['helpers']),
+                    auxiliary_evidence=auxiliary_plan['evidence'], auxiliary_sources=auxiliary_plan['sources'])
+    for bootstrap in UV_BOOTSTRAP_PREFIXES:
+        if script.count(bootstrap) == 1:
+            script = script.replace(bootstrap, 'source $HOME/.local/bin/env', 1)
+    script = remove_uv_bootstrap_loops(script)
+    binary_fallback = ('curl -k -LsSf https://astral.sh/uv/0.9.5/install.sh | sh || {\n'
+        '    echo "Failed to install uv, trying alternative method..."\n'
+        '    curl -k -L https://github.com/astral-sh/uv/releases/download/0.9.5/uv-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /tmp\n'
+        '    mkdir -p $HOME/.local/bin\n'
+        '    cp /tmp/uv-x86_64-unknown-linux-gnu/uv $HOME/.local/bin/\n'
+        '    chmod +x $HOME/.local/bin/uv\n}')
+    script = script.replace(binary_fallback, '# uv bootstrap replaced by runtime preparation')
+    # Uploaded verifier sources always win over stale task-side copies.
+    test_search = ('TEST_PATH=""\n'
+        'for path in "/tests/test_outputs.py" "/workspace/tests/test_outputs.py" "tests/test_outputs.py" "../tests/test_outputs.py"; do\n'
+        '    if [ -f "$path" ]; then\n        TEST_PATH="$path"\n        break\n    fi\ndone')
+    if 'tests/test_outputs.py' in files and test_search in script:
+        script = script.replace(test_search, 'TEST_PATH="/tests/test_outputs.py"')
+        script = script.replace('    find / -name "test_outputs.py" 2>/dev/null || true\n', '')
+    # Original curl/wget fallback only bootstraps the pinned uv installer.
+    script = script.replace('apt-get install -y curl 2>/dev/null || apt-get install -y wget 2>/dev/null || true\n\n# Install uv\nif command -v curl &> /dev/null; then\n    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh\nelif command -v wget &> /dev/null; then\n    wget -qO- https://astral.sh/uv/0.9.5/install.sh | sh\nelse\n    # If neither curl nor wget, download uv binary directly\n    mkdir -p /root/.local/bin\n    apt-get update && apt-get install -y ca-certificates\n    echo "Downloading uv..."\nfi', "# uv bootstrap replaced by runtime preparation")
+    # These blocks only obtain curl for the pinned installer. Their purpose is
+    # fulfilled by trusted runtime preparation, with no task initialization.
+    script = re.sub(r'^if ! command -v curl &> /dev/null; then\n[ \t]*apt-get update\n[ \t]*apt-get install -y curl(?: ca-certificates)?\nfi$',
+                    '# curl bootstrap replaced by runtime preparation', script, flags=re.M)
+    retry_block = ('max_retries=3\nretry_count=0\nwhile [ $retry_count -lt $max_retries ]; do\n'
+        '    curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh\n'
+        '    if [ -f "$HOME/.local/bin/env" ]; then\n        break\n    fi\n'
+        '    retry_count=$((retry_count + 1))\n    sleep 5\ndone')
+    script = script.replace(retry_block, '# uv installer retries replaced by runtime preparation')
+    # A redundant image-Python availability check before uvx should also use
+    # fresh grading tools. It does not choose the uvx interpreter.
+    if re.search(r'^uvx ', script.replace('\\\n',' '), re.M):
+        selector = native_selector(script)
+        if selector and '$PYTHON' not in script.replace(selector,'',1):
+            script = script.replace(selector,'',1)
+        elif selector:
+            remainder = script.replace(selector,'',1)
+            usages = [line for line in shell_lines(remainder) if '$PYTHON' in line
+                      and not re.fullmatch(r'echo "[A-Za-z0-9 .$:/_-]+"', line)]
+            if usages == ['if ! "$PYTHON" -c "import pytest" >/dev/null 2>&1; then']:
+                script = script.replace(selector, 'PYTHON="${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"',1)
+                script = script.replace('if ! "$PYTHON" -c "import pytest"', 'if ! "$PYTHON" -I -c "import pytest"')
+    # Rust's standard env file only adds its tool directory. Restore that path
+    # explicitly instead of sourcing an agent-writable shell file.
+    cargo_marker = '# OT preserved Cargo tool path'
+    if cargo_marker in script:
+        raise ValueError('CalibForge Cargo path marker requires review')
+    script = re.sub(r'^(\s*)source \$HOME/\.cargo/env$', r'\1' + cargo_marker, script, flags=re.M)
+    path_markers = {
+        '# OT preserved root Cargo path': UV_PATH.replace('$HOME/.local/bin', '/root/.cargo/bin'),
+        '# OT preserved root uv path': UV_PATH.replace('$HOME/.local/bin', '/root/.local/bin'),
+    }
+    for source, marker in (('source /root/.cargo/env', '# OT preserved root Cargo path'),
+                           ('source /root/.local/bin/env', '# OT preserved root uv path')):
+        if marker in script:
+            raise ValueError('CalibForge environment path marker requires review')
+        script = re.sub(r'^([ \t]*)'+re.escape(source)+r'$', r'\1'+marker, script, flags=re.M)
+    for source in ('source $HOME/.local/bin/env 2>/dev/null || true',
+                   'source $HOME/.local/bin/env || true',
+                   '. $HOME/.local/bin/env 2>/dev/null || export PATH="$HOME/.local/bin:$PATH"'):
+        script = script.replace(source, 'source $HOME/.local/bin/env')
+    # Join shell continuations only. Quoted arguments are parsed by shlex below.
+    flat = script.replace('\\\n', ' ')
+    flat = flat.replace('$(dirname "$0")/test_outputs.py', '/tests/test_outputs.py')
+    # Verifier files are uploaded freshly at /tests; do not honor an agent test-path override.
+    flat = flat.replace('TEST_FILE="${TEST_FILE:-/tests/test_outputs.py}"', 'TEST_FILE="/tests/test_outputs.py"')
+    flat = flat.replace('TEST_FILE="${SCRIPT_DIR}/test_outputs.py"', 'TEST_FILE="/tests/test_outputs.py"')
+    flat = re.sub(r'^\$HOME/\.local/bin/uvx ', 'uvx ', flat, flags=re.M)
+    if re.search(r'^uv run ', flat, re.M) and not uv_run:
+        raise ValueError('CalibForge uv run requires original command metadata review')
+    if uv_run:
+        flat = re.sub(r'^(uv run )--no-project ', r'\1', flat, flags=re.M)
+        flat = re.sub(r'^(uv run [^\n]*?) python -m pytest ', r'\1 pytest ', flat, flags=re.M)
+    flat = re.sub(r'^uv run ', 'uvx ', flat, flags=re.M)
+    # These variants only bootstrap the pinned installer, including its SSL
+    # workaround. Match whole commands so task initialization is never removed.
+    flat = '\n'.join(': # uv installer replaced by runtime preparation' if pinned_uv_installer(line.strip())
+                     else line for line in flat.split('\n'))
+    flat = re.sub(r'^if ! command -v uvx (?:>/dev/null 2>&1|&> /dev/null); then$',
+                  'if [ ! -x "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}" ]; then',
+                  flat, flags=re.M)
+    commands = list(re.finditer(r'^uvx [^\n]+$', flat, re.M))
+    if len(commands) != 1:
+        raise ValueError('CalibForge literal uvx command requires review')
+    match = commands[0]
+    skeleton = flat[:match.start()] + 'OT_PYTEST_COMMAND' + flat[match.end():]
+    skeleton = skeleton.replace('source $HOME/.local/bin/env\n', '', 1)
+    declared_paths = set()
+    status_variables = set()
+    native_tools = dict(package_tools)
+    for role in task_module_roles(auxiliary_files or files):
+        native_tools.update(role.get('clean_tools', {}))
+        native_resources.update(role.get('native_resources', {}))
+    packaging_files=auxiliary_files or files
+    for path in packaging_files:
+        if path.startswith('tests/') and path.endswith('.py'):
+            reviewed_role=packaging_role(packaging_files,path,dict(python=python,original_uvx_path=original_uvx))
+            if reviewed_role:
+                native_tools.update(reviewed_role.get('clean_tools',{}))
+    task_launchers, task_commands, task_shell_calls = {}, {}, []
+    initializations=task_initialization_roles(auxiliary_files or files)
+    for role in initializations:
+        if role.get('tools') and not source_image_sha256:
+            raise ValueError('CalibForge task process initialization needs pristine tool image binding')
+        native_tools.update(role.get('tools',{}))
+    for line in shell_lines(skeleton):
+        if line == ': # uv installer replaced by runtime preparation':
+            continue
+        if line in asset_commands.values():
+            continue
+        if any(line in role['lines'] for role in initializations):
+            continue
+        if line in auxiliary_plan['replacements'].values():
+            continue
+        if line == 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"':
+            declared_paths.add('SCRIPT_DIR')
+            continue
+        if '$(' in line or '`' in line or '/setup_files' in line:
+            raise ValueError('CalibForge uvx initialization requires review: ' + line)
+        if reviewed_asset_initialization(line, files):
+            continue
+        if line == 'echo "Error: pytest not found" ; echo 0 > /logs/verifier/reward.txt ; exit 1':
+            continue
+        if line == 'cp /tmp/private_test.csv /tmp/private_test.csv 2>/dev/null || true':
+            continue
+        if line == 'if [ $? -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; else echo 0 > /logs/verifier/reward.txt; fi':
+            continue
+        if line == 'PYTHON="${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"':
+            continue
+        tool_guard = re.fullmatch(r'if ! command -v ([a-z][a-z0-9-]*) >/dev/null 2>&1; then', line)
+        if tool_guard and tool_guard[1] in package_tools:
+            continue
+        if re.fullmatch(r'if ! pgrep -[fx] (?:"[A-Za-z0-9 ./_-]+"|[A-Za-z0-9_.-]+) > ?/dev/null(?: 2>&1)?; then', line):
+            if not source_image_sha256:
+                raise ValueError('CalibForge process guard needs pristine tool image binding')
+            native_tools['pgrep'] = '/usr/bin/pgrep'
+            continue
+        if re.fullmatch(r'if (?:! )?curl -s http://(?:localhost|127\.0\.0\.1)(?::[0-9]{1,5})?(?:/[A-Za-z0-9_./-]*)? > ?/dev/null 2>&1; then', line):
+            if not source_image_sha256:
+                raise ValueError('CalibForge service guard needs pristine tool image binding')
+            native_tools['curl'] = '/usr/bin/curl'
+            continue
+        if (line in ('for i in {1..30}; do', 'done', 'break')
+                or re.fullmatch(r'sleep (?:[1-9]|[1-5][0-9]|60)',line)):
+            continue
+        if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=(?:\$\?|\$\{PIPESTATUS\[0\]\})', line):
+            status_variables.add(line.partition('=')[0])
+            continue
+        if line.startswith('exit $') and line[6:] in status_variables:
+            continue
+        combined_status = re.fullmatch(r'if \[ \$([A-Za-z_][A-Za-z0-9_]*) -eq 0 \] && \[ \$([A-Za-z_][A-Za-z0-9_]*) -eq 0 \]; then',line)
+        if combined_status and set(combined_status.groups())<=status_variables:
+            continue
+        if re.fullmatch(r'export (?:OMP_NUM_THREADS|MKL_NUM_THREADS|OPENBLAS_NUM_THREADS)=[1-9][0-9]*', line):
+            continue
+        if re.fullmatch(r'if ! "\$PYTHON" -I -c "import [A-Za-z_][A-Za-z0-9_, ]*" '
+                        r'(?:>/dev/null 2>&1|2>/dev/null); then', line):
+            continue
+        if line in ('OT_PYTEST_COMMAND', 'then', 'else', 'fi'):
+            continue
+        if re.fullmatch(r'(?:if|elif) \[ [^\[\];&|<>]* \]; then', line):
+            continue
+        if line.startswith(('echo ', 'printf ')) and not any(c in line for c in ';|&<'):
+            continue
+        if (line in ('set -e', 'set -u', 'set -eu', 'set -euo pipefail', 'set -o pipefail', 'set -x',
+                     'export HOME=/root',
+                     'mkdir -p /logs/verifier', 'test -f /tests/test_outputs.py', 'cd /tests', 'cd /app',
+                     'export PATH="$HOME/.local/bin:$PATH"',
+                     'export PATH="/opt/venv/bin:$PATH"',
+                     'export PYTHONPATH=/app:$PYTHONPATH',
+                     'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"') or re.fullmatch(r'exit [0-9]+', line)):
+            continue
+        if (re.match(r'(?:TEST_(?:PATH|FILE|DIR)|TESTS_DIR)=', line) and line.partition('=')[2].strip('\"\'') in
+                ('', '/tests', '/workspace/tests', '/tests/test_outputs.py', '/workspace/tests/test_outputs.py',
+                 'tests/test_outputs.py', './tests/test_outputs.py')):
+            declared_paths.add(line.partition('=')[0])
+            continue
+        launcher=shell_task_launcher(line,auxiliary_files or files)
+        if launcher:
+            path,source,replacement,proof=launcher
+            task_launchers[path]=source;task_commands[line]=replacement;task_shell_calls.append(proof)
+            continue
+        raise ValueError('CalibForge uvx initialization requires review: ' + line)
+    setup = shell_lines(replace_reviewed_shell_lines(files.get('tests/setup.sh', b'').decode(),package_commands))
+    allowed = {'apt-get update', 'apt-get update 2>/dev/null || true', 'apt-get install -y curl',
+               'apt-get update && apt-get install -y curl',
+               'apt-get update -qq && apt-get install -y -qq curl', 'set -u',
+               'apt-get install -y curl ca-certificates',
+               'DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates',
+               'DEBIAN_FRONTEND=noninteractive apt-get install -y curl',
+               'apt-get install -y curl python3-pip',
+               'update-ca-certificates 2>/dev/null || true', 'update-ca-certificates',
+               'curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh'}
+    system_packages = {
+        'pngcheck': {'pngcheck': '/usr/bin/pngcheck'},
+        'sqlite3': {'sqlite3': '/usr/bin/sqlite3'},
+        'tcpdump': {'tcpdump': '/usr/bin/tcpdump'},
+        'netcat-openbsd': {'nc': '/usr/bin/nc.openbsd'},
+        'redis-tools': {'redis-cli': '/usr/bin/redis-cli', 'redis-benchmark': '/usr/bin/redis-benchmark'},
+        'lsof': {'lsof': '/usr/bin/lsof'},
+        'procps': {name: '/usr/bin/' + name for name in ('pgrep', 'pkill', 'ps')},
+    }
+    for line in set(setup) - allowed:
+        if line == 'set -x' or pinned_uv_installer(line) or python_bootstrap_apt(line):
+            continue
+        prefix = 'apt-get install -y '
+        packages = line.removeprefix(prefix).split()
+        if (not source_image_sha256 or not line.startswith(prefix)
+                or not set(packages) <= set(system_packages) | {'curl', 'ca-certificates'}):
+            raise ValueError('CalibForge native setup dependencies require review: ' + line)
+        for package in packages:
+            native_tools.update(system_packages.get(package, {}))
+    if any(path in body.decode(errors='replace') for path in native_tools.values()
+           for name, body in files.items() if name.startswith('tests/') and name.endswith('.py')):
+        raise ValueError('CalibForge absolute native verifier tool invocation requires review')
+    tool = next((candidate for candidate in re.finditer(r'(?<!\S)pytest(?=\s|$)',match[0])
+                 if shlex.split(match[0][:candidate.start()])[-1] not in ('-w','--with','--from')),None)
+    if tool is None:
+        raise ValueError('CalibForge uvx tool requires review')
+    prefix, arguments = match[0][:tool.end()], match[0][tool.end():]
+    variables = {match[0] or match[1] for match in re.findall(
+        r'\$(TEST_(?:PATH|FILE|DIR)|TESTS_DIR|SCRIPT_DIR)|\$\{(TEST_(?:PATH|FILE|DIR)|TESTS_DIR|SCRIPT_DIR)\}', arguments)}
+    if not variables <= declared_paths:
+        raise ValueError('CalibForge external test path variable requires review')
+    log_pipeline = ' 2>&1 | tee /logs/verifier/pytest_output.txt'
+    reviewed_arguments = arguments
+    if arguments.endswith(log_pipeline):
+        if not source_image_sha256:
+            raise ValueError('CalibForge logging pipeline needs pristine tool image binding')
+        native_tools['tee'] = '/usr/bin/tee'
+        reviewed_arguments = arguments[:-len(log_pipeline)]
+    literal_arguments = re.sub(r'\$(?:TEST_(?:PATH|FILE|DIR)|TESTS_DIR|SCRIPT_DIR|\{(?:TEST_(?:PATH|FILE|DIR)|TESTS_DIR|SCRIPT_DIR)\})', '', reviewed_arguments)
+    lexer = shlex.shlex(prefix, posix=True, punctuation_chars=';&|<>')
+    lexer.whitespace_split = True
+    prefix_tokens = list(lexer)
+    if (any(c in prefix for c in ('$', '`'))
+            or any(token and set(token) <= set(';&|<>') for token in prefix_tokens)
+            or any(c in literal_arguments for c in ('$','`',';','|','>','<','&'))):
+        raise ValueError('CalibForge dynamic uvx arguments require review')
+    argv = shlex.split(prefix)
+    if resolved_requirements is not None:
+        argv = pin_observed_uvx(argv, resolved_requirements)
+    spec, command = prepare_uvx(argv, python=python)
+    if spec['tools'] != ['pytest']:
+        raise ValueError('CalibForge uvx tool requires review')
+    replacement = flat[:match.start()] + command_environment + command + arguments + flat[match.end():]
+    replacement = replacement.replace('source $HOME/.local/bin/env\n', UV_PATH + '\n', 1)
+    replacement = replacement.replace(cargo_marker, UV_PATH.replace('.local/bin', '.cargo/bin'))
+    for marker, path_restore in path_markers.items():
+        replacement = replacement.replace(marker, path_restore)
+    for original,updated in task_commands.items():
+        replacement=re.sub(r'^([ \t]*)'+re.escape(original)+r'$',lambda match:match[1]+updated,replacement,flags=re.M)
+    if native_tools or native_download:
+        activation = 'export PATH="${OT_VERIFIER_BIN:?prepared verifier runtime required}/../native-tools:$PATH"\n'
+        if native_download and native_download.get('debian'):
+            activation += 'export LD_LIBRARY_PATH="${OT_VERIFIER_BIN}/../native-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
+        if 'magic.mgc' in native_resources:
+            activation += 'export MAGIC="${OT_VERIFIER_BIN}/../native-resources/magic.mgc"\n'
+        if replacement.startswith('#!'):
+            first, newline, rest = replacement.partition('\n')
+            replacement = first + newline + activation + rest
+        else:
+            replacement = activation + replacement
+    return dict(spec=spec, content_sha256=files_digest(files.items()),
+                test_script=replacement, native_tools=native_tools, auxiliary_specs=auxiliary_plan['specs'],
+                native_debian=native_download.get('debian') if native_download else None,
+                native_node_modules=native_download.get('node_modules') if native_download else None,
+                test_assets=test_assets, verifier_asset_provenance=asset_proof, native_resources=native_resources, native_package_provenance=package_proof,
+                launcher_path_evidence='uv launcher PATH: bare Python children use the selected primary runtime' if original_uvx else None,
+                auxiliary_helpers=sorted(auxiliary_plan['helpers']), auxiliary_evidence=auxiliary_plan['evidence'],
+                auxiliary_sources=auxiliary_plan['sources'],
+                task_launchers=task_launchers, test_sources=dict(task_launchers), task_shell_calls=task_shell_calls,
+                interpreter_evidence='measured uvx Python ' + python)
+
+
+def runtime_setup_updates(planned,catalog):
+    from data.utils.verifier_runtime import offline_package_reference,offline_preparation_command
+    updates=runtime_reference(planned['spec'],catalog)
+    offline=planned.get('verifier_offline_spec')
+    setup='#!/bin/bash\nset -e\n'+preparation_command(planned['spec'],phase='verifier',exit_after=not bool(offline))
+    if offline:
+        updates.update(offline_package_reference(offline,catalog,phase='verifier'))
+        setup+='\n'+offline_preparation_command({k:v for k,v in offline.items() if k!='image_sha256'},
+                    image_sha256=offline['image_sha256'],phase='verifier')
+    updates['tests/setup.sh']=(setup+'\n: "${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"\n').encode()
+    return updates
+
+
+def apply_uvx(files, planned, catalog):
+    from validation.contract import files_digest
+    if files_digest(files.items()) != planned['content_sha256']:
+        raise ValueError('CalibForge files changed after runtime planning')
+    updates = runtime_setup_updates(planned,catalog)
+    updates['tests/test.sh'] = planned['test_script'].encode()
+    if 'test_source' in planned and planned['test_source'].encode() != files.get('tests/test_outputs.py'):
+        updates['tests/test_outputs.py'] = planned['test_source'].encode()
+    updates.update({path: source.encode() for path, source in planned.get('test_sources', {}).items()})
+    updates.update(planned.get('test_assets',{}))
+    updates.update(task_updates(files,catalog))
+    return {**files, **updates}
+
+
+def uvx_fallback_branch(files):
+    """Review a literal uvx-versus-pip dependency fallback, keeping test arguments."""
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+    script = files['tests/test.sh'].decode().replace('\\\n', ' ')
+    # One original verifier stores its availability decision in UV_CMD, then
+    # dispatches later. Normalize only this literal dependency-only scaffold;
+    # the usual branch review below still checks both pytest argument lists.
+    assignment = ('if [ -f "$HOME/.local/bin/env" ]; then\n'
+                  '    source $HOME/.local/bin/env\n    UV_CMD="uvx"\nelse\n'
+                  '    pip3 install pytest pytest-json-ctrf --break-system-packages\n'
+                  '    UV_CMD=""\nfi')
+    dispatch = 'if [ -n "$UV_CMD" ]; then\n'
+    if (script.count(assignment)==1 and script.count(dispatch)==1
+            and script.count('UV_CMD')==4):
+        script=script.replace(assignment,'',1).replace(dispatch,'if [ -f "$HOME/.local/bin/env" ]; then\n',1)
+        script=script.replace('    $UV_CMD ', '    uvx ',1)
+        # Installers from the earlier else belong to this same fallback.
+        start=script.index('if [ -f "$HOME/.local/bin/env" ]; then\n')
+        position=script.index('\nelse\n',start)
+        script=script[:position]+script[position:].replace('\nelse\n','\nelse\n    pip3 install pytest pytest-json-ctrf --break-system-packages\n',1)
+    pattern = (r'^if (?P<negative>! )?(?:command -v uvx (?:&> /dev/null|>/dev/null 2>&1)|\[ -f "\$HOME/\.local/bin/env" \]); then\n'
+               r'(?P<yes>(?:(?!^else$|^fi$).)*?)^else\n(?P<no>(?:(?!^fi$).)*?)^fi$')
+    matches = list(re.finditer(pattern, script, re.M | re.S))
+    candidates = []
+    for match in matches:
+        yes = shell_lines(match['no'] if match['negative'] else match['yes'])
+        commands = [line for line in yes if line.startswith('uvx ')]
+        if len(commands) != 1 or any(line not in commands and line != 'source $HOME/.local/bin/env' for line in yes):
+            continue
+        argv = shlex.split(commands[0]); tool = argv.index('pytest')
+        dependencies = {canonicalize_name(Requirement(argv[i+1]).name): Requirement(argv[i+1])
+                        for i in range(tool) if argv[i] in ('-w', '--with', '--from')}
+        installers, graders = [], []
+        fallback_venv = None
+        for line in shell_lines(match['yes'] if match['negative'] else match['no']):
+            created = native_verifier_venv(line)
+            if created and fallback_venv is None:
+                fallback_venv = created
+                continue
+            if fallback_venv and line == 'source ' + fallback_venv + '/bin/activate':
+                continue
+            if line == 'apt-get install -y python3-pip':
+                continue
+            if line.startswith('echo ') and not any(c in line for c in '$`;|&<>'):
+                continue
+            requirements = native_install_requirements(line)
+            if requirements:
+                installers.extend(requirements)
+                continue
+            tokens = shlex.split(line)
+            head = next((head for head in (['pytest'], ['python3','-m','pytest'], ['$PYTHON','-m','pytest']) if tokens[:len(head)] == head), None)
+            if head is None or tokens[len(head):] != argv[tool+1:]:
+                break
+            graders.append(line)
+        else:
+            if len(graders) != 1:
+                continue
+            for value in installers:
+                requirement = Requirement(value); original = dependencies.get(canonicalize_name(requirement.name))
+                pins = [part.version for part in original.specifier if part.operator == '=='] if original else []
+                if (requirement.url or requirement.marker or original is None
+                        or (not pins and str(requirement.specifier)!=str(original.specifier))
+                        or (pins and (len(pins)!=1 or not requirement.specifier.contains(pins[0], prereleases=True)))):
+                    break
+            else:
+                replacement = '\n'.join(yes)
+                rewritten = script[:match.start()]+replacement+script[match.end():]
+                selector = native_selector(rewritten)
+                if selector and '$PYTHON' not in rewritten.replace(selector,'',1):
+                    rewritten = rewritten.replace(selector,'',1)
+                candidates.append(dict(script=rewritten,
+                                       prefix=script[:match.start()],guard=match[0].splitlines()[0].replace('if ! ','if ',1),argv=argv))
+    if len(candidates) != 1:
+        raise ValueError('CalibForge conditional uvx fallback requires review')
+    return candidates[0]
+
+
+def measured_uvx_plan(files, observed, binding, bundle):
+    """Bind a reviewed uvx rewrite to an original interpreter probe and its image."""
+    from validation.contract import files_digest
+    if (files_digest(files.items()) != binding['content_sha256']
+            or observed.get('returncode') != 0
+            or observed['sha256'] != bundle['files'][bundle['name']]['sha256']):
+        raise ValueError('CalibForge uvx probe/image/task binding differs')
+    measured = observed['observed']
+    if observed.get('invocation_kind') in ('uv-run','absolute-uvx','uv-run-python','conditional-uv-run'):
+        import hashlib
+        if observed.get('test_script_sha256') != hashlib.sha256(files['tests/test.sh']).hexdigest():
+            raise ValueError('CalibForge uv invocation probe source differs')
+    planning_files = files
+    if observed.get('invocation_kind') == 'conditional-uv-run':
+        # Reviewed original fallback only installs the same NumPy pin and runs
+        # the same pytest arguments. The metadata job proves uv took branch one.
+        if observed['test_script_sha256'] != 'd21a1d754a574b50e0f24ed9e89e41ccb103eb0194a9bc4bd4c3e3d7685b57d2':
+            raise ValueError('CalibForge conditional uv run source requires review')
+        script=files['tests/test.sh'].decode().replace('\\\n',' ')
+        match=re.search(r'^if command -v uv >/dev/null 2>&1; then\n(?P<yes>.*?)^elif .*?^fi$',script,re.M|re.S)
+        if not match:raise ValueError('CalibForge conditional uv run branch requires review')
+        script=script[:match.start()]+ '\n'.join(shell_lines(match['yes']))+'\n'+script[match.end():]
+        selector=native_selector(script)
+        if selector and '$PYTHON' not in script.replace(selector,'',1):script=script.replace(selector,'',1)
+        planning_files={**files,'tests/test.sh':script.encode()}
+    if observed.get('selected_uvx_branch'):
+        import hashlib
+        if observed.get('test_script_sha256') != hashlib.sha256(files['tests/test.sh']).hexdigest():
+            raise ValueError('CalibForge conditional uvx probe source differs')
+        branch = uvx_fallback_branch(files)
+        if observed['selected_uvx_branch'] != branch['argv']:
+            raise ValueError('CalibForge conditional uvx probe command differs')
+        planning_files = {**files, 'tests/test.sh': branch['script'].encode()}
+    planned = uvx_plan(planning_files, python=measured['python'], resolved_requirements=measured['requirements'],
+                       source_image_sha256=observed['sha256'],auxiliary=observed.get('auxiliary'),auxiliary_files=files,verifier_assets=observed.get('verifier_assets'),native_package_proofs=observed.get('native_package_proofs'),
+                       uv_run=observed.get('invocation_kind') in ('uv-run','uv-run-python','conditional-uv-run'))
+    planned['content_sha256'] = files_digest(files.items())
+    # Managed Python 3.13.9 is distributable independently of the task image.
+    # The Docker-installed interpreter is copied from its checksum-verified image.
+    image_python = native_image_binding(measured, observed['sha256'])
+    requirements = resolved_runtime_requirements(measured['requirements'], observed.get('requirement_sources', {}), observed.get('source_version_proofs'))
+    native_tools = planned.get('native_tools', {})
+    planned['spec'] = runtime_spec(python=measured['python'], requirements=requirements,
+        tools=['pytest', *native_tools], install_no_deps=True, image_python=image_python,
+        image_tools=native_tool_binding(observed['sha256'],planned),
+        auxiliary=planned.get('auxiliary_specs') or None)
+    # uvx created a verifier tool environment, rather than selecting an agent
+    # interpreter. Preserve that environment's use for task subprocesses while
+    # auditing imports and nested grading just as for native Python.
+    review_files={**files,**{path:source.encode() for path,source in planned.get('auxiliary_sources',{}).items()}}
+    planned.update(review_test_sources(review_files, {**measured,
+        'source_image_sha256':observed['sha256'],
+        'original_uvx_path':True, 'auxiliary_helpers':planned.get('auxiliary_helpers',[])}, task_python=None, original_files=files))
+    planned['test_sources'].update(planned.get('task_launchers',{}))
+    return planned
+
+
+def shared_uvx_eligible(files):
+    """Ubuntu's Python is 3.12; the pinned uv release supplies managed 3.13.9.
+
+    Require the original warm-up and reject another interpreter installation or
+    resolver configuration. Other bases need their own original-image probe.
+    """
+    docker = files.get('environment/Dockerfile', b'').decode()
+    if re.findall(r'^FROM\s+(\S+)', docker, re.M) != ['ubuntu:24.04']:
+        return False
+    marker = '# Verifier preparation from tests/test.sh, installed at build time.\n'
+    if docker.count(marker) != 1:
+        return False
+    before, warmup = docker.split(marker)
+    if re.search(r'python3\.13|python:|conda|pyenv|deadsnakes|UV_PYTHON|UV_TOOL|VIRTUAL_ENV|PYTHONHOME', before, re.I):
+        return False
+    if ('https://astral.sh/uv/0.9.5/install.sh' not in warmup
+            or not warmup.strip().endswith('pytest --version')
+            or not re.search(r'\buvx -p 3\.13 ', warmup)):
+        return False
+    return True
+
+
+def locked_family_spec(recipe, prepared):
+    """Freeze the complete dependency closure resolved during online preparation."""
+    from harbor_patches.verifier_bundle import spec_id, FORMAT
+    if (prepared.get('format') != FORMAT or prepared.get('status') != 'ready'
+            or prepared.get('spec') != recipe or prepared.get('id') != spec_id(recipe)
+            or not prepared.get('resolved_requirements')):
+        raise ValueError('CalibForge prepared family dependency lock requires review')
+    pins = prepared['resolved_requirements']
+    pin_observed_uvx(['uvx', *[part for requirement in recipe['requirements']
+                               for part in ('-w', requirement)]], pins)
+    return runtime_spec(**{**{k: v for k, v in recipe.items() if k != 'runtime_layout'},
+                           'requirements': pins, 'install_no_deps': True})
+
+
+def shared_uvx_plan(files, observed):
+    """Prepare the same setup recipe, with its measured managed Python release."""
+    measured = observed.get('observed', {})
+    if (observed.get('returncode') != 0 or measured.get('python') != '3.13.9'
+            or '/cpython-3.13.9-linux-x86_64-gnu/' not in measured.get('resolved_executable', '')):
+        raise ValueError('CalibForge managed uvx interpreter evidence differs')
+    if not shared_uvx_eligible(files):
+        raise ValueError('CalibForge uvx base/interpreter selection requires review')
+    planned = uvx_plan(files, python='3.13.9',auxiliary=observed.get('auxiliary'),
+                       source_image_sha256=observed.get('auxiliary_image_sha256'),verifier_assets=observed.get('verifier_assets'),native_package_proofs=observed.get('native_package_proofs'))
+    from harbor_patches.verifier_bundle import spec_id
+    prepared = observed.get('runtime_locks', {}).get(spec_id(planned['spec']))
+    if prepared is None:
+        raise ValueError('CalibForge prepared family dependency lock requires review')
+    locked = locked_family_spec(planned['spec'], prepared)
+    inventory = prepared
+    if 'import_names' not in inventory:
+        # An already locked artifact can supply a measured inventory when the
+        # intermediate recipe archive is no longer available. Bind it to the
+        # entire resolved spec, not just Python or the direct dependencies.
+        inventory = observed.get('locked_runtime_inventories', {}).get(spec_id(locked), {})
+        from harbor_patches.verifier_bundle import FORMAT
+        if (inventory.get('format') != FORMAT or inventory.get('status') != 'ready'
+                or inventory.get('id') != spec_id(locked) or inventory.get('spec') != locked
+                or sorted(inventory.get('resolved_requirements', [])) != sorted(locked['requirements'])):
+            raise ValueError('CalibForge locked family module inventory requires review')
+    if (not re.fullmatch('[0-9a-f]{64}', inventory.get('archive_sha256', ''))
+            or inventory.get('module_inventory_archive_sha256') != inventory.get('archive_sha256')
+            or not isinstance(inventory.get('import_names'), list)
+            or not all(isinstance(name, str) for name in inventory['import_names'])):
+        raise ValueError('CalibForge prepared family module inventory requires review')
+    planned['spec'] = locked
+    attach_auxiliary_spec(planned)
+    if planned.get('native_tools'):
+        image_sha256 = observed.get('auxiliary_image_sha256')
+        if not image_sha256:
+            raise ValueError('CalibForge shared Python/native tool image binding requires review')
+        planned['spec'] = runtime_spec(**{k:v for k,v in planned['spec'].items() if k not in ('runtime_layout','tools')},
+            tools=['pytest',*planned['native_tools']],
+            image_tools=native_tool_binding(image_sha256,planned))
+    review_files={**files,**{path:source.encode() for path,source in planned.get('auxiliary_sources',{}).items()}}
+    planned.update(review_test_sources(review_files, {**measured,
+        'requirements':prepared['resolved_requirements'], 'import_names':inventory['import_names'],
+        'source_image_sha256':observed.get('auxiliary_image_sha256'),
+        'original_uvx_path':True, 'auxiliary_helpers':planned.get('auxiliary_helpers',[])}, task_python=None, original_files=files))
+    planned['test_sources'].update(planned.get('task_launchers',{}))
+    planned['interpreter_evidence'] = 'reviewed Ubuntu 24.04 / uv 0.9.5 managed Python family, measured 3.13.9'
+    return planned
+
+
+def shared_base_eligible(files):
+    """Reuse the measured verifier only for descendants retaining that prefix.
+
+    Package installation or changes to /opt are reviewed separately. System apt
+    packages and task data generation do not select the explicitly addressed
+    /opt/verifier interpreter in SCRIPT.
+    """
+    if (shell_lines(files.get('tests/test.sh', b'').decode()) != shell_lines(SCRIPT.decode())
+            or 'tests/setup.sh' in files):
+        return False
+    docker = files.get('environment/Dockerfile', b'').decode()
+    if re.findall(r'^FROM\s+(\S+)', docker, re.M) != [BASE_IMAGE]:
+        return False
+    instructions = [line.strip() for line in docker.replace('\\\n', ' ').splitlines()
+                    if line.strip() and not line.lstrip().startswith('#')]
+    for line in instructions:
+        if line.startswith(('FROM ', 'WORKDIR ', 'ENV ', 'LABEL ', 'EXPOSE ', 'CMD ', 'ENTRYPOINT ')):
+            continue
+        if re.search(r'(?<![\w-])pip3?(?![\w-])|\buv\b|\bconda\b|ensurepip|/opt/verifier|/opt/uv|/usr/local', line):
+            return False
+        if line.startswith(('COPY ', 'ADD ')) and not re.search(r'\s/(?:app|workspace|opt/calibforge-build)(?:/|$)', line):
+            return False
+        if not line.startswith(('RUN ', 'COPY ', 'ADD ')):
+            return False
+    return True
+
+
+def static_paths(tree, filename=None):
+    """Resolve literal path expressions; reject parameters, mutation and shadowing."""
+    bindings = {}
+    scoped = {}
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    def scope(node):
+        current = parents.get(node)
+        while current is not None and not isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            current = parents.get(current)
+        return current
+    def bind(name, values, node):
+        bindings.setdefault(name, []).extend(values)
+        scoped.setdefault((scope(node), name), []).extend(values)
+    assigned = set()
+    pathlib_names = set()
+    path_names = set()
+    os_names = set()
+    textwrap_names = set()
+    dedent_names = set()
+    # Plain helper parameters can be resolved only when every use of the helper
+    # is a direct call in this trusted test source. Pytest entrypoints/fixtures,
+    # aliases, reflection, decorators and missing arguments remain unresolved.
+    functions = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.FunctionDef):
+            functions.setdefault(statement.name, []).append(statement)
+    parameter_values = {}
+    reflective = any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                     and node.func.id in ('globals', 'locals', 'eval', 'exec') for node in ast.walk(tree))
+    if not reflective:
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        for name, definitions in functions.items():
+            if len(definitions) != 1 or name.startswith(('test_', 'pytest_')):
+                continue
+            definition = definitions[0]
+            args = definition.args
+            if definition.decorator_list or args.kwarg or args.kwonlyargs:
+                continue
+            uses = [node for node in ast.walk(tree) if isinstance(node, ast.Name)
+                    and node.id == name and isinstance(node.ctx, ast.Load)]
+            if not uses or any(not isinstance(parents.get(node), ast.Call)
+                               or parents[node].func is not node for node in uses):
+                continue
+            parameters = [*args.posonlyargs, *args.args]
+            defaults = dict(zip([arg.arg for arg in parameters[-len(args.defaults):]], args.defaults)) if args.defaults else {}
+            for index, argument in enumerate(parameters):
+                values = []
+                for use in uses:
+                    call = parents[use]
+                    if any(isinstance(value, ast.Starred) for value in call.args) or any(keyword.arg is None for keyword in call.keywords):
+                        values = []
+                        break
+                    value = call.args[index] if len(call.args) > index else next(
+                        (keyword.value for keyword in call.keywords if keyword.arg == argument.arg), defaults.get(argument.arg))
+                    if value is None:
+                        values = []
+                        break
+                    values.append(value)
+                if values:
+                    parameter_values[argument] = values
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value:
+            targets, value = [node.target], node.value
+        else:
+            targets, value = [], None
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bind(target.id, [value], target)
+                assigned.add(target)
+        if isinstance(node, ast.For) and isinstance(node.target, ast.Name) and isinstance(node.iter, (ast.List, ast.Tuple)):
+            bind(node.target.id, list(node.iter.elts), node.target)
+            assigned.add(node.target)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bind(node.name, [None], node)
+        if isinstance(node, ast.arg):
+            bind(node.arg, parameter_values.get(node, [None]), node)
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.asname or alias.name.split('.')[0]
+                if alias.name == 'pathlib':
+                    pathlib_names.add(name)
+                elif alias.name == 'os':
+                    os_names.add(name)
+                elif alias.name == 'textwrap':
+                    textwrap_names.add(name)
+                else:
+                    bind(name, [None], node)
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                name = alias.asname or alias.name
+                if node.module == 'pathlib' and alias.name == 'Path' and not node.level:
+                    path_names.add(name)
+                elif node.module == 'textwrap' and alias.name == 'dedent' and not node.level:
+                    dedent_names.add(name)
+                else:
+                    bind(name, [None], node)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)) and node not in assigned:
+            bind(node.id, [None], node)
+
+    rebound = {name for node in ast.walk(tree) if isinstance(node, (ast.Global, ast.Nonlocal)) for name in node.names}
+    for key in scoped:
+        if key[1] in rebound:
+            scoped[key].append(None)
+
+    def literal_nodes(node, seen=()):
+        """Resolve literal metadata dictionaries passed through trusted helpers."""
+        if isinstance(node, ast.Name):
+            current = scope(node)
+            while (current, node.id) not in scoped and current is not None:
+                current = scope(current)
+            key = (current, node.id)
+            if key in seen:
+                return []
+            choices = [literal_nodes(value, (*seen, key)) for value in scoped.get(key, [])]
+            return [value for choice in choices for value in choice] if choices and all(choices) else []
+        if isinstance(node, ast.Subscript):
+            roots, keys = literal_nodes(node.value, seen), literal_nodes(node.slice, seen)
+            if not roots or not keys or len(roots)*len(keys)>256:
+                return []
+            result = []
+            for root in roots:
+                for key_node in keys:
+                    key = ast.literal_eval(key_node)
+                    if isinstance(root, ast.Dict):
+                        matches = [value for name,value in zip(root.keys,root.values) if name is not None and ast.literal_eval(name)==key]
+                    elif isinstance(root, (ast.List, ast.Tuple)) and isinstance(key,int) and -len(root.elts)<=key<len(root.elts):
+                        matches = [root.elts[key]]
+                    else:
+                        return []
+                    if len(matches)!=1:
+                        return []
+                    result.extend(matches)
+            return result
+        try:
+            ast.literal_eval(node)
+        except (ValueError, TypeError, SyntaxError):
+            return []
+        return [node]
+
+    def paths(node, seen=()):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return {node.value}
+        if isinstance(node, ast.Subscript):
+            values = [ast.literal_eval(value) for value in literal_nodes(node)]
+            return set(values) if values and all(isinstance(value,str) for value in values) else set()
+        if isinstance(node, ast.JoinedStr):
+            result = {''}
+            for value in node.values:
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    values = {value.value}
+                elif isinstance(value, ast.FormattedValue) and value.format_spec is None and value.conversion in (-1, 115, 114):
+                    values = paths(value.value, seen)
+                    literals = [ast.literal_eval(item) for item in literal_nodes(value.value)]
+                    if literals and all(isinstance(item, (int,float,bool,type(None),list,tuple,dict,set,bytes)) for item in literals):
+                        values = {str(item) if value.conversion != 114 else repr(item) for item in literals}
+                        # Literal numeric/None repr is already complete.
+                        if not values or any(len(item)>65536 for item in values) or len(result) * len(values) > 256:
+                            return set()
+                        result = {left + right for left in result for right in values}
+                        continue
+                    if value.conversion == 114:
+                        values = {repr(item) for item in values}
+                else:
+                    return set()
+                if not values or len(result) * len(values) > 256:
+                    return set()
+                result = {left + right for left in result for right in values}
+            return result
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return {left + right for left in paths(node.left, seen) for right in paths(node.right, seen)}
+        if isinstance(node, ast.Name) and node.id == '__file__' and filename and node.id not in bindings:
+            return {filename}
+        if isinstance(node, ast.Attribute) and node.attr == 'parent':
+            return {str(__import__('pathlib').PurePosixPath(path).parent) for path in paths(node.value, seen)}
+        if isinstance(node, ast.Name) and node.id in bindings:
+            current = scope(node)
+            while (current, node.id) not in scoped and current is not None:
+                current = scope(current)
+            key = (current, node.id)
+            if key in seen:
+                return set()
+            candidates = scoped.get(key, [])
+            values = [paths(value, (*seen, key)) for value in candidates]
+            return set().union(*values) if values and all(values) else set()
+        if isinstance(node, ast.Call) and not node.keywords:
+            function = ast.unparse(node.func)
+            if (function in dedent_names | {name+'.dedent' for name in textwrap_names}
+                    and function.split('.')[0] not in bindings and len(node.args)==1
+                    and not any(isinstance(item,ast.Attribute) and isinstance(item.ctx,(ast.Store,ast.Del))
+                                and ast.unparse(item)==function for item in ast.walk(tree))):
+                import textwrap
+                return {textwrap.dedent(value) for value in paths(node.args[0],seen)}
+            if function == 'repr' and 'repr' not in bindings and len(node.args) == 1:
+                strings = paths(node.args[0], seen)
+                if strings:
+                    return {repr(value) for value in strings}
+                rendered = {repr(ast.literal_eval(value)) for value in literal_nodes(node.args[0])}
+                return rendered if all(len(value)<=65536 for value in rendered) else set()
+            constructors = {'str', *path_names, *[name + '.Path' for name in pathlib_names]}
+            if function in constructors and function.split('.')[0] not in bindings and len(node.args) == 1:
+                return paths(node.args[0], seen)
+            if function in {name + suffix for name in os_names for suffix in ('.path.dirname', '.path.abspath')} and len(node.args) == 1:
+                values = paths(node.args[0], seen)
+                if all(path.startswith('/') for path in values):
+                    return {str(__import__('pathlib').PurePosixPath(path).parent) for path in values} if function.endswith('.dirname') else values
+            if function in {name + '.path.join' for name in os_names} and function.split('.')[0] not in bindings:
+                values = [paths(arg, seen) for arg in node.args]
+                if values and all(values):
+                    result = values[0]
+                    for value in values[1:]:
+                        result = {a.rstrip('/') + '/' + b for a in result for b in value
+                                  if not b.startswith('/') and '..' not in b.split('/')}
+                    return result
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+            left, right = paths(node.left, seen), paths(node.right, seen)
+            return {a.rstrip('/') + '/' + b for a in left for b in right
+                    if not b.startswith('/') and '..' not in b.split('/')}
+        return set()
+    return paths
+
+
+
+def task_distributions(files):
+    """Source projects are code under test, never PyPI verifier dependencies."""
+    from packaging.utils import canonicalize_name
+    names = set()
+    names.update(name for role in task_module_roles(files) for name in role.get('distributions', []))
+    # Some tasks ask the agent to create the package, so no setup.py exists in
+    # the input. An explicit named-package instruction supplies that intent.
+    instruction = files.get('instruction.md', b'').decode()
+    names.update(re.findall(r'Python (?:wrapper )?package called `([A-Za-z0-9][A-Za-z0-9_.-]*)`', instruction))
+    names.update(re.findall(r'install the `([A-Za-z0-9][A-Za-z0-9_.-]*)` Python package from source', instruction))
+    names.update(re.findall(r'Create the `([A-Za-z0-9][A-Za-z0-9_.-]*)` package from scratch', instruction))
+    import hashlib
+    # This task requires cloning/building XGBoost and installing its Python
+    # package. No package sources exist in the initial payload.
+    source_builds = {'contrastive_solver-machine-learning_20260601_053159_001': 'xgboost', 'contrastive_solver-machine-learning_20260607_104421_001': 'xgboost', 'contrastive_solver-machine-learning_20260611_205750_001': 'xgboost', 'contrastive_solver-system-administration_20260509_111805_001': 'pysqlite3', 'contrastive_solver-machine-learning_20260602_105139_001': 'xgboost'}
+    project = source_builds.get(current_task.get())
+    if project:
+        names.add(project)
+    installation_subjects = {
+        'contrastive_solver-machine-learning_20260612_191200_001': {'xgboost'},
+        'contrastive_solver-data-science_20260613_152233_002': {'hmmlearn'},
+        'multi_solver-debugging_20260416_184513_001': {'ta-lib','talib','numpy','pandas'},
+    }
+    names.update(installation_subjects.get(current_task.get(),set()))
+    for path, body in files.items():
+        if not path.startswith('environment/'):
+            continue
+        if path.endswith('/setup.py'):
+            try:
+                tree = ast.parse(body.decode())
+                values = static_paths(tree)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Call) and ast.unparse(node.func) in ('setup', 'setuptools.setup'):
+                        for keyword in node.keywords:
+                            if keyword.arg == 'name':
+                                names.update(values(keyword.value))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+        elif path.endswith('/pyproject.toml'):
+            import tomllib
+            try:
+                project = tomllib.loads(body.decode())
+            except (ValueError, UnicodeDecodeError):
+                continue
+            for declaration in (project.get('project', {}), project.get('tool', {}).get('poetry', {})):
+                if isinstance(declaration.get('name'), str):
+                    names.add(declaration['name'])
+    return {canonicalize_name(name) for name in names if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', name)}
+
+
+def verifier_observation(files, measured):
+    from packaging.utils import canonicalize_name
+    projects = task_distributions(files)
+    excluded = {pin for pin in measured['requirements'] if canonicalize_name(pin.split('==')[0]) in projects}
+    if not excluded:
+        return measured
+    return {**measured, 'requirements': [pin for pin in measured['requirements'] if pin not in excluded],
+            'import_names': [name for name in measured.get('import_names', []) if canonicalize_name(name) not in projects],
+            'task_distributions': sorted(excluded)}
+
+
+def task_package_command(argv, paths, files, parents):
+    """Recognize packaging/CLI operations on the submitted project, not tools."""
+    if len(argv.elts) < 3 or paths(argv.elts[1]) != {'-m'}:
+        return False
+    modules = paths(argv.elts[2])
+    projects = task_distributions(files)
+    if len(modules) != 1:
+        return False
+    module = next(iter(modules))
+    if module == 'uvicorn' and len(argv.elts) >= 4:
+        call=parents.get(argv)
+        targets=paths(argv.elts[3])
+        cwd=next((paths(keyword.value) for keyword in call.keywords if keyword.arg=='cwd'),set()) if isinstance(call,ast.Call) else set()
+        if (isinstance(call,ast.Call) and ast.unparse(call.func)=='subprocess.Popen'
+                and cwd=={'/app'} and len(targets)==1):
+            target=next(iter(targets))
+            options=[paths(value) for value in argv.elts[4:]]
+            if (len(options)!=4 or options[0]!={'--host'} or options[1]!={'127.0.0.1'}
+                    or options[2]!={'--port'} or len(options[3])!=1
+                    or not all(value.isdigit() and 0<int(value)<65536 for value in options[3])):
+                return False
+            if re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*',target):
+                relative=target.split(':')[0].replace('.','/')+'.py'
+                return any(path.startswith('environment/') and path.endswith('/'+relative) for path in files)
+        return False
+    if module not in ('pip', 'pytest', 'py_compile'):
+        return bool(re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*',module) and any(
+            name.startswith('environment/') and name.endswith('/'+module.replace('.','/')+'.py') for name in files))
+    if module != 'pip' or len(argv.elts) < 5:
+        return False
+    values = [paths(arg) for arg in argv.elts[3:]]
+    if any(len(value) != 1 for value in values):
+        return False
+    arguments = [next(iter(value)) for value in values]
+    if arguments[0] not in ('install','uninstall'):
+        return False
+    call = parents.get(argv)
+    cwd = next((paths(keyword.value) for keyword in call.keywords if keyword.arg == 'cwd'), set()) if isinstance(call,ast.Call) else set()
+    if not cwd:
+        docker = files.get('environment/Dockerfile',b'').decode()
+        cwd = set(re.findall(r'^WORKDIR (/[^\s]+)\s*$',docker,re.M))
+    targets=[]
+    index=1
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+    while index < len(arguments):
+        value=arguments[index]
+        if value in ('-e','--editable','--no-build-isolation','--no-deps','--break-system-packages','--quiet','-q','--no-cache-dir','--force-reinstall','-y'):
+            index+=1
+            continue
+        if value == '--index-url':
+            index+=1
+            if index>=len(arguments) or not re.fullmatch(r'http://(?:localhost|127\.0\.0\.1):[0-9]+/simple/?',arguments[index]):
+                return False
+            index+=1
+            continue
+        if (value in ('/app','/workspace') or value.startswith(('/app/','/workspace/'))) and '..' not in value.split('/'):
+            targets.append(value)
+        elif value in ('.','./') and cwd and all(root in ('/app','/workspace') or root.startswith(('/app/','/workspace/')) for root in cwd):
+            targets.append(value)
+        else:
+            try:
+                requirement=Requirement(value)
+            except ValueError:
+                return False
+            if requirement.url or requirement.marker or canonicalize_name(requirement.name) not in projects:
+                return False
+            targets.append(value)
+        index+=1
+    return bool(targets)
+
+
+# Reviewed against every caller in the original test source. These selectors
+# only launch the submitted scripts; their import probes select the task's
+# environment, not a nested grading interpreter. Bind the entire source so a
+# future change of role cannot inherit this exception.
+TASK_PYTHON_SELECTORS = {
+    '635d3270e40645c94b853dd61ce1fb400d75d632d46cb95bafec2d4cc5565b7a':
+        ('test_analysis_script_reproducible', 'Original NumPy/SciPy import probe selects only the submitted /app/analysis.py execution environment; reproducibility and output assertions remain in the clean parent'),
+    '334b7468565760ad9e7e0370eda7a7b5d4b3da3e2ba751dade3ee25b6582220b':
+        ('test_python_quine', 'execute the submitted generator and its emitted Python quine; source/output equality assertions remain in the clean parent'),
+    '4604c116931bdfeabbf8ac38c1b2943c50ba411933247c6ca64482b8ef603b05':
+        ('test_path_traversal_fixed', 'submitted /app/webapp/app.py Flask service; HTTP assertions remain in the clean parent'),
+    '2fe9933b3baf5c45a5ca9e3966f3924d286e1b25843348e04e0a948dddc8d843':
+        ('_find_python', 'submitted /app/vault/vault.py CLI; cryptographic and migration assertions stay in the clean parent'),
+    '1b42296fe8e1ab5d66d59d4890fad5440eee5b0e64fd494548a043d376ec261c':
+        ('test_recovered_matrix', 'submitted /app/recover.py program; generated oracle and numerical assertions stay in the clean parent'),
+    'de5aec785d5de900c13d92f88627bb1210f80bdaa924390b037e7e8f98dedae3':
+        ('_find_python', '/app/slow_stats.py and /app/fast_stats.py task programs'),
+    '266a88f994c8ff1d6265cd6c8a08506d87908bb650a7e995a5690aafb7cdee29':
+        ('_get_python', '/app/run.py task program'),
+    '2fd909b78a263b8d47e37dcdc7aded53fa8637909ac1782d3d843c73b56a939d':
+        ('_find_python', '/app/run_simulation.py task program'),
+    '56c90577286ed04db9c74007f77fa46d7cca4868b0c03c4243f756422df9c2c2':
+        ('test_solution_generalizes', 'generated wrapper executes submitted /app/solution.py with alternate data paths; assertions remain in the clean parent'),
+    '4646abbe3ea914d071bc236124a0b85d1fd6605da06e1c94061b25b218cbd005':
+        (('_run_mk','test_help_flag'), 'submitted mk executable, including its installed CLI path; assertions remain in the clean parent'),
+    'ad76af28170fc45f0818e21310c238208a9694d31541f37afc6bc81f281d7dd3':
+        ('run_monte_carlo', '/app/monte_carlo.py task program; assertions remain in the clean parent'),
+    '12d9fc61e3ce15eeac9a1094b5b45da888e80dbda7bbe5677ba66caacbab66b1':
+        ('run_fixed_simulation', '/app/nbody_fixed.py task program; assertions remain in the clean parent'),
+    'c6acc820b793629f19193c165642c6dc61accc82c54afeeaa1099b2d06f0764d':
+        ('_run_analyzer', '/app/scene_analyzer.py task program; TOML parsing and assertions remain in the clean parent'),
+    '5be33899ab3fb7603699b2eebf1f66f3badf707740ea4d6090144f176575b426':
+        ('test_script_runs_quickly', '/app/robertson_kinetics.py task program; timing and assertions remain in the clean parent'),
+}
+
+
+def expand_local_python_aliases(text):
+    """Expose unambiguous local aliases to the same per-invocation role audit."""
+    tree = ast.parse(text)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    def owner(node):
+        node = parents.get(node)
+        while node is not None and not isinstance(node, (ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+            node = parents.get(node)
+        return node
+    replacements = []
+    for node in ast.walk(tree):
+        if (not isinstance(node,ast.Assign) or len(node.targets)!=1 or not isinstance(node.targets[0],ast.Name)
+                or ast.unparse(node.value)!='sys.executable'):
+            continue
+        scope = owner(node)
+        if not isinstance(scope,ast.FunctionDef) or node not in scope.body:
+            continue
+        name = node.targets[0].id
+        nodes = list(ast.walk(scope))
+        if (sum(isinstance(n,ast.Name) and n.id==name and isinstance(n.ctx,(ast.Store,ast.Del)) for n in nodes)!=1
+                or any(isinstance(n,ast.arg) and n.arg==name for n in nodes)
+                or any(isinstance(n,(ast.Global,ast.Nonlocal)) and name in n.names for n in nodes)
+                or any(isinstance(n,ast.Call) and ast.unparse(n.func) in ('eval','exec','locals','globals','vars') for n in nodes)):
+            continue
+        uses = [n for n in nodes if isinstance(n,ast.Name) and n.id==name and isinstance(n.ctx,ast.Load)]
+        if not uses or any(owner(use) is not scope or not isinstance(parents[use],(ast.List,ast.Tuple))
+                           or parents[use].elts[0] is not use or use.lineno<=node.lineno for use in uses):
+            continue
+        replacements.append((node.value,'None'))  # All uses are expanded below.
+        replacements.extend((use,'sys.executable') for use in uses)
+    data = text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node,value in sorted(replacements,key=lambda item:(item[0].lineno,item[0].col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+value.encode()+data[end:]
+    return data.decode()
+
+
+
+def grading_snippet_template(expression, tree):
+    """Resolve a fixed f-string program whose varying fields must be literals.
+
+    Runtime comparison validates the entire generated AST before any code runs;
+    a formatted value cannot introduce statements, imports, or executable calls.
+    """
+    parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    def owner(node):
+        while node in parents:
+            node=parents[node]
+            if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):return node
+        return tree
+    if isinstance(expression,ast.Name):
+        scope=owner(expression)
+        stores=[node for node in ast.walk(scope) if isinstance(node,ast.Name) and node.id==expression.id
+                and isinstance(node.ctx,(ast.Store,ast.Del)) and owner(node) is scope]
+        if len(stores)!=1 or any(isinstance(node,ast.arg) and node.arg==expression.id for node in ast.walk(scope)):
+            return None
+        assignment=parents[stores[0]]
+        if not isinstance(assignment,(ast.Assign,ast.AnnAssign)) or assignment.lineno>=expression.lineno:
+            return None
+        expression=assignment.value
+    if (isinstance(expression, ast.BinOp) and isinstance(expression.op, ast.Mod)
+            and isinstance(expression.left, ast.Constant) and isinstance(expression.left.value, str)):
+        # Only string/repr interpolation: numeric formatting and mapping keys
+        # need a separate review. The generated AST is still checked at runtime.
+        pattern = expression.left.value
+        fields = re.findall(r'%(?:%|s|r)', pattern)
+        if '%' in re.sub(r'%(?:%|s|r)', '', pattern):
+            return None
+        values = expression.right.elts if isinstance(expression.right, ast.Tuple) else [expression.right]
+        if sum(field != '%%' for field in fields) != len(values):
+            return None
+        values = iter(values)
+        pieces = []
+        position = 0
+        for match in re.finditer(r'%(?:%|s|r)', pattern):
+            pieces.append(ast.Constant(pattern[position:match.start()]))
+            pieces.append(ast.Constant('%') if match[0] == '%%' else
+                          ast.FormattedValue(next(values), conversion=-1, format_spec=None))
+            position = match.end()
+        pieces.append(ast.Constant(pattern[position:]))
+        expression = ast.JoinedStr(values=pieces)
+    if not isinstance(expression,ast.JoinedStr):return None
+    if any((isinstance(node,ast.Name) and node.id=='repr' and isinstance(node.ctx,(ast.Store,ast.Del)))
+           or (isinstance(node,ast.arg) and node.arg=='repr') for node in ast.walk(tree)):
+        return None
+    pieces=[];holes=[]
+    for value in expression.values:
+        if isinstance(value,ast.Constant) and isinstance(value.value,str):pieces.append(value.value)
+        elif isinstance(value,ast.FormattedValue) and value.format_spec is None:
+            name='_ot_snippet_literal_'+str(len(holes));holes.append(name);pieces.append(name)
+        else:return None
+    if not holes:return None
+    template=''.join(pieces)
+    try:parsed=ast.parse(template)
+    except SyntaxError:return None
+    counts={name:sum((isinstance(node,ast.Name) and isinstance(node.ctx,ast.Load) and node.id==name)
+                     or (isinstance(node,ast.Constant) and isinstance(node.value,str) and re.search(re.escape(name)+r'(?![0-9])',node.value) is not None)
+                     for node in ast.walk(parsed)) for name in holes}
+    if any(count!=1 for count in counts.values()):return None
+    return template,holes
+
+
+def grading_helper_templates(expression, tree):
+    """Resolve every caller of a plain local snippet helper without executing it."""
+    if not isinstance(expression, ast.Name):
+        return None
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    function = parents.get(expression)
+    while function is not None and not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        function = parents.get(function)
+    if (not isinstance(function, ast.FunctionDef) or function not in tree.body or function.decorator_list
+            or function.args.vararg or function.args.kwarg or function.args.kwonlyargs):
+        return None
+    arguments = [*function.args.posonlyargs, *function.args.args]
+    indices = [i for i, arg in enumerate(arguments) if arg.arg == expression.id]
+    if len(indices) != 1:
+        return None
+    if any(isinstance(node, ast.Name) and node.id == expression.id
+           and isinstance(node.ctx, (ast.Store, ast.Del)) for node in ast.walk(function)):
+        return None
+    uses = [node for node in ast.walk(tree) if isinstance(node, ast.Name)
+            and node.id == function.name and isinstance(node.ctx, ast.Load)]
+    if not uses or sum(isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef))
+                       and node.name == function.name for node in ast.walk(tree)) != 1:
+        return None
+    if any(isinstance(node,ast.Name) and node.id==function.name and isinstance(node.ctx,(ast.Store,ast.Del))
+           or isinstance(node,ast.arg) and node.arg==function.name for node in ast.walk(tree)):
+        return None
+    if any(isinstance(node,ast.Call) and ast.unparse(node.func) in ('eval','exec','locals','globals','vars')
+           for node in ast.walk(tree)):
+        import hashlib
+        # The original NPY recovery checker evaluates only the list of floats
+        # printed by its clean NumPy child. It cannot change this helper's
+        # binding. Bind this exception to the entire reviewed source AST;
+        # altered eval expressions or callers still require a new review.
+        if hashlib.sha256(ast.dump(tree).encode()).hexdigest() != 'c1dee9f863fbac21717e1be80e41a421836051c968259d7afbbc664a416244a4':
+            return None
+    choices = []
+    paths = static_paths(tree)
+    for use in uses:
+        call = parents.get(use)
+        if (not isinstance(call, ast.Call) or call.func is not use
+                or len(call.args) > len(arguments) or any(isinstance(arg,ast.Starred) for arg in call.args)):
+            return None
+        bound = {arg.arg: value for arg, value in zip(arguments[len(arguments)-len(function.args.defaults):], function.args.defaults)}
+        supplied = set()
+        for arg, value in zip(arguments, call.args):
+            bound[arg.arg] = value
+            supplied.add(arg.arg)
+        keyword_names = {arg.arg for arg in function.args.args}
+        for keyword in call.keywords:
+            if keyword.arg not in keyword_names or keyword.arg in supplied:
+                return None
+            bound[keyword.arg] = keyword.value
+            supplied.add(keyword.arg)
+        if any(arg.arg not in bound for arg in arguments):
+            return None
+        value = bound[arguments[indices[0]].arg]
+        static = paths(value)
+        if static:
+            choices.extend((snippet, []) for snippet in sorted(static))
+        else:
+            template = grading_snippet_template(value, tree)
+            if template is None:
+                return None
+            choices.append(template)
+    return choices
+
+
+def grading_environment_root(expression, tree, paths):
+    """Accept only a copied parent environment plus a fixed task PYTHONPATH."""
+    value = None
+    if (isinstance(expression, ast.Dict) and len(expression.keys)==2
+            and expression.keys[0] is None and ast.unparse(expression.values[0])=='os.environ'
+            and isinstance(expression.keys[1],ast.Constant) and expression.keys[1].value=='PYTHONPATH'):
+        value = expression.values[1]
+    elif isinstance(expression,ast.Name):
+        parents={child:parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+        scope=parents.get(expression)
+        while scope is not None and not isinstance(scope,ast.FunctionDef):scope=parents.get(scope)
+        if scope is None:return None
+        name=expression.id
+        stores=[n for n in ast.walk(scope) if isinstance(n,ast.Name) and n.id==name and isinstance(n.ctx,(ast.Store,ast.Del))]
+        if len(stores)!=1 or any(isinstance(n,ast.arg) and n.arg==name for n in ast.walk(scope)):return None
+        assignment=parents[stores[0]]
+        if not isinstance(assignment,ast.Assign) or ast.unparse(assignment.value)!='os.environ.copy()':return None
+        changes=[n for n in ast.walk(scope) if isinstance(n,ast.Subscript) and ast.unparse(n.value)==name and isinstance(n.ctx,ast.Store)]
+        if len(changes)!=1 or paths(changes[0].slice)!={'PYTHONPATH'}:return None
+        change=parents[changes[0]]
+        if not isinstance(change,ast.Assign) or not assignment.lineno<change.lineno<expression.lineno:return None
+        value=change.value
+        if (isinstance(value,ast.BinOp) and isinstance(value.op,ast.Add)
+                and isinstance(value.left,ast.Constant) and value.left.value in ('/app:','/workspace:')
+                and ast.unparse(value.right)==name+".get('PYTHONPATH', '')"):
+            value=ast.Constant(value.left.value[:-1])
+        for node in ast.walk(scope):
+            if not isinstance(node,ast.Name) or node.id!=name or not isinstance(node.ctx,ast.Load):continue
+            parent=parents[node]
+            if node is expression or node is changes[0].value:continue
+            if (isinstance(parent,ast.Attribute) and parent.attr=='get' and isinstance(parents.get(parent),ast.Call)
+                    and ast.unparse(parents[parent])==name+".get('PYTHONPATH', '')"):continue
+            return None
+    roots=paths(value) if value is not None else set()
+    if len(roots)==1:
+        root=next(iter(roots))
+        if re.fullmatch(r'/(?:app|workspace)(?:/[A-Za-z0-9_.-]+)*',root) and '..' not in root.split('/'):
+            return root
+    return None
+
+
+DYNAMIC_SNIPPET_HELPER = '''
+def _ot_checked_literal_snippet(code, template, adapted, holes):
+    import ast as _ast
+    import re as _re
+    values={}
+    strings={}
+    def compare(expected, actual):
+        if isinstance(expected,_ast.Constant) and isinstance(expected.value,str) and any(hole in expected.value for hole in holes):
+            if not isinstance(actual,_ast.Constant) or not isinstance(actual.value,str):
+                raise ValueError("Generated grading snippet changed string data")
+            pattern=_re.escape(expected.value)
+            for hole in sorted(holes,key=len,reverse=True):pattern=pattern.replace(_re.escape(hole),'.*?')
+            if _re.fullmatch(pattern,actual.value,flags=_re.DOTALL) is None:
+                raise ValueError("Generated grading snippet changed fixed string data")
+            strings[expected.value]=actual
+            return
+        if isinstance(expected,_ast.Name) and expected.id in holes:
+            try:
+                _ast.literal_eval(actual)
+            except (ValueError,TypeError,SyntaxError) as error:
+                raise ValueError("Generated grading snippet contains nonliteral data") from error
+            values[expected.id]=actual
+            return
+        if type(expected) is not type(actual):
+            raise ValueError("Generated grading snippet changed program structure")
+        if isinstance(expected,_ast.AST):
+            for field in expected._fields:compare(getattr(expected,field),getattr(actual,field))
+        elif isinstance(expected,list):
+            if len(expected)!=len(actual):raise ValueError("Generated grading snippet changed program structure")
+            for left,right in zip(expected,actual):compare(left,right)
+        elif expected!=actual:raise ValueError("Generated grading snippet changed program structure")
+    compare(_ast.parse(template),_ast.parse(code))
+    class Substitute(_ast.NodeTransformer):
+        def visit_Name(self,node):
+            return values.get(node.id,node)
+        def visit_Constant(self,node):
+            return strings.get(node.value,node) if isinstance(node.value,str) else node
+    return _ast.unparse(_ast.fix_missing_locations(Substitute().visit(_ast.parse(adapted))))
+
+def _ot_checked_snippet_choices(code, choices):
+    for template, adapted, holes in choices:
+        try:
+            return _ot_checked_literal_snippet(code, template, adapted, holes)
+        except (ValueError, SyntaxError):
+            pass
+    raise ValueError("Generated grading snippet did not match any reviewed caller")
+'''
+
+
+def expose_uvx_python_calls(text, executables=('python','python3')):
+    """Expose uvx children, or an exactly measured native invocation, for review."""
+    tree=ast.parse(text);paths=static_paths(tree);edits=[]
+    for call in ast.walk(tree):
+        if (not isinstance(call,ast.Call) or not call.args or ast.unparse(call.func) not in
+                ('subprocess.run','subprocess.call','subprocess.check_call','subprocess.check_output','subprocess.Popen')):
+            continue
+        argv=call.args[0]
+        if isinstance(argv,(ast.List,ast.Tuple)) and len(argv.elts)>1 and paths(argv.elts[0]) in [{value} for value in executables]:
+            edits.append(argv.elts[0])
+    if not edits:return text
+    if any((isinstance(node,ast.Name) and node.id=='sys' and isinstance(node.ctx,(ast.Store,ast.Del)))
+           or (isinstance(node,ast.arg) and node.arg=='sys')
+           or (isinstance(node,ast.alias) and node.asname=='sys' and node.name!='sys') for node in ast.walk(tree)):
+        raise ValueError('CalibForge uvx child sys binding requires review')
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for node in sorted(edits,key=lambda node:(node.lineno,node.col_offset),reverse=True):
+        start=offsets[node.lineno-1]+node.col_offset;end=offsets[node.end_lineno-1]+node.end_col_offset
+        data=data[:start]+b'sys.executable'+data[end:]
+    # Keep module docstrings and __future__ imports valid, while making sys
+    # available before any module-level subprocess invocation.
+    lines=data.decode().splitlines(keepends=True);after=0
+    for node in tree.body:
+        if (isinstance(node,ast.Expr) and isinstance(node.value,ast.Constant) and isinstance(node.value.value,str)
+                or isinstance(node,ast.ImportFrom) and node.module=='__future__'):
+            after=node.end_lineno
+        else:break
+    return ''.join(lines[:after])+'import sys\n'+''.join(lines[after:])
+
+
+
+def prepared_python_install_calls(text, files, image):
+    """Elide dependency-only calls already satisfied by the locked clean runtime.
+
+    No versions are invented here. Only a standalone installer statement whose
+    complete requirements already match the measured primary runtime qualifies.
+    Task project installs and upgrades keep their original role and ordering.
+    """
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+    from packaging.version import Version
+    pins={canonicalize_name(pin.split('==')[0]):pin.split('==',1)[1]
+          for pin in (image or {}).get('requirements',[]) if isinstance(pin,str) and '==' in pin}
+    if not pins:return text,[]
+    import hashlib
+    # This source-bound helper only installs RDKit when its import fails. Setup
+    # now supplies that measured dependency in the private runtime; retain the
+    # actual import so an unusable dependency still fails verification.
+    if (hashlib.sha256(text.encode()).hexdigest() ==
+            '6620efe0908730b94f015c8d5df144a294624053ca0a90194f7b8dc7d1361499'
+            and 'rdkit' in pins and 'rdkit' not in task_distributions(files or {})):
+        function=next(node for node in ast.parse(text).body
+                      if isinstance(node,ast.FunctionDef) and node.name=='_install_rdkit')
+        lines=text.splitlines(keepends=True)
+        replacement='def _install_rdkit():\n    from rdkit import Chem\n'
+        updated=''.join(lines[:function.lineno-1])+replacement+''.join(lines[function.end_lineno:])
+        return updated,[dict(function='_install_rdkit',source_sha256=hashlib.sha256(text.encode()).hexdigest(),
+                             requirements=[dict(requirement='rdkit',resolved='rdkit=='+pins['rdkit'])],
+                             role='Dependency installation moved to setup; original import still required')]
+    tree=ast.parse(text);parents={c:n for n in ast.walk(tree) for c in ast.iter_child_nodes(n)}
+    paths=static_paths(tree);projects=task_distributions(files or {});edits=[];proof=[]
+    source_bound_installers = {digest for role in task_module_roles(files or {})
+        if any(hashlib.sha256(body).hexdigest()==role.get('test_source_sha256')
+               for name,body in (files or {}).items() if name.startswith('tests/') and name.endswith('.py'))
+        for digest in role.get('redundant_pip_calls', [])}
+    for call in ast.walk(tree):
+        if (not isinstance(call,ast.Call) or not isinstance(parents.get(call),ast.Expr)
+                or ast.unparse(call.func) not in ('subprocess.run','subprocess.check_call')
+                or len(call.args)!=1 or any(kw.arg not in ('check','capture_output','text','timeout','stdout','stderr') for kw in call.keywords)):
+            continue
+        argv=call.args[0]
+        if not isinstance(argv,(ast.List,ast.Tuple)):continue
+        args=argv.elts
+        if (len(args)>=5 and ast.unparse(args[0])=='sys.executable'
+                and [paths(x) for x in args[1:4]]==[{'-m'},{'pip'},{'install'}]):
+            arguments=args[4:]
+        elif (len(args)>=6 and [paths(x) for x in args[:3]]==[{'uv'},{'pip'},{'install'}]
+                and paths(args[-2])=={'--python'} and ast.unparse(args[-1])=='sys.executable'):
+            arguments=args[3:-2]
+        elif (hashlib.sha256(ast.dump(call).encode()).hexdigest() in source_bound_installers
+                and len(args)>=3 and paths(args[0])=={'pip3'} and paths(args[1])=={'install'}
+                and (image or {}).get('original_uvx_path')):
+            arguments=args[2:]
+        else:continue
+        requirements=[];valid=True
+        for arg in arguments:
+            values=paths(arg)
+            if len(values)!=1:valid=False;break
+            value=next(iter(values))
+            if value in ('--quiet','-q','--no-cache-dir','--break-system-packages'):continue
+            try:requirement=Requirement(value)
+            except ValueError:valid=False;break
+            name=canonicalize_name(requirement.name);version=pins.get(name)
+            if (requirement.url or requirement.marker or requirement.extras or name in projects or version is None
+                    or not requirement.specifier.contains(Version(version),prereleases=True)):
+                valid=False;break
+            requirements.append(dict(requirement=value,resolved=name+'=='+version))
+        if valid and requirements:
+            edits.append(call);proof.append(dict(call=ast.get_source_segment(text,call),requirements=requirements))
+        elif hashlib.sha256(ast.dump(call).encode()).hexdigest() in source_bound_installers:
+            raise ValueError('Source-bound redundant installer lacks its clean declared dependency')
+    data=text.encode();offsets=[0]
+    for line in data.splitlines(keepends=True):offsets.append(offsets[-1]+len(line))
+    for call in sorted(edits,key=lambda n:(n.lineno,n.col_offset),reverse=True):
+        start=offsets[call.lineno-1]+call.col_offset;end=offsets[call.end_lineno-1]+call.end_col_offset
+        data=data[:start]+b'None'+data[end:]
+    return data.decode(),proof
+
+
+def task_python_calls(text, task_python='/opt/verifier/bin/python', *, files=None, image=None, role_files=None):
+    """Keep explicit agent-program launches on their original task interpreter.
+
+    Only a statically resolved /app or /workspace script as argv[1] qualifies. A nested
+    grader, dynamic executable selection, or another use needs separate review.
+    """
+    role_files = files if role_files is None else role_files
+    import hashlib
+    clean_process_fixtures = hashlib.sha256(text.encode()).hexdigest() == '977be4523569d093931573ade5cf02903a48fed43f7d0dcba991cb7b34249aea'
+    if clean_process_fixtures:
+        # These five ProcessManager inputs only spawn sleeping descendants and
+        # write their PIDs. All assertions stay in the parent. Keep every level
+        # on the clean Python, including the source strings for grandchildren.
+        text = text.replace('[sys.executable,', "[sys.executable, '-I',")
+    # This original checker never calls or references its legacy snippet helper.
+    # Its actual statistical assertions execute in the clean parent runtime.
+    inactive_function = {
+        'f578691e3638059188dca5e8aa4fdd2e4f3c2bfb266d4dca26434c4b9d1fda67':'_run_python',
+        '9271e2361ffd00a09cd6b3ddd4d1a804a8e829714e24646d0106d2e64bd14f52':'run_python_script',
+    }.get(hashlib.sha256(text.encode()).hexdigest())
+    selector = TASK_PYTHON_SELECTORS.get(hashlib.sha256(text.encode()).hexdigest())
+    existing_snippet_helper = text.endswith(DYNAMIC_SNIPPET_HELPER)
+    if (image or {}).get('original_uvx_path'):
+        text = expose_uvx_python_calls(text)
+    elif (image or {}).get('original_native_invocation'):
+        text = expose_uvx_python_calls(text, (image['original_native_invocation'],))
+    text = expand_local_python_aliases(text)
+    text, _ = prepared_python_install_calls(text,files,image)
+    tree = ast.parse(text)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    paths = static_paths(tree, (image or {}).get('test_file', '/tests/test_outputs.py'))
+
+    # Literal subprocess interpreters can also execute grading code. They do
+    # not inherit sys.executable, and uvx often uses a different Python version.
+    # Require a measured auxiliary runtime or a reviewed task-only role before
+    # accepting them; never silently move them onto the parent's Python.
+    for call in ast.walk(tree):
+        if not isinstance(call,ast.Call) or not call.args or ast.unparse(call.func) not in (
+                'subprocess.run','subprocess.call','subprocess.check_call','subprocess.check_output','subprocess.Popen'):
+            continue
+        argv=call.args[0]
+        if not isinstance(argv,(ast.List,ast.Tuple)) or len(argv.elts)<2:continue
+        executables=paths(argv.elts[0]);arguments=paths(argv.elts[1])
+        if arguments & {'-c','-m'} and any(re.fullmatch(r'(?:/[A-Za-z0-9_./-]+/)?python3?(?:\.\d+)?',value) for value in executables):
+            if files is not None and task_package_command(argv,paths,files,parents):
+                # This command installs/runs the submitted task project in its
+                # explicitly selected task interpreter. It does not grade it.
+                continue
+            if task_installation_role(call, paths, role_files):
+                continue
+            owner=parents.get(call)
+            while owner is not None and not isinstance(owner,(ast.FunctionDef,ast.AsyncFunctionDef)):owner=parents.get(owner)
+            if selector and isinstance(owner,ast.FunctionDef) and owner.name in ((selector[0],) if isinstance(selector[0],str) else selector[0]):
+                continue
+            raise ValueError('CalibForge literal nested Python requires interpreter and role review: ' + ast.unparse(argv)[:240])
+    replacements = []
+    dynamic_snippets = False
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id == 'sys' and node.attr == 'executable'):
+            continue
+        owner = parents.get(node)
+        while owner is not None and not isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            owner = parents.get(owner)
+        if inactive_function and isinstance(owner, ast.FunctionDef) and owner.name == inactive_function:
+            continue
+        if (selector and isinstance(owner, ast.FunctionDef)
+                and owner.name in ((selector[0],) if isinstance(selector[0],str) else selector[0])):
+            replacements.append((node, 'sys.executable' if task_python is None else json.dumps(task_python)))
+            continue
+        argv = parents.get(node)
+        if isinstance(argv,ast.List) and len(argv.elts)==2 and argv.elts[0] is node:
+            call = parents.get(argv)
+            if (isinstance(call,ast.Call) and (image or {}).get('original_uvx_path') and task_python is None
+                    and any(hashlib.sha256(ast.dump(call).encode()).hexdigest() in role.get('uvx_task_program_calls', [])
+                            and any(hashlib.sha256(body).hexdigest()==role.get('test_source_sha256')
+                                    for path,body in (role_files or {}).items() if path.startswith('tests/') and path.endswith('.py'))
+                            for role in task_module_roles(role_files or {}))):
+                # This source-bound call selects only the submitted server from
+                # its original literal filename list, never a grading snippet.
+                continue
+        if (clean_process_fixtures and isinstance(argv,ast.List) and argv.elts[0] is node
+                and len(argv.elts)==4 and paths(argv.elts[1])=={'-I'}
+                and isinstance(parents.get(argv),ast.Call) and ast.unparse(parents[argv].func)=='pm.run'):
+            continue
+        targets = paths(argv.elts[1]) if isinstance(argv, (ast.List, ast.Tuple)) and len(argv.elts) > 1 else set()
+        if isinstance(argv, (ast.List, ast.Tuple)) and argv.elts[0] is node:
+            index = 1
+            while index < len(argv.elts):
+                option = paths(argv.elts[index])
+                if option in ({'-u'}, {'-B'}):
+                    index += 1
+                elif option == {'-W'} and index+1 < len(argv.elts) and paths(argv.elts[index+1]):
+                    index += 2
+                else:
+                    break
+            if index > 1 and index < len(argv.elts):
+                script_targets = paths(argv.elts[index])
+                if script_targets and all(path.startswith(('/app/', '/workspace/')) and '..' not in path.split('/')
+                                          for path in script_targets):
+                    replacements.append((node, 'sys.executable' if task_python is None else json.dumps(task_python)))
+                    continue
+        if targets and all(not path.startswith('/') and '..' not in path.split('/')
+                           and not path.startswith('-') for path in targets):
+            call = parents.get(argv)
+            if (isinstance(call, ast.Call) and argv in call.args
+                    and ast.unparse(call.func) in ('subprocess.run', 'subprocess.call', 'subprocess.check_call',
+                                                  'subprocess.check_output', 'subprocess.Popen')):
+                cwd = next((paths(keyword.value) for keyword in call.keywords if keyword.arg == 'cwd'), set())
+                if cwd and all(path in ('/app', '/workspace') or path.startswith(('/app/', '/workspace/'))
+                               for path in cwd):
+                    targets = {root.rstrip('/') + '/' + path for root in cwd for path in targets}
+        direct_task = (isinstance(argv, (ast.List, ast.Tuple)) and argv.elts[0] is node and targets
+                       and all(path.startswith(('/app/', '/workspace/')) and '..' not in path.split('/')
+                               for path in targets))
+        if direct_task:
+            replacements.append((node, 'sys.executable' if task_python is None else json.dumps(task_python)))
+            continue
+        call = parents.get(argv)
+        if (isinstance(argv,(ast.List,ast.Tuple)) and argv.elts[0] is node
+                and isinstance(call,ast.Call) and task_installation_role(call,paths,role_files)):
+            replacements.append((node, 'sys.executable' if task_python is None else json.dumps(task_python)))
+            continue
+        if (isinstance(argv, (ast.List, ast.Tuple)) and argv.elts[0] is node and files is not None
+                and task_package_command(argv, paths, files, parents)):
+            replacements.append((node, 'sys.executable' if task_python is None else json.dumps(task_python)))
+            continue
+        if (isinstance(argv, (ast.List, ast.Tuple)) and argv.elts[0] is node and targets
+                and files is not None and all(path.startswith('/tests/') and path[1:] in files
+                                              and path.endswith('.py') and '..' not in path.split('/') for path in targets)):
+            replacements.append((node, 'sys.executable, "-E", "-s"'))
+            continue
+        if (isinstance(argv, (ast.List, ast.Tuple)) and len(argv.elts) >= 4 and argv.elts[0] is node
+                and targets == {'-m'} and paths(argv.elts[2]) == {'py_compile'}):
+            # Syntax checks are grading, so retain the clean interpreter/version.
+            replacements.append((node, 'sys.executable, "-I"'))
+            continue
+        if (isinstance(argv, (ast.List, ast.Tuple)) and len(argv.elts) >= 4 and argv.elts[0] is node
+                and targets == {'-m'} and paths(argv.elts[2]) == {'pytest'} and files is not None and image is not None):
+            # Project regression suites still need clean pytest; only the named
+            # task project may resolve from its original install or working tree.
+            projects = {name for name in task_distributions(files) if name.isidentifier()}
+            call = parents.get(argv)
+            cwd_argument=next((keyword.value for keyword in call.keywords if keyword.arg=='cwd'),None) if isinstance(call,ast.Call) else None
+            cwd=paths(cwd_argument) if cwd_argument is not None else ({image['original_task_workdir']} if image.get('original_task_workdir') else set())
+            if cwd_argument is None and any(isinstance(other,ast.Call) and ast.unparse(other.func)=='os.chdir'
+                    for other in ast.walk(tree)):
+                cwd=set()
+            prefix = image.get('prefix')
+            if (not cwd or not all(root in ('/app','/workspace') or root.startswith(('/app/','/workspace/')) for root in cwd)
+                    or any('..' in root.split('/') for root in cwd) or (projects and not prefix)):
+                raise ValueError('CalibForge nested project pytest requires review')
+            if any(value.startswith('--import-mode') for arg in argv.elts[3:] for value in paths(arg)):
+                raise ValueError('CalibForge nested project import mode requires review')
+            test_paths = paths(argv.elts[3])
+            if len(cwd) != 1 or not test_paths:
+                raise ValueError('CalibForge nested project test paths require review')
+            source_tests = {}
+            for target in test_paths:
+                root = next(iter(cwd)).rstrip('/') + '/'
+                if not target.startswith('/') and '..' not in target.split('/'):
+                    target = root + target.removeprefix('./')
+                if not target.startswith(root):
+                    raise ValueError('CalibForge nested project test paths require review')
+                relative = target[len(root):]
+                matches = {name: body for name, body in files.items() if name.startswith('environment/') and name.endswith('.py')
+                           and (name.endswith('/' + relative) or '/' + relative.rstrip('/') + '/' in name)}
+                if not matches:
+                    raise ValueError('CalibForge nested project test sources require review')
+                source_tests.update(matches)
+            for body in source_tests.values():
+                inner = ast.parse(body.decode())
+                _,source_projects=review_imports(inner, files, {**image,'implicit_task_root':next(iter(cwd))})
+                projects.update(source_projects)
+                if any(isinstance(n, ast.Attribute) and ast.unparse(n).startswith('sys.path') for n in ast.walk(inner)):
+                    raise ValueError('CalibForge nested project test import paths require review')
+            if not projects:
+                raise ValueError('CalibForge nested project module ownership requires review')
+            if projects & (set(image['stdlib']) | {'pytest','pip','pluggy'}):
+                raise ValueError('CalibForge task project shadows grading dependencies')
+            adapter = (installed_task_import_adapter(projects, prefix) if prefix else
+                       'import sys as _ot_calibforge_sys\nfrom importlib.machinery import PathFinder as _ot_calibforge_PathFinder\n')
+            adapter += ('class _ot_calibforge_SourceFinder:\n'
+                        '    @staticmethod\n'
+                        '    def find_spec(fullname, path=None, target=None):\n'
+                        '        if fullname in ' + repr(tuple(sorted(projects))) + ':\n'
+                        '            return _ot_calibforge_PathFinder.find_spec(fullname, ' + repr(sorted(cwd)) + ')\n'
+                        '_ot_calibforge_sys.meta_path.insert(0, _ot_calibforge_SourceFinder)\n'
+                        'import runpy\n_ot_calibforge_sys.argv[0]="pytest"\n_ot_calibforge_sys.argv.insert(1,"--import-mode=importlib")\nrunpy.run_module("pytest",run_name="__main__")\n')
+            replacements.append((node, 'sys.executable, "-I"'))
+            replacements.append((argv.elts[1], '"-c"'))
+            replacements.append((argv.elts[2], repr(adapter)))
+            continue
+        snippet_argument=None
+        if isinstance(argv,(ast.List,ast.Tuple)) and argv.elts[0] is node:
+            if len(argv.elts)>=3 and targets=={'-c'}:
+                snippet_argument=argv.elts[2]
+            elif len(argv.elts)==2 and targets in ({'/dev/stdin'},{'-'}):
+                call=parents.get(argv)
+                if isinstance(call,ast.Call) and ast.unparse(call.func)=='subprocess.run':
+                    snippet_argument=next((kw.value for kw in call.keywords if kw.arg=='input'),None)
+        if snippet_argument is not None and files is not None and image is not None:
+            snippets = paths(snippet_argument)
+            template = grading_snippet_template(snippet_argument,tree) if not snippets else None
+            choices = grading_helper_templates(snippet_argument,tree) if not snippets and not template else None
+            if template:snippets={template[0]}
+            if choices:snippets={value[0] for value in choices}
+            if snippets:
+                snippet_image = dict(image)
+                call = parents.get(argv)
+                cwd_argument = next((keyword.value for keyword in call.keywords if keyword.arg == 'cwd'), None) if isinstance(call, ast.Call) else None
+                cwd = paths(cwd_argument) if cwd_argument is not None else ({image['original_task_workdir']} if image.get('original_task_workdir') else set())
+                if cwd_argument is None and any(isinstance(other, ast.Call) and ast.unparse(other.func) == 'os.chdir'
+                        and (not other.args or paths(other.args[0]) != cwd) for other in ast.walk(tree)):
+                    cwd = set()
+                if len(cwd) == 1 and all(root in ('/app','/workspace') or root.startswith(('/app/','/workspace/'))
+                                         for root in cwd) and all('..' not in root.split('/') for root in cwd):
+                    snippet_image['implicit_task_root'] = next(iter(cwd))
+                else:
+                    snippet_image.pop('implicit_task_root', None)
+                environment = next((keyword.value for keyword in call.keywords if keyword.arg=='env'),None) if isinstance(call,ast.Call) else None
+                if environment is not None:
+                    environment_root=grading_environment_root(environment,tree,paths)
+                    if environment_root is None:
+                        raise ValueError('CalibForge nested grading environment requires review')
+                    snippet_image['implicit_task_root']=environment_root
+                for snippet in snippets:
+                    inner = ast.parse(snippet)
+                    if any(isinstance(n, ast.Attribute) and ast.unparse(n) == 'sys.executable'
+                           for n in ast.walk(inner)):
+                        raise ValueError('CalibForge nested interpreter selection requires review')
+                    review_imports(inner, files, snippet_image)
+                # These are grading snippets. Keep clean Python, with cwd/environment
+                # imports disabled; explicit task imports remain visible.
+                adapted = {snippet: preserve_cwd_task_imports(snippet, files, snippet_image) for snippet in sorted(snippets)}
+                if choices:
+                    if '_ot_checked_literal_snippet' in text and not existing_snippet_helper:
+                        raise ValueError('CalibForge generated snippet helper collision requires review')
+                    expression=ast.get_source_segment(text,snippet_argument)
+                    options=[(value,adapted[value],holes) for value,holes in choices]
+                    replacements.append((snippet_argument, '_ot_checked_snippet_choices('+expression+', '+repr(options)+')'))
+                    dynamic_snippets=True
+                elif template:
+                    if '_ot_checked_literal_snippet' in text and not existing_snippet_helper:
+                        raise ValueError('CalibForge generated snippet helper collision requires review')
+                    expression=ast.get_source_segment(text,snippet_argument)
+                    replacements.append((snippet_argument, '_ot_checked_literal_snippet('+expression+', '+repr(template[0])+', '+repr(adapted[template[0]])+', '+repr(template[1])+')'))
+                    dynamic_snippets=True
+                elif any(original != updated for original, updated in adapted.items()):
+                    expression = ast.get_source_segment(text, snippet_argument)
+                    replacements.append((snippet_argument, '(' + repr(adapted) + ')[' + expression + ']'))
+                replacements.append((node, 'sys.executable, "-I"'))
+                continue
+        raise ValueError('CalibForge task interpreter selection requires review: ' + ast.unparse(argv)[:240])
+    lines = text.encode().splitlines(keepends=True)
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+    data = text.encode()
+    for node, replacement in sorted(replacements, key=lambda item: (item[0].lineno, item[0].col_offset), reverse=True):
+        start = offsets[node.lineno-1] + node.col_offset
+        end = offsets[node.end_lineno-1] + node.end_col_offset
+        data = data[:start] + replacement.encode() + data[end:]
+    return data.decode()+(DYNAMIC_SNIPPET_HELPER if dynamic_snippets and not existing_snippet_helper else ''), len(replacements)
+
+
+def task_extension_modules(files):
+    """Read literal extension names from supplied setup.py; never execute it."""
+    modules = set()
+    for path, body in files.items():
+        if not path.startswith('environment/') or not path.endswith('/setup.py'):
+            continue
+        try:
+            tree = ast.parse(body.decode())
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        constructors = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in ('setuptools','distutils.core','distutils.extension'):
+                constructors.update(alias.asname or alias.name for alias in node.names if alias.name == 'Extension')
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or ast.unparse(node.func) not in constructors:
+                continue
+            name = node.args[0] if node.args else next((kw.value for kw in node.keywords if kw.arg == 'name'), None)
+            if isinstance(name, ast.Constant) and isinstance(name.value, str) and re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*',name.value):
+                modules.add(name.value.split('.')[0])
+    return modules
+
+
+def optional_import_modules(tree):
+    """Imports whose absence the original fresh source explicitly handles."""
+    parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    modules=set();required=set()
+    for node in ast.walk(tree):
+        if not isinstance(node,(ast.Import,ast.ImportFrom)):continue
+        names=({alias.name.split(".")[0] for alias in node.names} if isinstance(node,ast.Import)
+               else {node.module.split(".")[0]} if node.module and not node.level else set())
+        optional=False
+        child=node;parent=parents.get(child)
+        while parent is not None and not isinstance(parent,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+            if isinstance(parent,ast.Try) and child in parent.body:
+                caught={item.id for handler in parent.handlers if handler.type is not None
+                        for item in ast.walk(handler.type) if isinstance(item,ast.Name)}
+                if caught & {'ImportError','ModuleNotFoundError'}:
+                    optional=True
+                    break
+            child=parent;parent=parents.get(parent)
+        (modules if optional else required).update(names)
+    return modules-required
+
+
+
+def imported_name_targets(tree, target):
+    """Resolve a reload operand in its lexical scope without cross-test aliases."""
+    if not isinstance(target,ast.Name):return set()
+    parents={child:node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    scopes=(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef,ast.Lambda)
+    def scope(node):
+        node=parents.get(node)
+        while node is not None and not isinstance(node,scopes):node=parents.get(node)
+        return node
+    current=scope(target)
+    while True:
+        nodes=[node for node in ast.walk(tree) if scope(node) is current]
+        # Reject aliases rebound in this scope, including parameters and
+        # global/nonlocal declarations whose mutation is not local to this use.
+        if any(isinstance(node,ast.Name) and node.id==target.id and isinstance(node.ctx,(ast.Store,ast.Del))
+               or isinstance(node,ast.arg) and node.arg==target.id
+               or isinstance(node,(ast.Global,ast.Nonlocal)) and target.id in node.names
+               or isinstance(node,scopes) and getattr(node,'name',None)==target.id for node in nodes):
+            return set()
+        modules=set();foreign=False
+        for node in nodes:
+            if isinstance(node,ast.Import):
+                modules.update(alias.name.split('.')[0] for alias in node.names
+                               if (alias.asname or alias.name.split('.')[0])==target.id)
+            elif isinstance(node,ast.ImportFrom):
+                foreign |= any((alias.asname or alias.name)==target.id for alias in node.names)
+        if modules or foreign:return set() if foreign or len(modules)!=1 else modules
+        if current is None:return set()
+        current=scope(current)
+
+
+def path_backup_nodes(tree):
+    """Only a local path snapshot used once to restore sys.path, with no mutations."""
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    result = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name) and isinstance(node.value, ast.Call)
+                and ast.unparse(node.value.func) == 'sys.path.copy'
+                and not node.value.args and not node.value.keywords):
+            continue
+        name = node.targets[0].id
+        uses = [item for item in ast.walk(tree) if isinstance(item, ast.Name) and item.id == name and item is not node.targets[0]]
+        if len(uses) != 1:
+            continue
+        restore = parents.get(uses[0])
+        if (isinstance(restore, ast.Assign) and restore.value is uses[0] and len(restore.targets) == 1
+                and ast.unparse(restore.targets[0]) == 'sys.path'):
+            result.update((node, restore))
+    return result
+
+
+def review_imports(tree, files, image):
+    """Keep explicit task-module imports, excluding container package directories."""
+    from packaging.utils import canonicalize_name
+    projects = task_distributions(files)
+    trusted = {path[len('tests/'):-3] for path in files if path.startswith('tests/') and path.endswith('.py') and '/' not in path[len('tests/'):]} | set(image['stdlib']) | {'pytest'} | {
+        name for name in image.get('import_names', []) if canonicalize_name(name) not in projects}
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    backups = path_backup_nodes(tree)
+    backup_calls = {node.value for node in backups if isinstance(node.value, ast.Call)}
+    paths = static_paths(tree, image.get('test_file', '/tests/test_outputs.py'))
+    project_paths = {image['implicit_task_root']} if image.get('implicit_task_root') else set()
+    for node in calls:
+        name = ast.unparse(node.func)
+        if node in backup_calls:
+            continue
+        if name.startswith('sys.path.'):
+            if name == 'sys.path.pop' and all(isinstance(x, ast.Constant) and isinstance(x.value, int) for x in node.args):
+                continue
+            index = 1 if name == 'sys.path.insert' else 0
+            if name not in ('sys.path.insert', 'sys.path.append', 'sys.path.remove') or len(node.args) <= index:
+                raise ValueError('CalibForge task interpreter/import semantics require review')
+            resolved = paths(node.args[index])
+            if not resolved:
+                raise ValueError('CalibForge task interpreter/import semantics require review')
+            if not all((path in ('/app', '/workspace', '/tests') or path.startswith(('/app/', '/workspace/')))
+                       and '..' not in path.split('/') for path in resolved):
+                raise ValueError('CalibForge container package import path requires review')
+            if name != 'sys.path.remove':
+                project_paths.update(resolved)
+    # Native ``python -m pytest`` previously exposed the current directory.
+    # Record explicit task chdir locations; the adapter restores only proven task
+    # modules from them, rather than exposing that directory to all imports.
+    for node in calls:
+        if ast.unparse(node.func) == 'os.chdir' and node.args:
+            resolved = paths(node.args[0])
+            if resolved and all(path in ('/app', '/workspace') or path.startswith(('/app/', '/workspace/'))
+                                and '..' not in path.split('/') for path in resolved):
+                project_paths.update(resolved)
+    imports = set()
+    module_aliases = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.update(alias.name.split('.')[0] for alias in node.names)
+            for alias in node.names:
+                module_aliases.setdefault(alias.asname or alias.name.split('.')[0], set()).add(alias.name.split('.')[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
+                raise ValueError('CalibForge relative imports require review')
+            imports.add(node.module.split('.')[0])
+    required_imports=set(imports)
+    presence_probes=set()
+    # Literal dynamic imports carry the same module boundary as import statements.
+    for node in calls:
+        if ast.unparse(node.func) in ('importlib.import_module', 'importlib.util.find_spec', '__import__', 'importlib.resources.files'):
+            names = paths(node.args[0]) if node.args else set()
+            if not names or not all(re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*', name) for name in names):
+                raise ValueError('CalibForge dynamic imports require review')
+            # Looking up a top-level module does not import it: absence may be
+            # the assertion being tested. Dotted find_spec still imports parents.
+            targets={name.split('.')[0] for name in names}
+            if ast.unparse(node.func)=='importlib.util.find_spec' and all('.' not in name for name in names):
+                presence_probes.update(targets)
+            else:
+                required_imports.update(targets)
+            imports.update(targets)
+    task_imports = set()
+    extensions = task_extension_modules(files)
+    instruction = files.get('instruction.md', b'').decode()
+    created_modules = set(re.findall(r'(?:Python module called|compiled module must be named) `([A-Za-z_]\w*)`', instruction))
+    created_modules.update(re.findall(r'Create a file `([A-Za-z_]\w*)\.py`', instruction))
+    created_modules.update(re.findall(r'Implement [^\n]+ in `([A-Za-z_]\w*)\.py`', instruction))
+    created_modules.update(module for role in task_module_roles(files) for module in role['modules'])
+    installed_modules = {module for role in task_module_roles(files) for module in role.get('installed_modules', [])}
+    for module in imports - trusted:
+        source_suffixes = ('.py', '/__init__.py', '.c', '.cc', '.cpp', '.pyx')
+        source_present = any(path.startswith('environment/') and
+            any(path.endswith('/' + module + suffix) for suffix in source_suffixes) for path in files)
+        source_present = source_present or any(path.startswith('environment/') and '/'+module+'/' in path
+                                               and path.endswith('.py') for path in files)
+        explicit_target = any(path + '/' + module + suffix in instruction
+                              for path in project_paths for suffix in (*source_suffixes, '/'))
+        if (project_paths and (source_present or explicit_target or module in extensions or module in created_modules)) or canonicalize_name(module) in projects or module in installed_modules:
+            task_imports.add(module)
+    unknown = imports - trusted - task_imports - optional_import_modules(tree) - (presence_probes-required_imports)
+    if unknown:
+        raise ValueError('CalibForge task package imports require review: ' + ','.join(sorted(unknown)))
+    file_loaders = False
+    for node in calls:
+        name = ast.unparse(node.func)
+        if name == 'importlib.util.spec_from_file_location':
+            resolved = paths(node.args[1]) if len(node.args) > 1 else set()
+            if not resolved or not all(path.startswith(('/app/', '/workspace/'))
+                                       and '..' not in path.split('/') for path in resolved):
+                if not task_extension_loader(node,tree,files):
+                    raise ValueError('CalibForge dynamic task-module location requires review')
+            file_loaders = True
+    for node in calls:
+        name = ast.unparse(node.func)
+        if name in ('__import__', 'importlib.import_module', 'importlib.util.find_spec', 'importlib.resources.files'):
+            # The literal targets above have been checked against trusted modules
+            # and task-source evidence; no import of an arbitrary module name.
+            continue
+        elif name.startswith('importlib.') and not any(isinstance(part, ast.Call) for part in ast.walk(node.func)):
+            if name == 'importlib.util.spec_from_file_location':
+                continue
+            if name == 'importlib.invalidate_caches' and not node.args and not node.keywords:
+                continue
+            if name == 'importlib.util.module_from_spec' and file_loaders:
+                continue
+            if name == 'importlib.reload' and len(node.args) == 1 and not node.keywords:
+                target = node.args[0]
+                if isinstance(target, ast.Name):
+                    modules = imported_name_targets(tree,target)
+                    if modules and modules <= trusted | task_imports:
+                        continue
+                if isinstance(target,ast.Subscript) and ast.unparse(target.value)=='sys.modules':
+                    modules = paths(target.slice)
+                    if modules and all(module.split('.')[0] in trusted | task_imports and re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*',module)
+                                       for module in modules):
+                        continue
+            raise ValueError('CalibForge dynamic imports require review')
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if node not in backups and any(ast.unparse(target).startswith('sys.path') for target in targets):
+                raise ValueError('CalibForge path assignment requires review')
+    return sorted(imports), sorted(task_imports)
+
+
+def installed_task_import_adapter(modules, prefix, roots=None, namespace_modules=()):
+    """Expose only named packages from the task's installed/editable package paths."""
+    return '''import sys as _ot_calibforge_sys
+import ast as _ot_calibforge_ast
+import site as _ot_calibforge_site
+from pathlib import Path as _ot_calibforge_Path
+from importlib.machinery import PathFinder as _ot_calibforge_PathFinder
+class _ot_calibforge_InstalledTaskFinder:
+    @staticmethod
+    def roots(fullname):
+        roots = OT_ROOTS
+        candidates = list(roots)
+        # Read editable metadata as data. Never execute an agent's .pth/finder code.
+        for root in roots:
+            for entry in _ot_calibforge_Path(root).glob('*.pth'):
+                for line in entry.read_text(errors='replace').splitlines():
+                    candidate = line.strip()
+                    if candidate.startswith(('/app/', '/workspace/')) and '..' not in _ot_calibforge_Path(candidate).parts:
+                        candidates.append(candidate)
+            for entry in _ot_calibforge_Path(root).glob('__editable__*_finder.py'):
+                try:
+                    tree = _ot_calibforge_ast.parse(entry.read_text())
+                except (OSError, SyntaxError, UnicodeError):
+                    continue
+                for statement in tree.body:
+                    targets = statement.targets if isinstance(statement, _ot_calibforge_ast.Assign) else [statement.target] if isinstance(statement, _ot_calibforge_ast.AnnAssign) else []
+                    if not any(isinstance(name, _ot_calibforge_ast.Name) and name.id == 'MAPPING' for name in targets):
+                        continue
+                    try:
+                        mapping = _ot_calibforge_ast.literal_eval(statement.value)
+                    except (ValueError, TypeError, SyntaxError):
+                        continue
+                    candidate = mapping.get(fullname) if isinstance(mapping, dict) else None
+                    if isinstance(candidate, str) and candidate.startswith(('/app/', '/workspace/')) and '..' not in _ot_calibforge_Path(candidate).parts:
+                        candidates.append(str(_ot_calibforge_Path(candidate).parent))
+        return list(dict.fromkeys(candidates))
+    @staticmethod
+    def find_spec(fullname, path=None, target=None):
+        if fullname not in OT_MODULES:
+            return None
+        return _ot_calibforge_PathFinder.find_spec(fullname, _ot_calibforge_InstalledTaskFinder.roots(fullname))
+_ot_calibforge_sys.meta_path.insert(0, _ot_calibforge_InstalledTaskFinder)
+'''.replace('OT_MODULES', repr(tuple(sorted(modules)))).replace('OT_ROOTS',
+        repr(roots) if roots is not None else '_ot_calibforge_site.getsitepackages('+repr(prefix if isinstance(prefix,list) else [prefix])+')') + ('''
+import pkgutil as _ot_namespace_pkgutil
+_ot_namespace_extend_original = _ot_namespace_pkgutil.extend_path
+def _ot_namespace_extend(path, name):
+    result = _ot_namespace_extend_original(path, name)
+    if name in OT_NAMESPACES and isinstance(result, list):
+        for root in _ot_calibforge_InstalledTaskFinder.roots(name):
+            spec = _ot_calibforge_PathFinder.find_spec(name, [root])
+            if spec is not None:
+                for part in spec.submodule_search_locations or ():
+                    if part not in result:
+                        result.append(part)
+    return result
+_ot_namespace_pkgutil.extend_path = _ot_namespace_extend
+try:
+    import pkg_resources as _ot_namespace_resources
+except ImportError:
+    pass
+else:
+    _ot_namespace_declare_original = _ot_namespace_resources.declare_namespace
+    def _ot_namespace_declare(name):
+        _ot_namespace_declare_original(name)
+        if name in OT_NAMESPACES:
+            for root in _ot_calibforge_InstalledTaskFinder.roots(name):
+                _ot_namespace_resources._handle_ns(name, root)
+    _ot_namespace_resources.declare_namespace = _ot_namespace_declare
+'''.replace('OT_NAMESPACES', repr(tuple(sorted(namespace_modules)))) if namespace_modules else '')
+
+
+def preserve_cwd_task_imports(text, files, image):
+    """Preserve reviewed task imports lost by Python -I, without adding cwd globally."""
+    tree = ast.parse(text)
+    _, task_imports = review_imports(tree, files, image)
+    # These projects are installed from submitted sources into this clean
+    # runtime at their original shell install point. Import that private copy.
+    private_modules={name for role in task_module_roles(files)
+                     if role.get('shell_package_installation') or role.get('selector_package_installation')
+                     for name in role.get('private_installed_modules',[])}
+    task_imports=set(task_imports)-private_modules
+    paths = static_paths(tree, image.get('test_file', '/tests/test_outputs.py'))
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    cwd = set()
+    explicit = set()
+    removals = list(path_backup_nodes(tree))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = ast.unparse(node.func)
+        if name == 'os.chdir' and node.args:
+            cwd.update(paths(node.args[0]))
+        if name in ('sys.path.insert', 'sys.path.append', 'sys.path.remove'):
+            index = 1 if name == 'sys.path.insert' else 0
+            if len(node.args) > index:
+                resolved = paths(node.args[index])
+                task_paths = {path for path in resolved if path.startswith(('/app', '/workspace'))}
+                if task_paths:
+                    if task_paths != resolved or not isinstance(parents.get(node), ast.Expr):
+                        raise ValueError('CalibForge explicit task import path use requires review')
+                    if name != 'sys.path.remove':
+                        explicit.update(task_paths)
+                    removals.append(node)
+    if len(explicit) > 1:
+        raise ValueError('CalibForge changing explicit task import paths require review')
+    if explicit:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and ast.unparse(node.func) == 'sys.path.pop':
+                if (len(node.args) != 1 or not isinstance(node.args[0], ast.Constant) or node.args[0].value != 0
+                        or not isinstance(parents.get(node), ast.Expr)
+                        or any(isinstance(other,ast.Call) and ast.unparse(other.func) in ('sys.path.insert','sys.path.append')
+                               and other not in removals for other in ast.walk(tree))):
+                    raise ValueError('CalibForge task import path cleanup requires review')
+                removals.append(node)
+    lines = text.encode().splitlines(keepends=True)
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1]+len(line))
+    rewritten = text.encode()
+    for node in sorted(removals, key=lambda n:(n.lineno,n.col_offset), reverse=True):
+        start = offsets[node.lineno-1]+node.col_offset
+        end = offsets[node.end_lineno-1]+node.end_col_offset
+        rewritten = rewritten[:start]+b'None'+rewritten[end:]
+    text = rewritten.decode()
+    if not task_imports:
+        return text
+    from packaging.utils import canonicalize_name
+    projects = task_distributions(files)
+    installed_modules = {module for role in task_module_roles(files) for module in role.get('installed_modules', [])}
+    namespace_modules = {module for role in task_module_roles(files) for module in role.get('namespace_modules', [])}
+    if not cwd and not explicit and image.get('implicit_task_root'):
+        cwd.add(image['implicit_task_root'])
+    installed = {module for module in task_imports if canonicalize_name(module) in projects or module in installed_modules} if not cwd and not explicit else set()
+    if not cwd and not explicit and not installed:
+        return text
+    if explicit and cwd == {'/tmp'}:
+        # A regression can deliberately change cwd before importing through an
+        # absolute task path. Keep chdir, but do not add /tmp to import lookup.
+        cwd.clear()
+    if cwd and (len(cwd) != 1 or not all((path in ('/app', '/workspace') or path.startswith(('/app/', '/workspace/')))
+                                       and '..' not in path.split('/') for path in cwd)):
+        raise ValueError('CalibForge changing task cwd imports require review')
+    prefix = image.get('task_package_prefixes',image.get('prefix'))
+    prefixes = prefix if isinstance(prefix,list) else [prefix]
+    location_roles=[role for role in task_module_roles(files)
+                    if installed and installed <= set(role['modules']) and role.get('installed_package_locations')]
+    roots=None
+    if location_roles:
+        if len(location_roles)!=1:
+            raise ValueError('CalibForge task package location roles overlap')
+        locations=location_roles[0]['installed_package_locations']
+        roots=locations['site_packages']
+        if (not roots or not re.fullmatch(r'[a-f0-9]{64}',locations.get('image_sha256',''))
+                or not all(re.fullmatch(r'/(?:usr(?:/local)?|opt/venv)(?:/local)?/lib/python[0-9.]+/(?:site|dist)-packages',root) for root in roots)):
+            raise ValueError('CalibForge measured task package locations require review')
+    if installed and roots is None and (not prefixes or any(not isinstance(value,str) or not value.startswith('/') or '..' in value.split('/') for value in prefixes)):
+        raise ValueError('CalibForge installed task package prefix requires review')
+    if any(isinstance(node, ast.Name) and node.id.startswith('_ot_calibforge_') for node in ast.walk(tree)):
+        raise ValueError('CalibForge task import adapter name collision')
+    # The finder handles only modules proven to be task outputs/source above.
+    # Python, pytest and every unrelated package still resolve in the clean runtime.
+    adapter = ('import sys as _ot_calibforge_sys\n'
+               'from importlib.machinery import PathFinder as _ot_calibforge_PathFinder\n'
+               'class _ot_calibforge_TaskFinder:\n'
+               '    @staticmethod\n'
+               '    def find_spec(fullname, path=None, target=None):\n'
+               '        if fullname in ' + repr(tuple(sorted(task_imports))) + ':\n'
+               '            return _ot_calibforge_PathFinder.find_spec(fullname, ' + repr([*sorted(explicit),*sorted(cwd-explicit)]) + ')\n'
+               '_ot_calibforge_sys.meta_path.insert(0, _ot_calibforge_TaskFinder)\n')
+    if installed:
+        adapter = installed_task_import_adapter(installed, prefix, roots=roots, namespace_modules=namespace_modules & installed) + (adapter if cwd or explicit else '')
+    after = 0
+    for node in tree.body:
+        if (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+                or isinstance(node, ast.ImportFrom) and node.module == '__future__'):
+            after = node.end_lineno
+        else:
+            break
+    lines = text.splitlines(keepends=True)
+    return ''.join(lines[:after]) + '\n' + adapter + '\n' + ''.join(lines[after:])
+
+
+# The replacement numerical-inspector grader no longer imports the legacy
+# Dijkstra baseline. Preserve its uploaded bytes without inventing dependencies
+# for code that the exact source-bound entrypoint never executes.
+INACTIVE_VERIFIER_HELPERS = [{'test_source_sha256': 'eabdb58357d9ca7074b70cef7675f2dc8aad90489e28f545ae0b9bbba072b836', 'test_script_sha256': 'e7d47d7c68c766fc70c7e0cba32fa33b0788696b72d93cdf34180050d4c3effd', 'helpers': {'tests/dijkstra_baseline_protected.py': '927adcc9cdf5b93691ac55bf4753a9e65d6d6419bb813528d9eb169eb8c89f84'}}]
+
+
+def review_test_sources(files, image, task_python='/opt/verifier/bin/python', *, original_files=None):
+    role_files = files if original_files is None else original_files
+    files = restore_verifier_helpers(files)
+    # Native -m pytest exposed its working directory. Restore only task modules
+    # proven by the supplied sources/instructions, never the whole cwd namespace.
+    docker = files.get('environment/Dockerfile', b'').decode()
+    script = files.get('tests/test.sh', b'').decode()
+    if 'export PYTHONPATH=/app:$PYTHONPATH' in shell_lines(script):
+        # -I ignores the inherited path; restore only proven task modules from
+        # this declared root through the selective finder below.
+        image={**image,'implicit_task_root':'/app'}
+    workdirs = re.findall(r'^WORKDIR\s+(\S+)\s*$', docker, re.M)
+    if (len(workdirs) == 1 and re.fullmatch(r'/(?:app|workspace)(?:/[A-Za-z0-9_.-]+)*',workdirs[0])
+            and '..' not in workdirs[0].split('/') and not re.search(r'\b(?:cd|pushd|popd)\b', script)):
+        image = {**image, 'original_task_workdir': workdirs[0]}
+        if task_python is not None and ' -m pytest ' in script:
+            image = {**image, 'implicit_task_root': workdirs[0]}
+    import hashlib
+    inactive_helpers = []
+    for record in INACTIVE_VERIFIER_HELPERS:
+        if (hashlib.sha256(files.get('tests/test_outputs.py',b'')).hexdigest()==record['test_source_sha256']
+                and hashlib.sha256(files.get('tests/test.sh',b'')).hexdigest()==record['test_script_sha256']
+                and all(path in files and hashlib.sha256(files[path]).hexdigest()==digest for path,digest in record['helpers'].items())):
+            inactive_helpers.extend(record['helpers'])
+    sources = {}
+    selectors = {}
+    installation_checks = {}
+    optional_imports = {}
+    prepared_install_calls = {}
+    packaging_roles = {}
+    clean_fixture_roles = {}
+    module_roles = task_module_roles(files)
+    initialization_roles = task_initialization_roles(files)
+    imports, task_imports, count = set(), set(), 0
+    for path, body in files.items():
+        if not path.startswith('tests/') or not path.endswith('.py') or path in image.get('auxiliary_helpers',[]) or path in inactive_helpers:
+            continue
+        context = {**image, 'test_file': '/' + path}
+        helper_roots = {role['helper_import_roots'][path] for role in module_roles
+                        if path in role.get('helper_import_roots', {})}
+        if helper_roots:
+            if len(helper_roots)!=1 or not helper_roots <= {'/app','/workspace'}:
+                raise ValueError('Restored verifier helper import root requires review')
+            context['implicit_task_root'] = next(iter(helper_roots))
+        import hashlib
+        source_digest = hashlib.sha256(body).hexdigest()
+        if source_digest=='977be4523569d093931573ade5cf02903a48fed43f7d0dcba991cb7b34249aea':
+            clean_fixture_roles[path]=dict(source_sha256=source_digest,
+                role='Five ProcessManager process-tree fixtures and their descendants use clean isolated Python; PID/liveness assertions stay in the clean parent')
+        if source_digest in TASK_PYTHON_SELECTORS:
+            selector, role = TASK_PYTHON_SELECTORS[source_digest]
+            selectors[path] = dict(source_sha256=source_digest, function=selector, role=role)
+        install_source=expose_uvx_python_calls(body.decode()) if context.get('original_uvx_path') else body.decode()
+        if context.get('original_native_invocation'):
+            install_source=expose_uvx_python_calls(install_source,(context['original_native_invocation'],))
+        _, install_proof=prepared_python_install_calls(expand_local_python_aliases(install_source),files,context)
+        if install_proof:prepared_install_calls[path]=install_proof
+        packaging_source,packaging_helper,packaging_role=adapt(files,path,context)
+        if packaging_role:packaging_roles[path]=packaging_role
+        wrapped_source, wrapped_helper = adapt_wrapped_grading(packaging_source, files)
+        import_source, import_helper = adapt_dynamic_task_imports(wrapped_source, files)
+        import_source, project_test_helper = adapt_project_tests(import_source, files, context)
+        import_source, stdin_helper = adapt_stdin_grading(import_source, files, context)
+        generated_source, generated_helper = adapt_generated_scripts(remove_unused_task_paths(import_source, files), files, context)
+        source, calls = task_python_calls(generated_source, task_python, files=files, image=context, role_files=role_files)
+        role_tree = ast.parse(role_files.get(path,body).decode())
+        role_paths = static_paths(role_tree, '/' + path)
+        roles = [role for node in ast.walk(role_tree) if isinstance(node, ast.Call)
+                 if (role := task_installation_role(node, role_paths, role_files))
+                 if not (image.get('original_uvx_path') and set(role['executables']) <= {'python','python3'})]
+        if roles:
+            installation_checks[path] = roles
+        used, task_used = review_imports(ast.parse(source), files, context)
+        absent_optional = optional_import_modules(ast.parse(source)) - set(image.get('stdlib',[])) - set(image.get('import_names',[])) - set(task_used)
+        if absent_optional:
+            optional_imports[path] = sorted(absent_optional)
+        source = preserve_cwd_task_imports(source, files, context)
+        sources[path] = source+packaging_helper+import_helper+generated_helper+project_test_helper+wrapped_helper+stdin_helper
+        imports.update(used)
+        task_imports.update(task_used)
+        count += calls
+    packaging_specs=[packaging_offline_spec(record) for record in packaging_roles.values()]
+    for role in module_roles:
+        item=role.get('shell_package_installation') or role.get('selector_package_installation')
+        if item:
+            if image.get('python')!=item['python']:
+                raise ValueError('Shell package installation Python differs')
+            packaging_specs.append(packaging_offline_spec(item))
+    packaging_specs.extend(role['shell_dependency_installation']['spec'] for role in module_roles if role.get('shell_dependency_installation'))
+    source_spec=source_input_spec(files,verifier=True,image_sha256=image.get('source_image_sha256'))
+    if source_spec:packaging_specs.append(source_spec)
+    if packaging_specs and any(spec!=packaging_specs[0] for spec in packaging_specs):
+        raise ValueError('CalibForge packaging inputs require a compatible common wheel cache')
+    offline_limitations=[note for role in module_roles if role.get('test_source_sha256')==hashlib.sha256(role_files.get('tests/test_outputs.py',b'')).hexdigest() for note in role.get('offline_limitations',[])]
+    return dict(test_sources=sources, test_source=sources.get('tests/test_outputs.py', ''),
+                offline_limitations=offline_limitations,
+                clean_fixture_roles=clean_fixture_roles,
+                packaging_roles=packaging_roles,verifier_offline_spec=packaging_specs[0] if packaging_specs else None,
+                task_offline_spec=source_input_spec(files,image_sha256=image.get('source_image_sha256')),
+                imports=sorted(imports), task_imports=sorted(task_imports), task_python_calls=count,
+                task_python_selectors=selectors, task_installation_checks=installation_checks, optional_imports=optional_imports, task_module_roles=module_roles, task_initialization_roles=initialization_roles, prepared_install_calls=prepared_install_calls, inactive_helpers=sorted(inactive_helpers))
+
+
+def runtime_plan(files, image, probe, binding, bundle, *, shared=False, auxiliary=None):
+    from validation.contract import files_digest
+    if files_digest(files.items()) != binding['content_sha256']:
+        raise ValueError('CalibForge published task binding differs')
+    environments = binding['environments']
+    if len(environments) != 1 or environments[0]['path'] != 'environment':
+        raise ValueError('CalibForge environment layout requires review')
+    if shared and not shared_base_eligible(files):
+        raise ValueError('CalibForge shared base interpreter requires review')
+    if (not shared and (environments[0]['environment_sha256'] != image['environment_sha256']
+            or environments[0]['bundle'] != image['bundle']
+            or bundle['files'][bundle['name']]['sha256'] != image['sif_sha256'])):
+        raise ValueError('CalibForge image/probe identity differs')
+    if probe['sif_sha256'] != image['sif_sha256']:
+        raise ValueError('CalibForge image/probe identity differs')
+    if image.get('return_code') != 0 or probe.get('returncode') != 0:
+        raise ValueError('CalibForge needs successful original image/pytest probes')
+    if shell_lines(files.get('tests/test.sh', b'').decode()) != shell_lines(SCRIPT.decode()) or 'tests/setup.sh' in files:
+        raise ValueError('CalibForge verifier entrypoint requires review')
+    observed = json.loads(probe['stdout'].split('OT_RUNTIME_PROBE=', 1)[1])
+    image = {**image, 'prefix': observed['prefix'], 'python': observed['python'],
+             'requirements': observed['requirements']}
+    auxiliary_plan=auxiliary_helper_plan(files,auxiliary,bundle['files'][bundle['name']]['sha256'])
+    if auxiliary_plan['replacements'] or auxiliary_plan['guards']:
+        raise ValueError('CalibForge base verifier auxiliary shell initialization requires review')
+    review_files={**files,**{path:source.encode() for path,source in auxiliary_plan['sources'].items()}}
+    suite_assets, suite_source, suite_helper = pristine_project_suite(
+        files, bundle['files'][bundle['name']]['sha256'], image)
+    if suite_source is not None:
+        review_files['tests/test_outputs.py'] = suite_source.encode()
+    reviewed_sources = review_test_sources(review_files, {
+        **image, 'source_image_sha256':bundle['files'][bundle['name']]['sha256'],
+        'auxiliary_helpers': sorted(auxiliary_plan['helpers'])}, original_files=files)
+    if suite_helper:
+        reviewed_sources['test_sources']['tests/test_outputs.py'] += suite_helper
+        reviewed_sources['test_source'] = reviewed_sources['test_sources']['tests/test_outputs.py']
+    observed=json.loads(probe['stdout'].split('OT_RUNTIME_PROBE=',1)[1])
+    if (observed['python'] != image['version'] or observed['executable'] != '/opt/verifier/bin/python'
+            or observed['prefix'] != '/opt/verifier' or observed['resolved_executable'] != image['python3'][1]):
+        raise ValueError('CalibForge pytest does not use measured task interpreter')
+    pins = observed['requirements']
+    if (not {'pytest','pytest-json-ctrf'} <= {p.split('==')[0] for p in pins}
+            or (shared and (not {'pytest==8.4.1','pytest-json-ctrf==0.3.5'} <= set(pins)
+                or {p.split('==')[0] for p in pins} !=
+                {'pytest','pytest-json-ctrf','Pygments','iniconfig','packaging','pluggy'}))):
+        raise ValueError('CalibForge resolved grading tools require review')
+    managed = (observed['resolved_executable'] == '/opt/uv/python/cpython-' + observed['python']
+               + '-linux-x86_64-gnu/bin/python' + '.'.join(observed['python'].split('.')[:2]))
+    # This base already uses a standalone uv Python. Rebuilding that exact patch
+    # release avoids requiring an unrelated task's SIF on an online cache miss.
+    requirements = resolved_runtime_requirements(pins, image.get('requirement_sources', {}))
+    native = dict(native_tools={}, native_resources={})
+    for role in reviewed_sources['task_module_roles']:
+        native['native_tools'].update(role.get('clean_tools', {}))
+        native['native_resources'].update(role.get('native_resources', {}))
+    spec=runtime_spec(python=observed['python'],requirements=requirements,tools=['pytest',*native['native_tools']],
+        image_python=None if managed else {
+            'image_sha256':image['sif_sha256'],'executable':observed['resolved_executable']},
+        auxiliary=auxiliary_plan['specs'] or None,
+        image_tools=native_tool_binding(bundle['files'][bundle['name']]['sha256'],native))
+    return dict(spec=spec,content_sha256=binding['content_sha256'],**reviewed_sources,
+                **native,
+                test_assets=suite_assets,
+                auxiliary_helpers=sorted(auxiliary_plan['helpers']),
+                auxiliary_evidence=auxiliary_plan['evidence'],
+                interpreter_evidence='shared immutable base' if shared else 'task image probe')
+
+
+
+def measured_system_venv_plan(files, observed, binding):
+    """Preserve the measured system-site-packages venv on its clean base Python."""
+    import hashlib
+    from validation.contract import files_digest
+    if (observed.get('test_script_sha256')!='97ed613d7ba2558603460d07bedda05d90af591ab2f0c51d3d2afd8ed9e0dc6c'
+            or hashlib.sha256(files['tests/test.sh']).hexdigest()!='97ed613d7ba2558603460d07bedda05d90af591ab2f0c51d3d2afd8ed9e0dc6c'
+            or observed['sha256']!='fc094ec0f68ffac3ae8861bb304ad96ff0d7c39e55d559ee0b0fbc28d12bae1c'):
+        raise ValueError('CalibForge system-site-packages venv source requires review')
+    measured=observed['observed']
+    if (measured['python']!='3.12.3' or measured['executable']!='/tmp/test_venv/bin/python'
+            or measured['resolved_executable']!='/usr/bin/python3.12'):
+        raise ValueError('CalibForge system-site-packages venv interpreter differs')
+    script=files['tests/test.sh'].decode()
+    script=script.replace('VENV_DIR=/tmp/test_venv','')
+    script=script.replace('/usr/bin/python3.12 -m venv --system-site-packages "$VENV_DIR"','')
+    script=script.replace('"$VENV_DIR/bin/pip" install --quiet pytest pytest-json-ctrf','')
+    script=script.replace('export PATH="$VENV_DIR/bin:$PATH"','')
+    script=script.replace('"$VENV_DIR/bin/python" -m pytest','/usr/bin/python3.12 -m pytest')
+    transformed={**files,'tests/test.sh':script.encode()};proofs={}
+    for path,body in files.items():
+        if not path.startswith('tests/') or not path.endswith('.py'):continue
+        text=body.decode();tree=ast.parse(text);uses=[]
+        for call in ast.walk(tree):
+            if (isinstance(call,ast.Call) and ast.unparse(call.func) in ('subprocess.run','subprocess.call','subprocess.check_output','subprocess.check_call','subprocess.Popen')
+                    and call.args and isinstance(call.args[0],(ast.List,ast.Tuple)) and call.args[0].elts
+                    and isinstance(call.args[0].elts[0],ast.Constant) and call.args[0].elts[0].value=='python3'):
+                uses.append(dict(line=call.lineno,column=call.col_offset,role='grading',
+                    call_sha256=hashlib.sha256(ast.get_source_segment(text,call).encode()).hexdigest()))
+        if not uses:continue
+        record=dict(source_file=path,source_sha256=hashlib.sha256(body).hexdigest(),probe_invocation='python3',uses=uses)
+        _,edits,helper,modules,proof=adapt_literal(files,record,None,measured)
+        for start,end,value in sorted(edits,reverse=True):body=body[:start]+value.encode()+body[end:]
+        transformed[path]=body+helper.encode();proofs[path]=proof
+    normalized={**measured,'executable':'/usr/bin/python3.12','prefix':'/usr'}
+    plan= simple_native_plan(transformed,{**observed,'observed':normalized,'probe_invocation':'/usr/bin/python3.12'},
+        {**binding,'content_sha256':files_digest(transformed.items())})
+    plan['content_sha256']=files_digest(files.items())
+    plan['interpreter_evidence']='measured original system-site-packages venv Python 3.12.3; same clean Python for literal child graders'
+    plan['primary_literal_evidence']=proofs
+    return plan
+
+
+def measured_native_plan(files, observed, binding, bundle):
+    """Bind the native verifier to that task's original, checksum-verified image."""
+    if (observed.get('returncode') != 0 or
+            observed['sha256'] != bundle['files'][bundle['name']]['sha256']):
+        raise ValueError('CalibForge native probe/image binding differs')
+    if observed.get('invocation_kind')=='system-site-packages-venv':
+        return measured_system_venv_plan(files,observed,binding)
+    repair = observed.get('dependency_repair')
+    if isinstance(repair, dict) and repair.get('kind') in (
+            'missing grading import', 'declared installer targeted wrong or unavailable Python'):
+        import hashlib
+        if (observed.get('test_script_sha256') != hashlib.sha256(files['tests/test.sh']).hexdigest()
+                or observed.get('setup_sha256') != hashlib.sha256(files.get('tests/setup.sh', b'')).hexdigest()):
+            raise ValueError('CalibForge grading dependency repair source requires review')
+    measured = verifier_observation(files, observed['observed'])
+    if (observed.get('auxiliary') or 'tests/setup.sh' in files or shell_lines(files.get('tests/test.sh', b'').decode()) != shell_lines(SCRIPT.decode())
+            or measured['executable'] != '/opt/verifier/bin/python' or measured['prefix'] != '/opt/verifier'):
+        return simple_native_plan(files, observed, binding)
+    environment = binding['environments'][0]
+    image = dict(return_code=0, sif_sha256=observed['sha256'],
+                 environment_sha256=environment['environment_sha256'], bundle=environment['bundle'],
+                 version=measured['python'], python3=['/opt/verifier/bin/python3', measured['resolved_executable']],
+                 stdlib=measured['stdlib'], import_names=measured.get('import_names', []),
+                 requirement_sources=observed.get('requirement_sources', {}))
+    probe = dict(returncode=0, sif_sha256=observed['sha256'],
+                 stdout='OT_RUNTIME_PROBE=' + json.dumps(measured))
+    planned = runtime_plan(files, image, probe, binding, bundle)
+    if repair:
+        planned['dependency_repair'] = repair
+        planned['interpreter_evidence'] += '; missing verifier dependencies resolved by trusted preparation installer'
+    return planned
+
+
+def native_selector(script):
+    """Extract only literal interpreter selection and import-availability checks."""
+    python = r'(?:/[A-Za-z0-9_./-]+|python3?(?:\.\d+)?)'
+    literal = r'(?:' + python + r'|"' + python + r'")'
+
+    def reviewed(block, loops=False):
+        for line in shell_lines(block):
+            if line in ('else', 'fi', 'exit 1', 'echo 0 > /logs/verifier/reward.txt'):
+                continue
+            condition = r'(?:\[ -x /[A-Za-z0-9_./-]+ \]|command -v ' + python + r' >/dev/null 2>&1)'
+            imports = (r' && ' + python + r' -c "import [A-Za-z_][A-Za-z0-9_, ]*" '
+                       r'(?:2>/dev/null|>/dev/null 2>&1)')
+            if re.fullmatch(r'(?:if|elif) ' + condition + r'(?:' + imports + r')?; then', line):
+                continue
+            if line == 'if [ ! -x "$PYTHON" ]; then' or re.fullmatch(r'PYTHON=' + literal, line):
+                continue
+            if re.fullmatch(r'echo "[A-Za-z0-9 .$:/_-]+"', line):
+                continue
+            if re.fullmatch(r'PIP="(?:\$PYTHON|python3?) -m pip"', line):
+                continue
+            if line == 'DEPS="-w numpy -w scipy"':
+                continue
+            if loops:
+                if line in ('PYTHON=""', 'PYTHON="$candidate"', 'PYTHON="$cmd_path"', 'break', 'done',
+                            'if [ -z "$PYTHON" ]; then',
+                            'if command -v "$candidate" >/dev/null 2>&1; then',
+                            'cmd_path=$(command -v "$candidate" 2>/dev/null)'):
+                    continue
+                if re.fullmatch(r'for candidate in (?:' + python + r' )*' + python + r'; do', line):
+                    continue
+                if re.fullmatch(r'if (?:\[ -x "\$candidate" \] && )?"\$candidate" -c "import [A-Za-z_][A-Za-z0-9_, ]*" (?:2>/dev/null|>/dev/null 2>&1); then', line):
+                    continue
+                if re.fullmatch(r'if \[ -n "\$cmd_path" \] && \[ -x "\$cmd_path" \] && "\$cmd_path" -c "import [A-Za-z_][A-Za-z0-9_, ]*" 2>/dev/null; then', line):
+                    continue
+            raise ValueError('CalibForge native selector contains additional initialization')
+        return block
+
+    loop = re.search(r'^PYTHON=""\n(?:(?!^"\$PYTHON" -m pytest).)*', script, re.M | re.S)
+    if loop and re.search(r'^for candidate in ', loop[0], re.M):
+        return reviewed(loop[0].rstrip(), loops=True)
+    assignment_guard = re.search(r'^PYTHON=' + literal + r'\n(?:\s*\n|#[^\n]*\n)*if \[ ! -x "\$PYTHON" \]; then\n(?:(?!^fi$).)*^fi$', script, re.M | re.S)
+    if assignment_guard:
+        return reviewed(assignment_guard[0])
+    assignments = re.findall(r'^PYTHON=' + literal + r'$', script, re.M)
+    matches = re.findall(r'^if (?:\[ -x /[^\n]+|command -v (?:python|/)[^\n]+)\n(?:(?!^fi$).)*^fi$', script, re.M | re.S)
+    for block in matches:
+        if not any(line.startswith('PYTHON=') for line in shell_lines(block)):
+            continue
+        if assignments:
+            raise ValueError('CalibForge multiple native interpreter selectors require review')
+        return reviewed(block)
+    if len(assignments) == 1:
+        return assignments[0]
+    if assignments:
+        raise ValueError('CalibForge multiple native interpreter selectors require review')
+    return None
+
+def native_install_requirements(line, *, expected_python=None, expected_version=None):
+    """Read a literal dependency install, without accepting task initialization."""
+    from packaging.requirements import Requirement
+    if not line.strip() or line.lstrip().startswith('#'):
+        return None
+    bootstrap_install = re.split(r'\s+&&\s+', line.strip())
+    if len(bootstrap_install) == 2 and native_dependency_bootstrap(bootstrap_install[0]):
+        return native_install_requirements(bootstrap_install[1], expected_python=expected_python,expected_version=expected_version)
+    branches = re.split(r'\s+\|\|\s+', line.strip())
+    if len(branches) > 1:
+        if branches[-1] == 'true':
+            branches.pop()
+        parsed = [native_install_requirements(branch, expected_python=expected_python,expected_version=expected_version) for branch in branches]
+        return [pin for pins in parsed for pin in pins] if parsed and all(parsed) else None
+    line = re.sub(r' (?:>/dev/null 2>&1|2>/dev/null|2>&1)(?: \|\| true| \| tail -[0-9]+)?$', '', line.strip())
+    if any(c in line for c in ('`', ';', '|', '&', '<', '>')):
+        return None
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return None
+    if tokens[:3]==['uv','pip','install'] and '--target' in tokens:
+        if (tokens.count('--target')!=1 or not expected_python or not expected_version
+                or not re.fullmatch(r'/[A-Za-z0-9_./-]+/bin/python3?(?:\.\d+)?',expected_python)):
+            return None
+        from pathlib import PurePosixPath
+        target=str(PurePosixPath(expected_python).parent.parent)+'/lib/python'+'.'.join(expected_version.split('.')[:2])+'/site-packages'
+        index=tokens.index('--target')
+        if index+1>=len(tokens) or tokens[index+1]!=target:
+            return None
+        tokens=tokens[:index]+['--python',expected_python]+tokens[index+2:]
+    if tokens[:3] == ['uv', 'pip', 'install'] and tokens.count('--python') == 1:
+        index = tokens.index('--python')
+        if index + 1 >= len(tokens) or tokens[index+1] not in ('$PYTHON', expected_python):
+            return None
+        tokens = ['uv', 'pip', 'install', '--python', '$PYTHON', *tokens[3:index], *tokens[index+2:]]
+    prefixes = (['uv', 'pip', 'install', '--python', '$PYTHON'],
+                ['uv', 'pip', 'install'], ['$PIP', 'install'], ['$PYTHON', '-m', 'pip', 'install'],
+                ['pip', 'install'], ['pip3', 'install'], ['python', '-m', 'pip', 'install'], ['python3', '-m', 'pip', 'install'])
+    if tokens and re.fullmatch(r'/[A-Za-z0-9_./-]+/python3?(?:\.\d+)?', tokens[0]):
+        prefixes = (*prefixes, [tokens[0], '-m', 'pip', 'install'])
+    if tokens and re.fullmatch(r'/[A-Za-z0-9_./-]+/pip3?', tokens[0]):
+        prefixes = (*prefixes, [tokens[0], 'install'])
+    prefix = next((p for p in prefixes if tokens[:len(p)] == p), None)
+    if prefix is None:
+        return None
+    requirements = []
+    arguments = tokens[len(prefix):]
+    if '--index-url' in arguments:
+        index = arguments.index('--index-url')
+        if index + 1 >= len(arguments) or arguments[index+1] != 'https://download.pytorch.org/whl/cpu':
+            return None
+        arguments = arguments[:index] + arguments[index+2:]
+    for token in arguments:
+        if token in ('--system', '--break-system-packages', '--no-cache-dir', '--no-cache', '-q', '--quiet', '-U', '--upgrade',
+                     '--force-reinstall', '--ignore-installed'):
+            continue
+        try:
+            requirement = Requirement(token)
+        except ValueError:
+            return None
+        if requirement.url or requirement.marker or '$' in token:
+            return None
+        requirements.append(token)
+    return requirements or None
+
+
+
+
+def native_verifier_venv(line):
+    match = re.fullmatch(r'(?:uv venv|python3? -m venv) (/tmp/[A-Za-z0-9_-]+)(?: 2>/dev/null)?', line.strip())
+    return match[1] if match else None
+
+
+def native_dependency_bootstrap(line):
+    """Literal pip bootstrap is replaced by trusted clean-runtime preparation."""
+    return (line.strip() in ('"$PYTHON" -c "import pip" 2>/dev/null || "$PYTHON" -c "import ensurepip; ensurepip.bootstrap()" 2>/dev/null || true',
+                            '"$PYTHON" -m pip --version >/dev/null 2>&1 || "$PYTHON" -m ensurepip --default-pip 2>/dev/null || true')
+            or bool(re.fullmatch(r'"\$PYTHON" -m ensurepip(?: --(?:upgrade|default-pip))?'
+                                 r'(?: 2>/dev/null| >/dev/null 2>&1)?(?: \|\| true)?', line.strip())))
+
+
+def native_dependency_blocks(script, *, expected_python=None, expected_version=None):
+    """Recognize dependency-only conditional blocks, never task initialization."""
+    blocks = []
+    starts = re.finditer(r'^if (?:! "\$PYTHON"|! python3|command -v uv)[^\n]*\n(?:(?!^fi$).)*^fi$',
+                         script, re.M | re.S)
+    for match in starts:
+        requirements = []
+        safe = True
+        failure_brace = False
+        for line in shell_lines(match[0]):
+            install_line = line
+            if line.endswith(' || {') and not failure_brace:
+                install_line = line[:-5]
+            install = native_install_requirements(install_line,expected_python=expected_python,expected_version=expected_version)
+            if install:
+                requirements.extend(install)
+                if install_line != line:
+                    failure_brace = True
+                continue
+            if line == '}' and failure_brace:
+                failure_brace = False
+                continue
+            if line in ('else', 'fi', 'exit 1', 'echo 0 > /logs/verifier/reward.txt'):
+                continue
+            if re.fullmatch(r'if ! "\$PYTHON" -c "import [A-Za-z_][A-Za-z0-9_, ]*" '
+                            r'(?:>/dev/null 2>&1|2>/dev/null); then', line):
+                continue
+            if (expected_python in ('python3','/usr/bin/python3')
+                    and re.fullmatch(r'if ! python3 -c "import pytest" 2>/dev/null; then',line)):
+                continue
+            if line in ('if command -v uv >/dev/null 2>&1; then', 'if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then',
+                        'elif command -v pip3 >/dev/null 2>&1; then',
+                        'elif "$PYTHON" -m pip --version >/dev/null 2>&1; then',
+                        'if "$PYTHON" -c "import pip" >/dev/null 2>&1; then'):
+                continue
+            if native_dependency_bootstrap(line):
+                continue
+            if line == 'echo "Error: cannot install test dependencies (no uv or pip)."':
+                continue
+            if re.fullmatch(r'echo "[A-Za-z0-9 .$:]+"', line):
+                continue
+            safe = False
+            break
+        if safe and not failure_brace and (requirements or any(native_dependency_bootstrap(line) for line in shell_lines(match[0]))):
+            blocks.append((match[0], requirements))
+    return blocks
+
+
+NATIVE_GRADING_PATTERN = (r'^(?P<tool>(?:python3?(?:\.\d+)?|/[A-Za-z0-9_./-]+/python3?(?:\.\d+)?) -m pytest|'
+                          r'(?:/[A-Za-z0-9_./-]+/)?pytest|(?:"\$PYTHON"|\$PYTHON) -m pytest)(?P<args> [^\n]*)$')
+
+
+# These original images already provide NumPy 2.5.4 in /opt/verifier.
+# Their attempted 1.26.4 downgrade is skipped or fails and is ignored. Preserve
+# the measured effective dependency rather than claiming the attempted pin ran.
+EFFECTIVE_NATIVE_INSTALLATIONS = {'c7845b2eb3717f4772591b8352da9f5ff88f802098d0fe74c36b6f6fa1593b48': {'image_sha256': '6a3680a6a2f8800a994a5e29cb52d1423883ebd60bfd5a8bb0d774cfd224ef8f', 'python': '3.13.9', 'executable': '/opt/verifier/bin/python', 'declared': 'numpy==1.26.4', 'effective': 'numpy==2.5.4'}, '34c9c2ae574b8f1dbdbd4a0f5051bbe3b7c212817a1334dd5e5428116e2d2260': {'image_sha256': '9a12be6c4d3ba7345bd856410b5e1fdab6a232b14519fe8708c3df6c118321b9', 'python': '3.13.9', 'executable': '/opt/verifier/bin/python', 'declared': 'numpy==1.26.4', 'effective': 'numpy==2.5.4'}}
+
+
+def simple_native_plan(files, observed, binding):
+    """Review a native pytest command with the same shell-control grammar as uvx."""
+    import hashlib
+    from validation.contract import files_digest
+    if files_digest(files.items()) != binding['content_sha256']:
+        raise ValueError('CalibForge published task binding differs')
+    measured = verifier_observation(files, observed['observed'])
+    package_commands,_,_,_=prepared_native_packages(files,observed.get('native_package_proofs'),observed['sha256'])
+    script = files['tests/test.sh'].decode()
+    _,dependency_commands=shell_dependency_installation(files,observed['sha256'])
+    for before,after in dependency_commands.items():script=script.replace(before,after)
+    for role in task_module_roles(files):
+        for item in role.get('source_installations',[]):
+            if (hashlib.sha256(files['tests/test.sh']).hexdigest()!=item['test_script_sha256']
+                    or observed['sha256']!=item['image_sha256']
+                    or observed.get('requirement_sources',{}).get(item['pin'])!=item['requirement']
+                    or observed.get('source_version_proofs',{}).get(item['pin'])!=item['version_proof']
+                    or script.count(item['original_url'])!=1):
+                raise ValueError('CalibForge original source installer binding differs')
+            # The ordinary installer review below validates all other requested
+            # packages against their measured pins. The spec retains the URL.
+            script=script.replace(item['original_url'],item['pin'],1)
+    native_download = downloaded_native_dependencies(files, observed['sha256'])
+    if native_download:
+        # Remove the complete source-bound installer before generic native
+        # dependency guards are simplified; uvx_plan retains its tool binding.
+        script = script.replace(native_download['command'], '# Native dependencies supplied by clean runtime', 1)
+    script = replace_reviewed_shell_lines(script, package_commands)
+    import hashlib
+    if hashlib.sha256(files['tests/test.sh']).hexdigest() == 'eec8a3dcb57af34f244d71416507e157773061a2a26fa201375c59328b4ce110':
+        # This script's apt branch is only a fallback for its Python package
+        # installation. The clean runtime supplies every declared dependency,
+        # including the CTRF plugin that the apt fallback did not supply.
+        if (observed['sha256'] != '08e3b0697aa08b8f33e40c8381fe6406fa52879c5e9133a24d2195b82ad2d6c4'
+                or measured['python'] != '3.12.3'
+                or measured['executable'] != '/usr/bin/python3'):
+            raise ValueError('CalibForge scientific installer interpreter evidence differs')
+        pin_observed_uvx(['uvx', '-w', 'pytest', '-w', 'pytest-json-ctrf',
+                         '-w', 'scipy', '-w', 'numpy'], measured['requirements'])
+        script = script.replace('pip3 install --break-system-packages pytest pytest-json-ctrf scipy numpy 2>&1 || apt-get install -y python3-pytest python3-scipy python3-numpy',
+                                '# Python dependencies supplied by clean runtime', 1)
+    # Original task selects its existing Torch venv before considering uvx.
+    # The dependency-only probe actually activates that venv and installs the
+    # declared pytest pins; do not infer the branch from the host filesystem.
+    if hashlib.sha256(files['tests/test.sh']).hexdigest() == 'ebadf1480132b591f6568ae40cdb9f87eb52c356ad2a9bdd87e42d76bd872b53':
+        if (observed.get('selected_existing_venv') != '/opt/venv'
+                or observed.get('activation') != '/opt/venv/bin/activate'
+                or observed['sha256'] != '9b48e0b55bada6762bcdf04931608b761d179faee073a3be5fd656e4d6e20c22'
+                or measured['prefix'] != '/opt/venv' or measured['python'] != '3.12.3'):
+            raise ValueError('CalibForge conditional venv needs measured branch evidence')
+        branch = re.search(r'^if \[ -d "/opt/venv" \]; then\n(?P<body>.*?)^else\n.*?^fi$', script, re.M | re.S)
+        if branch is None:
+            raise ValueError('CalibForge conditional venv source differs')
+        import textwrap
+        script = script[:branch.start()] + textwrap.dedent(branch['body']).rstrip() + script[branch.end():]
+    if hashlib.sha256(files['tests/test.sh']).hexdigest() == 'baa3fca994962284276aa6c87ef1d09d22006418d2cf2421223f7fa207074cf6':
+        # In this original script curl serves only the uv bootstrap below.
+        # Clean setup replaces that bootstrap; no grading or task tool uses curl.
+        for bootstrap in ('apt-get update', 'apt-get install -y curl',
+                          'curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh'):
+            script = script.replace(bootstrap + '\n', '', 1)
+    effective_installation = EFFECTIVE_NATIVE_INSTALLATIONS.get(hashlib.sha256(files['tests/test.sh']).hexdigest())
+    if effective_installation:
+        if (observed['sha256'] != effective_installation['image_sha256']
+                or measured['python'] != effective_installation['python']
+                or measured['executable'] != effective_installation['executable']
+                or effective_installation['effective'] not in measured['requirements']):
+            raise ValueError('CalibForge effective original installation evidence differs')
+        script = script.replace(effective_installation['declared'],effective_installation['effective'])
+    created_venvs = {value for line in shell_lines(script) if (value := native_verifier_venv(line))}
+    if created_venvs and created_venvs != {measured['prefix']}:
+        raise ValueError('CalibForge fresh verifier environment selection requires review')
+    activations = re.findall(r'^[ \t]*source (/(?:opt|app|tmp)/[A-Za-z0-9_./-]+/bin/activate)$', script, re.M)
+    activation_marker = '# OT preserved task virtualenv environment'
+    activation_environment = None
+    if activations:
+        import hashlib
+        if (len(activations) != 1 or observed.get('activation') != activations[0]
+                or observed.get('test_script_sha256') != hashlib.sha256(files['tests/test.sh']).hexdigest()
+                or activation_marker in script):
+            raise ValueError('CalibForge virtualenv activation needs an exact interpreter probe')
+        venv = activations[0].removesuffix('/bin/activate')
+        activation_environment = ('export VIRTUAL_ENV=' + shlex.quote(venv) + '\nunset PYTHONHOME\n'
+                                  + 'export PATH=' + shlex.quote(venv + '/bin') + ':"$PATH"')
+        if venv in created_venvs:
+            activation_environment = ('export VIRTUAL_ENV="${OT_VERIFIER_BIN:?prepared verifier runtime required}/.."\nunset PYTHONHOME\n'
+                                      'export PATH="${OT_VERIFIER_BIN:?prepared verifier runtime required}:$PATH"')
+        elif venv.startswith('/tmp/'):
+            raise ValueError('CalibForge temporary activation requires reviewed environment creation')
+        script = script.replace('source ' + activations[0], activation_marker, 1)
+    start = SCRIPT.decode().index('if [ -x /opt/verifier/bin/python ]; then')
+    end = SCRIPT.decode().index('if ! "$PYTHON" -c "import pytest"', start)
+    selection = SCRIPT.decode()[start:end].strip()
+    selected_opt = False
+    selector = native_selector(script)
+    if '$PIP install' in script and (not selector or 'PIP=' not in selector):
+        raise ValueError('CalibForge pip command selection requires review')
+    measured_selector = bool(selector and observed.get('interpreter_selector') == selector
+                             and observed.get('probe_invocation') in ('"$PYTHON"', '$PYTHON'))
+    selector_lines=shell_lines(selector or '')
+    if (selector_lines and observed.get('interpreter_selector')==selector_lines[0]
+            and re.fullmatch(r'PYTHON=/[A-Za-z0-9_./-]+/python3?(?:\.\d+)?',selector_lines[0])
+            and observed.get('probe_invocation') in ('"$PYTHON"','$PYTHON')
+            and measured['executable']==selector_lines[0].partition('=')[2]
+            and all(line in ('if [ ! -x "$PYTHON" ]; then','echo 0 > /logs/verifier/reward.txt','exit 1','fi')
+                    or re.fullmatch(r'echo "[A-Za-z0-9 .$:/_-]+"',line) for line in selector_lines[1:])):
+        # Older probes stored the constant assignment without its executable
+        # existence guard. The guard cannot choose a different interpreter.
+        measured_selector=True
+    if selector and re.fullmatch(r'PYTHON=/[A-Za-z0-9_./-]+/python3?(?:\.\d+)?',selector):
+        selected=selector.partition('=')[2]
+        measured_selector = measured_selector or (observed.get('probe_invocation')==selected
+                                                  and measured['executable']==selected)
+    if measured_selector:
+        script = script.replace(selector, '', 1)
+    for variant in (selection, selection.replace(' Use the TB2 verifier base image.', '')):
+        if script.count(variant) == 1:
+            script = script.replace(variant, '', 1)
+            selected_opt = True
+            break
+    check_end = SCRIPT.decode().index('\nfi', end) + len('\nfi')
+    check = SCRIPT.decode()[end:check_end]
+    for guard in (check, check.replace(' Use the TB2 verifier base image.', '')):
+        if script.count(guard) == 1:
+            script = script.replace(guard, '', 1)
+            break
+    script = script.replace('\\\n', ' ')
+    pattern = NATIVE_GRADING_PATTERN
+    for block, requirements in native_dependency_blocks(script,expected_python=measured['executable'],expected_version=measured['python']):
+        grader = re.search(pattern, script, re.M)
+        if grader is None or script.index(block) > grader.start():
+            raise ValueError('CalibForge dependency installation order requires review')
+        pin_observed_uvx(['uvx', *[v for requirement in requirements for v in ('-w', requirement)]],
+                         measured['requirements'])
+        script = script.replace(block, '', 1)
+    for line in script.splitlines(keepends=True):
+        if native_dependency_bootstrap(line) or native_verifier_venv(line):
+            grader = re.search(pattern, script, re.M)
+            if grader is None or script.index(line) > grader.start():
+                raise ValueError('CalibForge dependency installation order requires review')
+            script = script.replace(line, '', 1)
+            continue
+        requirements = native_install_requirements(line, expected_python=measured['executable'],expected_version=measured['python'])
+        if requirements is not None:
+            grader = re.search(pattern, script, re.M)
+            if grader is None or script.index(line) > grader.start():
+                raise ValueError('CalibForge dependency installation order requires review')
+            pin_observed_uvx(['uvx', *[v for requirement in requirements for v in ('-w', requirement)]],
+                             measured['requirements'])
+            script = script.replace(line, '', 1)
+    commands = list(re.finditer(pattern, script, re.M))
+    if len(commands) != 1:
+        raise ValueError('CalibForge native grading command requires review')
+    match = commands[0]
+    invocation = match['tool'].split()[0]
+    if invocation in ('"$PYTHON"', '$PYTHON'):
+        if not measured_selector and (not selected_opt or (measured['executable'] != '/opt/verifier/bin/python'
+                                                     and observed.get('probe_invocation') != 'auto-opt')):
+            raise ValueError('CalibForge native interpreter selection requires review')
+    elif observed.get('probe_invocation') != invocation:
+        raise ValueError('CalibForge original native command needs an exact interpreter probe')
+    setup = shell_lines(replace_reviewed_shell_lines(files.get('tests/setup.sh', b'').decode(),package_commands).replace('\\\n', ' '))
+    installers = {'apt-get update', 'apt-get install -y curl', 'apt-get install -y python3-pip',
+                  'apt-get install -y curl ca-certificates', 'apt-get install -y python3-pip python3-venv',
+                  'apt-get install -y python3 python3-pip', 'apt-get install -y curl python3-pytest',
+                  'apt-get install -y python3-pytest', 'apt-get install -y curl python3-pip',
+                  'set -e', 'set -u', 'set -eu', 'set -euo pipefail',
+                  'curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh'}
+    for line in setup:
+        if line in installers or python_bootstrap_apt(line):
+            continue
+        requirements = native_install_requirements(line)
+        if requirements is None:
+            raise ValueError('CalibForge native setup initialization requires review: ' + line)
+        pin_observed_uvx(['uvx', *[v for requirement in requirements for v in ('-w', requirement)]],
+                         measured['requirements'])
+    pytest_pin = next((value for value in measured['requirements'] if value.startswith('pytest==')), None)
+    if pytest_pin is None:
+        raise ValueError('CalibForge original native pytest is unavailable')
+    guard_pattern = r'if ! "\$PYTHON" -c "import ([A-Za-z_][A-Za-z0-9_, ]*)" (?:>/dev/null 2>&1|2>/dev/null); then'
+    guards = list(re.finditer(guard_pattern, script))
+    if guards:
+        available = set(measured['stdlib']) | set(measured.get('import_names', [])) | {'pytest'}
+        for guard in guards:
+            modules = {name.strip() for name in guard[1].split(',')}
+            if not modules <= available:
+                raise ValueError('CalibForge native import guard dependencies require review: ' + ','.join(sorted(modules-available)))
+        # Do this after locating the grader below so its source offsets remain valid.
+    surrogate = ('uvx -p ' + measured['python'] + ' -w ' + pytest_pin + ' pytest' + match['args'])
+    rewritten = script[:match.start()] + surrogate + script[match.end():]
+    if guards:
+        rewritten = re.sub(guard_pattern, lambda match: match[0].replace(' -c ', ' -I -c ', 1), rewritten)
+    if '$PYTHON' in rewritten:
+        rewritten = 'PYTHON="${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"\n' + rewritten
+    reviewed = {**files, 'tests/test.sh': rewritten.encode()}
+    reviewed.pop('tests/setup.sh', None)
+    planned = uvx_plan(reviewed, python=measured['python'],source_image_sha256=observed['sha256'],
+                       auxiliary=observed.get('auxiliary'),auxiliary_files=files,original_uvx=False,verifier_assets=observed.get('verifier_assets'),native_package_proofs=observed.get('native_package_proofs'))
+    if activation_environment:
+        planned['test_script'] = planned['test_script'].replace(activation_marker, activation_environment, 1)
+    image_python = native_image_binding(measured, observed['sha256'])
+    requirements = resolved_runtime_requirements(measured['requirements'], observed.get('requirement_sources', {}), observed.get('source_version_proofs'))
+    native_tools = planned.get('native_tools',{})
+    planned['spec'] = runtime_spec(python=measured['python'], requirements=requirements, tools=['pytest',*native_tools],
+                                   install_no_deps=True, image_python=image_python,auxiliary=planned.get('auxiliary_specs') or None,
+                                   image_tools=native_tool_binding(observed['sha256'],planned))
+    planned['content_sha256'] = binding['content_sha256']
+    planned['interpreter_evidence'] = 'original native command and task image probe'
+    planned['task_distributions'] = measured.get('task_distributions', [])
+    if effective_installation:
+        planned['effective_original_installation'] = effective_installation
+    if observed.get('dependency_repair'):
+        planned['dependency_repair'] = observed['dependency_repair']
+        planned['interpreter_evidence'] += '; missing verifier dependencies resolved by trusted preparation installer'
+    review_files={**files,**{path:source.encode() for path,source in planned.get('auxiliary_sources',{}).items()}}
+    native_invocation = invocation if re.fullmatch(r'(?:/[A-Za-z0-9_./-]+/)?python3?(?:\.\d+)?',invocation) else None
+    planned.update(review_test_sources(review_files, {**measured,'original_native_invocation':native_invocation,
+                                                     'source_image_sha256':observed['sha256'],
+                                                     'auxiliary_helpers':planned.get('auxiliary_helpers',[])},
+                                      None if created_venvs else measured['executable'], original_files=files))
+    planned['test_sources'].update(planned.get('task_launchers',{}))
+    if created_venvs:
+        planned['verifier_created_environment'] = measured['prefix']
+    return planned
+
+
+def declare_external_service(files):
+    """Verifiers that need a real external response declare internet access."""
+    text=files['task.toml'].decode()
+    if text.count('[environment]\n')!=1 or 'allow_internet' in text:
+        raise ValueError('CalibForge external-service network declaration requires review')
+    return {**files,'task.toml':text.replace('[environment]\n','[environment]\nallow_internet = true\n').encode()}
+
+
+def runtime_apply(files,planned,catalog):
+    from validation.contract import files_digest
+    if files_digest(files.items()) != planned['content_sha256']:
+        raise ValueError('CalibForge files changed after runtime planning')
+    updates=runtime_setup_updates(planned,catalog)
+    script = SCRIPT.decode()
+    start = script.index('if [ -x /opt/verifier/bin/python ]; then')
+    end = script.index('if ! "$PYTHON" -c "import pytest"',start)
+    script = script[:start] + 'PYTHON="${OT_VERIFIER_PYTHON:?prepared verifier runtime required}"\n\n' + script[end:]
+    script = script.replace('\"$PYTHON\" -c ', '\"$PYTHON\" -I -c ').replace('\"$PYTHON\" -m ', '\"$PYTHON\" -I -m ')
+    if planned.get('native_tools'):
+        script = script.replace('#!/bin/bash\n', '#!/bin/bash\nexport PATH="${OT_VERIFIER_BIN:?prepared verifier runtime required}/../native-tools:$PATH"\n', 1)
+    updates['tests/test.sh'] = script.encode()
+    if 'test_source' in planned and planned['test_source'].encode() != files.get('tests/test_outputs.py'):
+        updates['tests/test_outputs.py'] = planned['test_source'].encode()
+    updates.update({path: source.encode() for path, source in planned.get('test_sources', {}).items()})
+    updates.update(planned.get('test_assets',{}))
+    updates.update(task_updates(files,catalog))
+    return {**files,**updates}
+
+
+def migrate_published(source, output, *, revision, subset, image, probe, cache, shared_base=False,
+                      uvx_probes=None, uvx_family_probe=None, native_probes=None, auxiliary_probes=None,
+                      task_runtime_proofs=None):
+    """Preserve every published member, adapting only the reviewed CalibForge image families."""
+    import base64
+    import copy
+    import io
+    from pathlib import Path
+    import re
+    import tarfile
+    from collections import Counter
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    def read_task(binary):
+        with tarfile.open(fileobj=io.BytesIO(binary)) as archive:
+            return [(member, archive.extractfile(member).read() if member.isfile() else None)
+                    for member in archive.getmembers()]
+    from data.utils.patch_reporting import write_patch_report
+    from harbor_patches.verifier_bundle import spec_id, verify, validate_archive
+    from validation.contract import files_digest
+    if not re.fullmatch('[0-9a-f]{40}', revision) or subset not in ('calibforge_v1', 'calibforge_v2', 'calibforge_v3'):
+        raise ValueError('CalibForge requires immutable source revision and explicit subset')
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / 'tasks.parquet'
+    if target.exists():
+        raise FileExistsError(target)
+    reader = pq.ParquetFile(source)
+    metadata = dict(reader.schema_arrow.metadata or {})
+    historical_metadata = {k.decode(): v.decode() for k, v in metadata.items()}
+    images = json.loads(metadata[b'ot.images.v1'])
+    for key in (b'ot.environment_reliable.v1', b'ot.review.v1'):
+        metadata.pop(key, None)
+    metadata[b'ot.runtime_migration.v1'] = json.dumps(dict(
+        source_revision=revision, source_subset=subset, validation='pending', effective_network='unverified',
+        task_setup='source-bound cached inputs where declared; execution coverage reported separately',
+        existing_scores='historical, evaluated before runtime migration',
+        coverage='per-task status in runtime-migration.json; execution coverage reported separately', historical_evidence='historical-evidence.json')).encode()
+    reviewed = {image['bundle']: image}
+    measured = {image['bundle']: probe}
+    base_image, base_probe = image, probe
+    uvx_probes = uvx_probes or {}
+    native_probes = native_probes or {}
+    auxiliary_probes = auxiliary_probes or {}
+    task_runtime_proofs = task_runtime_proofs or {}
+    if any(set(value)-{'verifier_assets','native_package_proofs'} for value in task_runtime_proofs.values()):
+        raise ValueError('CalibForge task runtime proof fields require review')
+    history, records, labels, reasons, specs, catalog = [], [], {}, {}, {}, {}
+    offline_specs={}
+    runtime_plans = {}
+    counts = Counter()
+    with pq.ParquetWriter(target, reader.schema_arrow.with_metadata(metadata)) as writer:
+        for batch in reader.iter_batches(batch_size=16):
+            rows = batch.to_pylist()
+            for row in rows:
+                name = row['path']
+                current_task.set(name)
+                runtime_details = {}
+                # Historical row labels describe the previous patch. Override
+                # report labels even for unchanged members of this migration.
+                labels[name] = []
+                members = read_task(row['task_binary'])
+                files = {member.name: data for member, data in members if data is not None}
+                if len(files) != sum(data is not None for _, data in members):
+                    raise ValueError(f'{name}: duplicate task files')
+                before = files_digest(files.items())
+                binding = images['tasks'][name]
+                if before != row['content_sha256'] or before != binding['content_sha256']:
+                    raise ValueError(f'{name}: published content/image binding differs')
+                history.append({k: v for k, v in row.items() if k != 'task_binary'})
+                environment = binding['environments']
+                standard_environment = len(environment) == 1 and environment[0]['path'] == 'environment'
+                image = reviewed.get(environment[0]['bundle']) if standard_environment else None
+                shared = image is None and standard_environment and shared_base and shared_base_eligible(files)
+                if shared:
+                    image = base_image
+                uvx_probe = uvx_probes.get(name) if standard_environment else None
+                native_probe = native_probes.get(name) if standard_environment else None
+                if native_probe and native_probe.get('dependency_repair'):
+                    shared = False
+                uvx_family = (uvx_probe is None and standard_environment and uvx_family_probe is not None
+                              and shared_uvx_eligible(files))
+                if uvx_family:
+                    task_bundle = images['bundles'][environment[0]['bundle']]
+                    uvx_probe = {**uvx_family_probe,'auxiliary_image_sha256':task_bundle['files'][task_bundle['name']]['sha256']}
+                if image is None and uvx_probe is None and native_probe is None:
+                    status = ('unmodified: image not yet reviewed' if standard_environment
+                              else 'unmodified: environment layout requires review')
+                else:
+                    bundle = images['bundles'][environment[0]['bundle']]
+                    extra_proofs = task_runtime_proofs.get(name,{})
+                    if uvx_probe:
+                        uvx_probe = {**uvx_probe,**extra_proofs}
+                    if native_probe:
+                        native_probe = {**native_probe,**extra_proofs}
+                    auxiliary = auxiliary_probes.get(name)
+                    if auxiliary:
+                        auxiliary_binding = dict(auxiliary=auxiliary,auxiliary_image_sha256=bundle['files'][bundle['name']]['sha256'])
+                        if uvx_probe:
+                            uvx_probe = {**uvx_probe,**auxiliary_binding}
+                        if native_probe:
+                            native_probe = {**native_probe,**auxiliary_binding}
+                    probe = base_probe if shared or uvx_probe or native_probe else measured[environment[0]['bundle']]
+                    # Identity/probe failures are errors, never silent exclusions.
+                    if not uvx_probe and not native_probe and ((not shared and (environment[0]['environment_sha256'] != image['environment_sha256']
+                            or bundle['files'][bundle['name']]['sha256'] != image['sif_sha256']))
+                            or probe['sif_sha256'] != image['sif_sha256']
+                            or probe.get('returncode') != 0 or image.get('return_code') != 0):
+                        raise ValueError(f'{name}: runtime evidence identity differs')
+                    try:
+                        planned = (shared_uvx_plan(files, uvx_probe) if uvx_family else
+                                   measured_uvx_plan(files, uvx_probe, binding, bundle) if uvx_probe else
+                                   runtime_plan(files, image, probe, binding, bundle, shared=True, auxiliary=auxiliary) if shared else
+                                   measured_native_plan(files, native_probe, binding, bundle) if native_probe else
+                                   runtime_plan(files, image, probe, binding, bundle, shared=shared, auxiliary=auxiliary))
+                    except (ValueError, SyntaxError) as error:
+                        if 'review' not in str(error):
+                            raise
+                        status = 'unmodified: ' + str(error)
+                    else:
+                        runtime_plans[name] = encode(planned)
+                        key = spec_id(planned['spec'])
+                        if key not in catalog:
+                            record = json.loads((Path(cache) / (key + '.json')).read_text())
+                            runtime_reference(planned['spec'], {key: record})
+                            validate_archive(verify(record, cache))
+                            catalog[key] = record
+                            specs[key] = planned['spec']
+                        for offline_field in ('verifier_offline_spec','task_offline_spec'):
+                            if not planned.get(offline_field):continue
+                            from harbor_patches.verifier_bundle import OFFLINE_FORMAT,validate_offline_archive
+                            offline_spec=planned[offline_field];offline_key=spec_id(offline_spec)
+                            if offline_key not in catalog:
+                                record=json.loads((Path(cache)/(offline_key+'.json')).read_text())
+                                validate_offline_archive(verify(record,cache,OFFLINE_FORMAT))
+                                catalog[offline_key]=record
+                            offline_specs[offline_key]=offline_spec
+                        updated = (apply_uvx(files, planned, catalog) if 'test_script' in planned else runtime_apply(files, planned, catalog))
+                        if planned.get('offline_limitations'):
+                            updated = declare_external_service(updated)
+                        changed = sorted(k for k in updated if updated[k] != files.get(k))
+                        expected_changes = ['tests/ot-verifier-runtime.json', 'tests/setup.sh', 'tests/test.sh']
+                        if planned.get('offline_limitations'):expected_changes.append('task.toml')
+                        if planned.get('verifier_offline_spec'):expected_changes.append('tests/ot-verifier-offline.json')
+                        if 'test_source' in planned and planned['test_source'].encode() != files.get('tests/test_outputs.py'):
+                            expected_changes.append('tests/test_outputs.py')
+                        expected_changes = sorted(set(expected_changes) | {path for path, source in planned.get('test_sources', {}).items() if source.encode() != files.get(path)})
+                        expected_changes=sorted(set(expected_changes)|{path for path,body in planned.get('test_assets',{}).items() if body!=files.get(path)})
+                        expected_changes=sorted(set(expected_changes)|set(task_updates(files,catalog)))
+                        if changed != expected_changes:
+                            raise ValueError(f'{name}: unexpected runtime changes')
+                        buffer = io.BytesIO()
+                        with tarfile.open(fileobj=buffer, mode='w') as archive:
+                            seen = set()
+                            for original, data in members:
+                                member = copy.copy(original)
+                                if data is not None:
+                                    member.size = len(updated[member.name])
+                                archive.addfile(member, io.BytesIO(updated[member.name]) if data is not None else None)
+                                seen.add(member.name)
+                            for added in sorted(set(updated) - seen):
+                                member = tarfile.TarInfo(added)
+                                member.size, member.mode = len(updated[added]), 0o644
+                                archive.addfile(member, io.BytesIO(updated[added]))
+                        row['task_binary'] = buffer.getvalue()
+                        row['content_sha256'] = files_digest(updated.items())
+                        binding['content_sha256'] = row['content_sha256']
+                        labels[name] = ['prepared-verifier-runtime']
+                        reasons[name] = ('Use the original Python and pinned pytest tools in a fresh private runtime '
+                                         '(' + planned['interpreter_evidence'] + '); '
+                                         'preserve task initialization and grading assertions. '
+                                         + ('Preserve task-program interpreter choices and keep nested grading on clean Python. '
+                                            if planned.get('task_python_calls') else '')
+                                         + 'Current task validation remains pending.')
+                        if planned.get('offline_limitations'):reasons[name]+=' '+' '.join(planned['offline_limitations'])
+                        runtime_details = dict(runtime_id=key, archive_sha256=catalog[key]['archive_sha256'],
+                            offline_limitations=planned.get('offline_limitations',[]),
+                            packaging_roles=planned.get('packaging_roles',{}),
+                            verifier_offline_id=spec_id(planned['verifier_offline_spec']) if planned.get('verifier_offline_spec') else None,
+                            verifier_offline_sha256=catalog[spec_id(planned['verifier_offline_spec'])]['archive_sha256'] if planned.get('verifier_offline_spec') else None,
+                            task_offline_id=spec_id(planned['task_offline_spec']) if planned.get('task_offline_spec') else None,
+                            task_offline_sha256=catalog[spec_id(planned['task_offline_spec'])]['archive_sha256'] if planned.get('task_offline_spec') else None,
+                            interpreter_evidence=planned['interpreter_evidence'], task_distributions=planned.get('task_distributions', []),
+                            dependency_repair=planned.get('dependency_repair'),auxiliary_evidence=planned.get('auxiliary_evidence',{}),
+                            primary_literal_evidence=planned.get('primary_literal_evidence',{}),
+                            task_python_selectors=planned.get('task_python_selectors',{}),task_shell_calls=planned.get('task_shell_calls',[]),
+                            task_installation_checks=planned.get('task_installation_checks',{}),
+                            launcher_path_evidence=planned.get('launcher_path_evidence'),
+                            effective_original_installation=planned.get('effective_original_installation'),
+                            optional_imports=planned.get('optional_imports',{}), clean_fixture_roles=planned.get('clean_fixture_roles',{}), inactive_helpers=planned.get('inactive_helpers',[]), task_module_roles=planned.get('task_module_roles',[]), task_initialization_roles=planned.get('task_initialization_roles',[]), prepared_install_calls=planned.get('prepared_install_calls',{}), verifier_asset_provenance=planned.get('verifier_asset_provenance',[]),native_package_provenance=planned.get('native_package_provenance',[]))
+                        status = 'adapted, validation pending'
+                if 'stages_passed' in row:
+                    row['stages_passed'] = ''
+                counts[status] += 1
+                records.append(dict(path=name, status=status, old_content_sha256=before,
+                                    content_sha256=row['content_sha256'], **runtime_details))
+            writer.write_table(pa.Table.from_pylist(rows, schema=reader.schema_arrow))
+        coverage = dict(adapted=counts['adapted, validation pending'], total=len(records),
+                        complete=counts['adapted, validation pending'] == len(records))
+        migration = json.loads(metadata[b'ot.runtime_migration.v1'])
+        migration['coverage'] = coverage
+        metadata[b'ot.runtime_migration.v1'] = json.dumps(migration).encode()
+        metadata[b'ot.images.v1'] = json.dumps(images).encode()
+        writer.add_key_value_metadata({**metadata, b'ARROW:schema': base64.b64encode(
+            reader.schema_arrow.with_metadata(metadata).serialize())})
+    (output / 'historical-evidence.json').write_text(json.dumps(dict(revision=revision, subset=subset,
+        status='historical, not validation of migrated definitions', metadata=historical_metadata, tasks=history), indent=1)+'\n')
+    report = dict(source_revision=revision, source_subset=subset, validation='pending', effective_network='unverified',
+        task_setup='source-bound cached inputs where declared; execution coverage reported separately',
+                  coverage=coverage, counts=dict(counts), tasks=records, runtime_ids=sorted(specs),offline_runtime_ids=sorted(offline_specs),
+                  original_external_service_tasks=[record['path'] for record in records if record.get('offline_limitations')])
+    (output / 'runtime-migration.json').write_text(json.dumps(report, indent=1)+'\n')
+    (output / 'runtime-plans.json').write_text(json.dumps(
+        {'format': 'calibforge-runtime-plans-v1', 'tasks': runtime_plans}, indent=1)+'\n')
+    (output / 'verifier-bundle-specs.json').write_text(json.dumps(specs, indent=1)+'\n')
+    (output / 'verifier-offline-specs.json').write_text(json.dumps(offline_specs,indent=1)+'\n')
+    write_patch_report(Path(source), target, source=dict(dataset=subset,
+        url='https://huggingface.co/datasets/FWeindel/validated-tasks', revision=revision), dropped={},
+        change_labels=labels, change_reasons=reasons, patcher=Path(__file__).with_name('patch.py'))
+    # patch.py now contains all runtime code and reviewed metadata. The patch
+    # report already snapshots it; repairs.py is its only sibling dependency.
+    import hashlib
+    dependency = Path(__file__).with_name('repairs.py').read_bytes()
+    saved = output / 'repairs.py'
+    with saved.open('xb') as stream:
+        stream.write(dependency)
+    manifest_path = target.with_suffix('.manifest.json')
+    manifest = json.loads(manifest_path.read_text())
+    manifest['patcher_dependencies'] = [dict(path=saved.name, sha256=hashlib.sha256(dependency).hexdigest())]
+    manifest_path.write_text(json.dumps(manifest, indent=2)+'\n')
+    return report
+
+
+# ==============================================================================
+# Runtime History
+# ==============================================================================
+
+"""Reuse reviewed runtime changes from existing before/after task packages.
+
+No task-name-only compatibility assumptions: the pre-runtime payload must agree
+with the current task before historical setup changes can be replayed.
+"""
+import copy
+import ast
+import hashlib
+import inspect
+import io
+import json
+from pathlib import Path, PurePosixPath
+import re
+import sqlite3
+import subprocess
+import tarfile
+import tempfile
+import zlib
+
+
+def unpack(binary):
+    files, members = {}, {}
+    with tarfile.open(fileobj=io.BytesIO(binary)) as archive:
+        for member in archive:
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or '..' in path.parts or member.name in members:
+                raise ValueError('Unsafe or duplicate historical member: ' + member.name)
+            members[member.name] = copy.copy(member)
+            if member.isfile():
+                files[member.name] = archive.extractfile(member).read()
+    return files, members
+
+
+def comparable(name, data):
+    # Only normalize known, non-executable annotations. Shell comments in other
+    # places (including continued Dockerfile commands) remain significant.
+    if data is None:
+        return None
+    from data.calibforge.repairs import is_entrypoint_startup_setup
+    if is_entrypoint_startup_setup(name, data):
+        # R19 adds this setup after runtime integration; it is neither runtime input nor output.
+        return None
+    if name == 'instruction.md':
+        return re.sub(rb'\n+You have [0-9]+ seconds to complete this task\. Do not cheat by using online solutions or hints specific to this task\.\s*$', b'', data).rstrip()
+    if name == 'environment/Dockerfile':
+        return data.replace(b'# Verifier preparation from tests/test.sh, installed at build time.\n', b'')
+    return data
+
+
+def preserve_reviewed_verifier(task, old, current, prepared, review):
+    """Replay runtime edits while retaining a reviewed missing-input guard repair.
+
+    Only formatting/docstring indentation differences are eligible. The explicit
+    review binds all three inputs and the result. Existing patcher guard helpers,
+    not a handwritten merge or a relaxed test, produce the combined verifier.
+    """
+    for key, body in [('baseline', old), ('current', current), ('prepared', prepared)]:
+        if body is None or hashlib.sha256(body).hexdigest() != review.get(key + '_sha256'):
+            raise ValueError('Reviewed verifier binding differs: ' + task)
+    if not review.get('reason'):
+        raise ValueError('Reviewed verifier requires a reason')
+    def normalized(body):
+        tree = ast.parse(body)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                node.value.value = inspect.cleandoc(node.value.value)
+        return ast.dump(tree, include_attributes=False)
+    if normalized(old) != normalized(current):
+        raise ValueError('Reviewed verifier changes executable behavior: ' + task)
+    from data.calibforge.repairs import assert_required_solution_file, assert_required_verifier_module
+    result = assert_required_verifier_module(task, assert_required_solution_file(task, prepared.decode())).encode()
+    prefix = current.split(b'else:\n', 1)[0]
+    if (not prefix.startswith(b'# CalibForge: assert missing ') or b'else:\n' not in current or
+            result.split(b'else:\n', 1)[0] != prefix):
+        raise ValueError('Reviewed verifier guard was not preserved: ' + task)
+    ast.parse(result)
+    if hashlib.sha256(result).hexdigest() != review.get('result_sha256'):
+        raise ValueError('Reviewed verifier merge result differs: ' + task)
+    return result
+
+
+class PackageIndex:
+    """Disk-backed task lookup, without extracting thousands of task trees."""
+    def __init__(self, connection, table, source):
+        import pyarrow.parquet as pq
+        self.connection, self.table = connection, table
+        source = Path(source)
+        if source.is_dir():
+            if (source / 'tasks.parquet').is_file():
+                paths = [source / 'tasks.parquet']
+            elif (source / 'contract.stage0-tasks').is_dir():
+                paths = sorted((source / 'contract.stage0-tasks').glob('*.parquet'))
+            else:
+                paths = sorted(source.glob('*.parquet'))
+        else:
+            paths = [source]
+        if not paths:
+            raise ValueError('No task packages found: ' + str(source))
+        connection.execute(f'CREATE TABLE {table} (task TEXT PRIMARY KEY, payload BLOB, digest TEXT)')
+        self.sources = []
+        for path in paths:
+            with path.open('rb') as stream:
+                digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            self.sources.append(dict(path=str(path.resolve()), sha256=digest))
+            reader = pq.ParquetFile(path)
+            columns = ['path', 'task_binary']
+            if 'content_sha256' in reader.schema_arrow.names:
+                columns.append('content_sha256')
+            for batch in reader.iter_batches(batch_size=16, columns=columns):
+                for row in batch.to_pylist():
+                    try:
+                        connection.execute(f'INSERT INTO {table} VALUES (?, ?, ?)',
+                                           (row['path'], zlib.compress(row['task_binary'], 1), row.get('content_sha256')))
+                    except sqlite3.IntegrityError as error:
+                        raise ValueError('Duplicate historical task: ' + row['path']) from error
+        connection.commit()
+
+    def get(self, task):
+        from validation.contract import files_digest
+        row = self.connection.execute(f'SELECT payload, digest FROM {self.table} WHERE task=?', (task,)).fetchone()
+        if row is None:
+            return None
+        files, members = unpack(zlib.decompress(row[0]))
+        digest = files_digest(files.items())
+        if row[1] and row[1] != digest:
+            raise ValueError('Historical task checksum differs: ' + task)
+        return files, members, digest
+
+
+class RuntimeHistory:
+    def __init__(self, *, prepared, baseline, refs, reviewed_inputs=None):
+        self.temporary = tempfile.TemporaryDirectory(prefix='calibforge-history-')
+        self.connection = sqlite3.connect(str(Path(self.temporary.name) / 'tasks.sqlite'))
+        self.baseline = PackageIndex(self.connection, 'baseline', baseline)
+        self.prepared = PackageIndex(self.connection, 'prepared', prepared)
+        path = Path(refs)
+        mapping = json.loads(path.read_text())
+        if not isinstance(mapping, dict):
+            raise ValueError('Expected runtime ID to task-list mapping in runtime-refs.json')
+        self.by_task = {}
+        for key, record in mapping.items():
+            if not re.fullmatch('[a-f0-9]{64}', key) or not isinstance(record.get('tasks'), list):
+                raise ValueError('Invalid historical runtime mapping')
+            for task in record['tasks']:
+                self.by_task.setdefault(task, {})[key] = record
+        self.provenance = dict(baseline=self.baseline.sources, prepared=self.prepared.sources,
+                               refs=dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+        self.reviewed_inputs = {}
+        self.reviewed_verifiers = {}
+        self.reviewed_nonruntime = {}
+        if reviewed_inputs:
+            path = Path(reviewed_inputs)
+            review = json.loads(path.read_text())
+            if review.get('format') not in ('calibforge-reviewed-instructions-v1', 'calibforge-reviewed-runtime-inputs-v1'):
+                raise ValueError('Expected source-bound reviewed instruction differences')
+            self.reviewed_inputs = review['tasks']
+            self.reviewed_verifiers = review.get('verifiers', {})
+            self.reviewed_nonruntime = review.get('nonruntime', {})
+            self.provenance['reviewed_inputs'] = dict(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+
+    def close(self):
+        self.connection.close()
+        self.temporary.cleanup()
+
+    def apply(self, task, binary, workflow, record):
+        from harbor_patches.verifier_bundle import FORMAT, OFFLINE_FORMAT, TOOLCHAIN_FORMAT
+        expected = self.by_task.get(task)
+        before = self.baseline.get(task)
+        after = self.prepared.get(task)
+        if not expected or before is None or after is None:
+            record['reason'] = 'no complete historical before/after runtime evidence for this task'
+            return binary, False
+        old, old_members, old_digest = before
+        prepared, prepared_members, prepared_digest = after
+        current, current_members = unpack(binary)
+        nonruntime_review = self.reviewed_nonruntime.get(task, {})
+        for name, decision in nonruntime_review.items():
+            if (name not in ('instruction.md', 'task.toml') or not decision.get('reason') or
+                    decision.get('disposition') not in ('preserve_current', 'use_prepared_instruction') or
+                    (decision['disposition'] == 'use_prepared_instruction' and name != 'instruction.md')):
+                raise ValueError('Unsupported historical nonruntime review: ' + task)
+            for kind, source in (('baseline', old), ('current', current), ('prepared', prepared)):
+                if (name not in source or hashlib.sha256(source[name]).hexdigest() !=
+                        decision.get(kind + '_sha256')):
+                    raise ValueError('Reviewed nonruntime binding differs: ' + task + '/' + name)
+        # Refuse changed task inputs, tests or environments. Already-applied
+        # historical changes are accepted, but unrelated repairs are never undone.
+        conflicts = []
+        verifier_review = self.reviewed_verifiers.get(task)
+        merged_verifier = None
+        if verifier_review:
+            name = 'tests/test_outputs.py'
+            merged_verifier = preserve_reviewed_verifier(task, old.get(name), current.get(name),
+                                                         prepared.get(name), verifier_review)
+        reviewed = self.reviewed_inputs.get(task)
+        if reviewed:
+            # Only instruction-only changes can use this path. All executable,
+            # environment and verifier inputs retain the ordinary comparisons.
+            name = 'instruction.md'
+            if (not reviewed.get('reason') or old.get(name) is None or current.get(name) is None or
+                    hashlib.sha256(old[name]).hexdigest() != reviewed.get('baseline_sha256') or
+                    hashlib.sha256(current[name]).hexdigest() != reviewed.get('current_sha256') or
+                    comparable(name, prepared.get(name)) not in
+                    (comparable(name, old[name]), comparable(name, current[name]))):
+                raise ValueError('Reviewed instruction binding differs: ' + task)
+        for name in old.keys() | current.keys():
+            if name in nonruntime_review:
+                continue
+            if merged_verifier is not None and name == 'tests/test_outputs.py':
+                continue
+            if reviewed and name == 'instruction.md':
+                continue
+            if comparable(name, current.get(name)) not in (comparable(name, old.get(name)), comparable(name, prepared.get(name))):
+                conflicts.append(name)
+        for name in old_members.keys() | current_members.keys():
+            a, b = old_members.get(name), current_members.get(name)
+            if (a and not a.isfile()) or (b and not b.isfile()):
+                if not (a and b and (a.type, a.linkname) == (b.type, b.linkname)):
+                    conflicts.append(name)
+        if conflicts:
+            record.update(reason='current task differs from historical runtime inputs', conflicting_files=sorted(set(conflicts)))
+            return binary, False
+        changed = {name for name in old.keys() | prepared.keys() if old.get(name) != prepared.get(name)}
+        updates, removed = {}, set()
+        for name in changed:
+            if name in nonruntime_review:
+                if nonruntime_review[name]['disposition'] == 'use_prepared_instruction':
+                    updates[name] = prepared[name]
+                continue
+            if reviewed and name == 'instruction.md':
+                continue  # Both supported historical forms were hash-bound above.
+            if comparable(name, old.get(name)) == comparable(name, prepared.get(name)):
+                continue
+            if not name.startswith(('tests/', 'setup_files/')):
+                record.update(reason='historical changes extend beyond runtime setup and verifier files', conflicting_files=[name])
+                return binary, False
+            if name in prepared:
+                updates[name] = prepared[name]
+            else:
+                removed.add(name)
+        for name, member in prepared_members.items():
+            if not member.isfile() and name not in old_members and not member.isdir():
+                record.update(reason='historical runtime adds an unsupported nonregular member', conflicting_files=[name])
+                return binary, False
+        if merged_verifier is not None:
+            updates['tests/test_outputs.py'] = merged_verifier
+            removed.discard('tests/test_outputs.py')
+        references = {}
+        for name, data in prepared.items():
+            if name.endswith('.json') and name.startswith(('tests/ot-', 'setup_files/ot-')):
+                ref = json.loads(data)
+                if isinstance(ref, dict) and ref.get('format') in (FORMAT, OFFLINE_FORMAT, TOOLCHAIN_FORMAT):
+                    references[name] = ref
+        if {ref['id'] for ref in references.values()} != set(expected):
+            record['reason'] = 'historical task references disagree with runtime-refs.json'
+            return binary, False
+        missing, ready = [], {}
+        for ref in references.values():
+            key = ref['id']
+            binding = expected[key]
+            if any(ref.get(field) != binding.get(field) for field in ('format', 'archive_sha256')):
+                raise ValueError('Historical runtime reference identity differs: ' + key)
+            manifest = workflow.cache / (key + '.squashfs.json')
+            if not manifest.is_file() or not (workflow.cache / (key + '.squashfs')).is_file():
+                missing.append(key)
+                continue
+            cached = json.loads(manifest.read_text())
+            if cached.get('archive_sha256') != ref['archive_sha256']:
+                raise ValueError('Historical runtime cache archive checksum differs: ' + key)
+            cached = workflow.cached_runtime(cached['spec'], ref['format'])
+            if cached['id'] != key or (ref.get('image_sha256') and ref['image_sha256'] != cached['image_sha256']):
+                raise ValueError('Historical runtime cache identity differs: ' + key)
+            ready[key] = cached
+        if missing:
+            record.update(reason='historical runtime cache is incomplete', missing_runtime_ids=sorted(set(missing)))
+            return binary, False
+        for name, ref in references.items():
+            ref = {k: v for k, v in ref.items() if k != 'spec'}
+            ref.update(storage='squashfs', image_sha256=ready[ref['id']]['image_sha256'])
+            updates[name] = (json.dumps(ref, indent=2) + '\n').encode()
+        # Historical packages may predate patcher fixes (e.g. the empty `if` left by a removed uv
+        # installer before 41c1eeb). A replayed shell script must at least parse; otherwise plan
+        # the task afresh with the current patcher instead of copying a broken verifier.
+        broken = [name for name, data in updates.items() if name.endswith('.sh') and
+                  subprocess.run(['bash', '-n'], input=data, capture_output=True).returncode]
+        if broken:
+            record.update(reason='historical shell script does not parse (bash -n)', invalid_files=sorted(broken))
+            return binary, False
+        record.update(status='prepared', cache_prepared=True, evidence='historical before/after task packages',
+                      baseline_content_sha256=old_digest, prepared_content_sha256=prepared_digest,
+                      runtime_ids=sorted(ready), replayed_files=sorted(updates), removed_files=sorted(removed))
+        if reviewed:
+            record['preserved_reviewed_instruction'] = reviewed
+        if verifier_review:
+            record['preserved_reviewed_verifier'] = verifier_review
+        if nonruntime_review:
+            record['reviewed_nonruntime'] = nonruntime_review
+        return rewrite(binary, updates, removed=removed, templates=prepared_members), True
+
+
+# ==============================================================================
+# Runtime Workflow
+# ==============================================================================
+
+"""Join CalibForge conversion, reviewed runtime recipes and optional cache preparation.
+
+Plans come from the existing CalibForge runtime planner, not inferred Python
+versions. They are bound to the exact converted task contents. Ordinary patching
+never builds or downloads artifacts. Missing planning evidence remains explicit.
+"""
+import copy
+import io
+import json
+import os
+import hashlib
+import shutil
+from pathlib import Path
+import tarfile
+import tempfile
+from types import SimpleNamespace
+
+
+def encode(value):
+    if isinstance(value, bytes):
+        return {'__bytes_hex__': value.hex()}
+    if isinstance(value, dict):
+        return {key: encode(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [encode(item) for item in value]
+    return value
+
+
+def decode(value):
+    if isinstance(value, dict):
+        if set(value) == {'__bytes_hex__'}:
+            return bytes.fromhex(value['__bytes_hex__'])
+        return {key: decode(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [decode(item) for item in value]
+    return value
+
+
+def rewrite(binary, updates, *, removed=(), templates=None):
+    output = io.BytesIO()
+    with tarfile.open(fileobj=io.BytesIO(binary)) as original, tarfile.open(fileobj=output, mode='w') as target:
+        seen = set()
+        for member in original:
+            member = copy.copy(member)
+            if member.name in seen:
+                raise ValueError('Duplicate task member: ' + member.name)
+            seen.add(member.name)
+            if member.name in removed:
+                continue
+            if templates and member.name in updates:
+                member = copy.copy(templates[member.name])
+            data = updates.get(member.name)
+            if data is None and member.isfile():
+                data = original.extractfile(member).read()
+            if member.isfile():
+                member.size = len(data)
+            target.addfile(member, io.BytesIO(data) if member.isfile() else None)
+        for name in sorted(set(updates) - seen):
+            member = copy.copy(templates[name]) if templates else tarfile.TarInfo(name)
+            member.size = len(updates[name])
+            if not templates:
+                member.mode = 0o755 if name.endswith('.sh') else 0o644
+            target.addfile(member, io.BytesIO(updates[name]))
+    return output.getvalue()
+
+
+class RuntimeWorkflow:
+    def __init__(self, *, plans=None, cache=None, image_cache=None, prepare_cache=False,
+                 cpus=2, memory_mb=8192, timeout=3600, evidence_dir=None,
+                 history=None, baseline=None, refs=None, reviewed_inputs=None):
+        if min(cpus, memory_mb, timeout) <= 0:
+            raise ValueError('Cache preparation resources and timeout must be positive')
+        self.plans = {}
+        if plans:
+            document = json.loads(Path(plans).read_text())
+            if document.get('format') != 'calibforge-runtime-plans-v1':
+                raise ValueError('Expected CalibForge source-bound runtime plans')
+            self.plans = decode(document['tasks'])
+        workspace = os.environ.get('OT_WORKSPACE')
+        self.cache = Path(cache or os.environ.get('OT_RUNTIME_CACHE') or
+                          (str(Path(workspace) / 'runtimes') if workspace else './runtimes'))
+        self.image_cache = Path(image_cache or (str(Path(workspace) / 'images') if workspace else './images'))
+        self.prepare_cache = prepare_cache
+        self.evidence_dir = Path(evidence_dir) if evidence_dir else None
+        self.resources = (cpus, memory_mb, timeout)
+        self.records = []
+        self.catalog = {}
+        self.history = None
+        if any((history, baseline, refs)):
+            if not all((history, baseline, refs)):
+                raise ValueError('Historical runtime reuse needs prepared packages, baseline packages and runtime-refs.json')
+            self.history = RuntimeHistory(prepared=history, baseline=baseline, refs=refs,
+                                          reviewed_inputs=reviewed_inputs)
+        elif reviewed_inputs:
+            raise ValueError('Reviewed instruction differences require historical runtime inputs')
+
+    def prepare_images(self, task_id, binary):
+        """Use the shared image-only preparer; never run validation or grading."""
+        from hpc.offline_prep.image_cache import prepare_images
+        cpus, memory, timeout = self.resources
+        args = SimpleNamespace(image_build_memory_mb=memory, image_build_cpus=cpus,
+                               image_build_timeout_sec=timeout, image_build_concurrency=1,
+                               cpus=cpus, force_build=False, prebuild_only=True,
+                               pack_image_cache=True)
+        with tempfile.TemporaryDirectory(prefix='calibforge-cache-', dir=os.environ.get('TMPDIR')) as directory:
+            scratch = Path(directory)
+            # Use a fixed safe directory name, not an untrusted task ID as a path.
+            task = scratch / 'task'
+            task.mkdir()
+            with tarfile.open(fileobj=io.BytesIO(binary)) as archive:
+                archive.extractall(task, filter='data')
+            images = scratch / 'images'
+            images.mkdir()
+            results = prepare_images([task], images, self.image_cache, args)
+            if self.evidence_dir:
+                destination = self.evidence_dir / hashlib.sha256(task_id.encode()).hexdigest()[:16]
+                destination.mkdir(parents=True, exist_ok=True)
+                for log in images.glob('*.build.log'):
+                    shutil.copy2(log, destination / log.name)
+                for item in results:
+                    if item.get('log') and (destination / Path(item['log']).name).is_file():
+                        item['log'] = str(destination / Path(item['log']).name)
+                        item['log_sha256'] = hashlib.sha256(Path(item['log']).read_bytes()).hexdigest()
+                    item['task_id'] = task_id
+                (destination / 'preparation.json').write_text(json.dumps(results, indent=2) + '\n')
+            return results
+
+    def cached_runtime(self, spec, kind):
+        from harbor_patches.verifier_bundle import spec_id
+        from harbor_patches.runtime_images import load
+        key = spec_id(spec)
+        if key in self.catalog:
+            return self.catalog[key]
+        manifest = self.cache / (key + '.squashfs.json')
+        if not manifest.is_file():
+            return None
+        record = json.loads(manifest.read_text())
+        # load verifies the image bytes, format, identity and provenance.
+        load(dict(id=key, archive_sha256=record['archive_sha256'], format=kind), self.cache)
+        if record.get('spec') != spec or record.get('source_format') != kind:
+            raise ValueError('Cached runtime recipe differs: ' + key)
+        self.catalog[key] = record
+        return record
+
+    def source_image(self, binding, scratch):
+        from hpc.offline_prep.image_python_runtime import matches_source_bundle, source_image
+        from hpc.offline_prep.image_cache import bundle_manifest, bundle_name, restore
+        cache = self.image_cache / 'bundles-v1'
+        for manifest_path in sorted(cache.glob('*.sif/manifest.json')):
+            manifest = json.loads(manifest_path.read_text())
+            name = manifest_path.parent.name
+            if matches_source_bundle(manifest, name, binding):
+                return source_image({'image_python': binding}, manifest_path.parent / name,
+                                    scratch=scratch)
+        for packed in sorted(cache.glob('*.sif.tar')):
+            if matches_source_bundle(bundle_manifest(packed), bundle_name(packed), binding):
+                private = Path(tempfile.mkdtemp(prefix='source-', dir=scratch))
+                return source_image({'image_python': binding}, restore(packed, private),
+                                    scratch=scratch)
+        return source_image({'image_python': binding}, scratch=scratch)
+
+    def runtime(self, spec, kind):
+        from harbor_patches.verifier_bundle import FORMAT
+        record = self.cached_runtime(spec, kind)
+        if record is not None or not self.prepare_cache:
+            return record
+        if kind == FORMAT:
+            from hpc.offline_prep.verifier_bundles import build
+            if spec.get('image_python'):
+                with tempfile.TemporaryDirectory(prefix='calibforge-source-') as scratch:
+                    image = self.source_image(spec['image_python'], Path(scratch))
+                    build(spec, self.cache, test_image=image.sif if hasattr(image, 'sif') else image)
+            else:
+                build(spec, self.cache)
+        else:
+            # Offline packages require their exact pristine source image.
+            # Use the existing image-native source resolver, never substitute an image.
+            from hpc.offline_prep.verifier_offline import build
+            with tempfile.TemporaryDirectory(prefix='calibforge-offline-') as scratch:
+                binding = {key: spec[key] for key in
+                           ('image_sha256', 'overlay_sha256', 'deferred_sha256') if key in spec}
+                image = self.source_image(binding, Path(scratch))
+                source = image.sif.parent if hasattr(image, 'sif') else image
+                build(spec, source, self.cache, 'uv')
+        return self.cached_runtime(spec, kind)
+
+    def apply(self, task_id, binary):
+        from validation.contract import files_digest
+        record = {'task': task_id, 'status': 'pending', 'cache_prepared': False}
+        self.records.append(record)
+        if self.prepare_cache:
+            record['images'] = self.prepare_images(task_id, binary)
+            if any(item['status'] not in ('cached', 'built') or item.get('cache_warning')
+                   for item in record['images']):
+                record['reason'] = 'image preparation failed'
+                return binary, False
+        planned = self.plans.get(task_id)
+        if planned is None:
+            if self.history is not None:
+                return self.history.apply(task_id, binary, self, record)
+            record['reason'] = 'missing reviewed runtime plan; no interpreter or dependency versions guessed'
+            return binary, False
+        with tarfile.open(fileobj=io.BytesIO(binary)) as archive:
+            files = {member.name: archive.extractfile(member).read() for member in archive if member.isfile()}
+        if files_digest(files.items()) != planned.get('content_sha256'):
+            record['reason'] = 'runtime plan does not match converted task contents'
+            return binary, False
+        from harbor_patches.verifier_bundle import FORMAT, OFFLINE_FORMAT, spec_id
+        token = current_task.set(task_id)
+        try:
+            recipes = [(planned['spec'], FORMAT)]
+            for key in ('verifier_offline_spec', 'task_offline_spec'):
+                if planned.get(key):
+                    recipes.append((planned[key], OFFLINE_FORMAT))
+            task_recipe = source_input_spec(files)
+            if task_recipe:
+                recipes.append((task_recipe, OFFLINE_FORMAT))
+            ready, missing = {}, []
+            for spec, kind in recipes:
+                cached = self.runtime(spec, kind)
+                if cached:
+                    ready[spec_id(spec)] = cached
+                else:
+                    missing.append(spec_id(spec))
+            # Emit preparation declarations and online fallback recipes even when
+            # artifacts have not been built yet. Bind only verified cache entries.
+            apply = apply_uvx if 'test_script' in planned else runtime_apply
+            updated = apply(files, planned, None)
+            if planned.get('offline_limitations'):
+                updated = declare_external_service(updated)
+            for name, data in list(updated.items()):
+                if not name.endswith('.json') or '/ot-' not in name:
+                    continue
+                ref = json.loads(data)
+                cached = ready.get(ref.get('id'))
+                if cached and 'spec' in ref:
+                    ref.pop('spec')
+                    ref.update(archive_sha256=cached['archive_sha256'], storage='squashfs',
+                               image_sha256=cached['image_sha256'])
+                    updated[name] = (json.dumps(ref, indent=2) + '\n').encode()
+            record.update(status='prepared' if not missing else 'recipes written; cache missing',
+                          runtime_ids=sorted({spec_id(spec) for spec, _ in recipes}),
+                          missing_runtime_ids=sorted(set(missing)),
+                          cache_prepared=not missing,
+                          interpreter_evidence=planned.get('interpreter_evidence'))
+            return rewrite(binary, updated), True
+        finally:
+            current_task.reset(token)
+
+    def report(self):
+        from collections import Counter
+        return {'format': 'calibforge-runtime-workflow-v1',
+                'prepare_cache_requested': self.prepare_cache,
+                'validation': 'not run', 'counts': dict(Counter(r['status'] for r in self.records)),
+                'history': self.history.provenance if self.history else None,
+                'complete': all(r['status'] == 'prepared' for r in self.records),
+                'tasks': self.records}
+
+
+# ==============================================================================
+# Build Evidence
+# ==============================================================================
+
+"""Bind completed legacy image preparations to preserved inputs and Slurm steps.
+
+This adapter does not execute builds or decide verdicts. It rejects incomplete or
+ambiguous joins and emits the measured records accepted by the standard importer.
+"""
+import argparse
+import csv
+from datetime import datetime
+import io
+import json
+from pathlib import Path
+import subprocess
+import tarfile
+import tempfile
+from zoneinfo import ZoneInfo
+
+from validation.stages.image_preparation import sha
+
+
+def bind_step(record, step, timezone):
+    """Require agreement between the actual subprocess outcome and accounting."""
+    command = record['command']
+    if command[0] != 'srun' or '-w' not in command:
+        raise ValueError('Expected a recorded node-bound srun invocation')
+    code, signal = map(int, step['ExitCode'].split(':'))
+    if signal or step['State'] not in ('FAILED', 'COMPLETED'):
+        raise ValueError('Build step did not reach an ordinary process exit')
+    if record['status'] == 'built':
+        if code != 0:
+            raise ValueError('Successful preparation contradicts accounting')
+    elif record['status'] == 'error':
+        if code <= 0 or record['error'] != str(subprocess.CalledProcessError(code, command)):
+            raise ValueError('Preparation error contradicts recorded process exit')
+    else:
+        raise ValueError('Unexpected invoked preparation status')
+    if float(step['ElapsedRaw']) > record['seconds'] + 2:
+        raise ValueError('Step duration exceeds preparation duration')
+    started = datetime.fromisoformat(step['Start']).replace(tzinfo=ZoneInfo(timezone))
+    return dict(returncode=code, started_at=started.isoformat(),
+                node=command[command.index('-w') + 1], slurm_step_id=step['JobID'],
+                slurm_accounting=dict(step), timestamp_source='Slurm step Start')
+
+
+def reconstruct(source, source_sha256, code, evidence, accounting, array_job, out,
+                timezone='Europe/Berlin'):
+    import pyarrow.parquet as pq
+    from harbor_patches.image_context import task_dockerfiles, environment_dir_hash
+    from validation.contract import task_digest
+    source, code, evidence, accounting, out = map(Path, (source, code, evidence, accounting, out))
+    if sha(source) != source_sha256:
+        raise ValueError('Preserved preparation source checksum mismatch')
+    rows = {r['path']: r for r in pq.read_table(source).to_pylist()}
+    steps = list(csv.DictReader(accounting.open(), delimiter='|'))
+    files = {'builder_sha256': code / 'hpc/offline_prep/image_cache.py',
+             'bridge_patch_sha256': code / 'harbor_patches/bridge_worker.py',
+             'directory_builder_sha256': code / 'harbor_patches/image_build.py'}
+    # Historical snapshots still bind the helper that actually ran.
+    workflow_source = code / 'data/calibforge/runtime_workflow.py'
+    if not workflow_source.is_file():
+        workflow_source = code / 'data/calibforge/patch.py'
+    bindings = [source, accounting, *files.values(), workflow_source]
+    base = {key: sha(path) for key, path in files.items()}
+    records, seen = [], set()
+    for shard in sorted(evidence.glob('shard-*.json')):
+        index = int(shard.stem.split('-')[1])
+        document = json.loads(shard.read_text())
+        actual = [(row['task'], item) for row in document['tasks']
+                  for item in row.get('images', []) if item.get('command')]
+        prefix = f'{array_job}_{index}.'
+        selected = sorted((s for s in steps if s['JobID'].startswith(prefix)
+                           and s['JobID'][len(prefix):].isdigit()),
+                          key=lambda s: int(s['JobID'][len(prefix):]))
+        if len(actual) != len(selected):
+            raise ValueError('Ambiguous preparation/Slurm step coverage: ' + str(shard))
+        for (task_id, original), step in zip(actual, selected, strict=True):
+            if task_id not in rows or task_id in seen:
+                raise ValueError('Missing or duplicate preparation task')
+            seen.add(task_id)
+            measured = bind_step(original, step, timezone)
+            if original['status'] != 'error':
+                continue
+            log = evidence / 'evidence' / Path(original['log']).parent.name / Path(original['log']).name
+            with tempfile.TemporaryDirectory() as directory:
+                task = Path(directory)
+                with tarfile.open(fileobj=io.BytesIO(rows[task_id]['task_binary'])) as archive:
+                    archive.extractall(task, filter='data')
+                hashes = [environment_dir_hash(p.parent) for p in task_dockerfiles(task)]
+                matches = [h for h in hashes if h[:12] == original['key']]
+                if len(matches) != 1:
+                    raise ValueError('Preparation environment does not match preserved input')
+                record = dict(original, **base, **measured, task_id=task_id,
+                              source_task_sha256=task_digest(task), environment_sha256=matches[0],
+                              log=str(log.resolve()), log_sha256=sha(log))
+            record['reconstructed_provenance'] = {
+                'method': 'ordered-srun-steps-with-matching-exits-v1',
+                'bindings': [dict(path=str(p.resolve()), sha256=sha(p)) for p in [*bindings, shard]],
+                'original_log_path': original['log'],
+                'limitation': 'Builder hashes recovered from the preserved job snapshot after execution'}
+            records.append(record)
+    with out.open('x') as stream:
+        stream.write(json.dumps(records, indent=2) + '\n')
+    return records
+
+
+def build_evidence_cli():
+    parser = argparse.ArgumentParser(description='Bind preserved preparation results to Slurm accounting')
+    for name in ('source', 'source-sha256', 'code', 'evidence', 'accounting', 'array-job', 'out'):
+        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--timezone', default='Europe/Berlin')
+    args = parser.parse_args()
+    print(json.dumps({'error_records': len(reconstruct(**vars(args)))}))
+
+
+# ==============================================================================
+# Patch
+# ==============================================================================
+
 """Repair rules for the pinned full CalibForge Harbor source (revision fb1e75441a94b8bb0ced08acd6b59e711704d70a).
 
 R1  FROM <repo>:<tag>@sha256:<64 hex>  ->  FROM <repo>@sha256:<64 hex>  (Apptainer rejects tag+digest;
@@ -1455,7 +7356,6 @@ def main():
         parser.error('--prepare-cache cannot be combined with --conversion-only')
     import os
     import subprocess
-    from data.calibforge.runtime_workflow import RuntimeWorkflow
     plans = args.runtime_plans or os.environ.get('OT_CALIBFORGE_RUNTIME_PLANS')
     if plans is None:
         adjacent = (args.source if args.source.is_dir() else args.source.parent) / 'runtime-plans.json'
@@ -1545,12 +7445,7 @@ def main():
     report = args.output / "tasks.manifest.json"
     if report.is_file():
         recorded = json.loads(report.read_text())
-        dependencies = ['repairs.py', 'runtime_workflow.py', 'runtime_history.py']
-        if workflow is not None:
-            dependencies += ['verifier_runtime.py', 'python_roles.py', 'packaging_runtime.py',
-                             'source_inputs.py', 'task_installation_roles.json', 'task_service_roles.json',
-                             'task_module_roles.json', 'task_initialization_roles.json',
-                             'task_packaging_roles.json', 'task_native_dependencies.json']
+        dependencies = ['repairs.py']
         recorded['patcher_dependencies'] = []
         for name in dependencies:
             code = Path(__file__).with_name(name).read_bytes()
@@ -1629,9 +7524,8 @@ def prepare_pilot_cli():
 
 def prepare_runtime(files, image, probe, binding, bundle, catalog):
     """Protect a measured published verifier while preserving task initialization."""
-    from data.calibforge import verifier_runtime
-    planned = verifier_runtime.plan(files, image, probe, binding, bundle)
-    return verifier_runtime.apply(files, planned, catalog), planned
+    planned = runtime_plan(files, image, probe, binding, bundle)
+    return runtime_apply(files, planned, catalog), planned
 
 
 def runtime_cli():
@@ -1651,7 +7545,6 @@ def runtime_cli():
     ap.add_argument('--task-runtime-proofs', type=Path, help='Source-bound verifier fixtures and native package preparation proofs keyed by task ID')
     ap.add_argument('--output',type=Path,required=True)
     args=ap.parse_args()
-    from data.calibforge.verifier_runtime import migrate_published
     report=migrate_published(args.published_input,args.output,revision=args.published_revision,
         subset=args.published_subset,image=json.loads(args.runtime_image_inventory.read_text()),
         probe=json.loads(args.runtime_probe.read_text()),cache=args.runtime_cache,shared_base=args.shared_base,
@@ -1663,7 +7556,6561 @@ def runtime_cli():
     print(json.dumps(report['counts'],indent=2))
 
 
+
+
+
+# Reviewed source-bound task metadata. These tables are preserved verbatim in
+# value from the former task_*.json files; the vault backup records their hashes.
+
+_TASK_INITIALIZATION_ROLES = [{'task': 'contrastive_solver-security_20260605_015435_005',
+  'test_script_sha256': 'ee6e343a5dbea971d6808e9947cf676f067fbda8c9d280b5bb6ecdcb020f1e8d',
+  'lines': ['nginx -g "daemon off;" &'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260604_004411_006',
+  'test_script_sha256': '606b4699c19883042e19213a89c21f968364b4685aec36acde27c614b21a0d56',
+  'lines': ['/usr/local/bin/ensure_server.sh'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'contrastive_solver-software-engineering_20260604_002443_008',
+  'test_script_sha256': 'feaf2cae120bb8a40778019b5867dd82885f7b18ffa4ba28667b4600f22029d6',
+  'lines': ['cd /app/lua && make clean && make -j4'],
+  'role': 'Build the submitted interpreter sources with their original task build command; assertions run in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-software-engineering_20260611_210349_008',
+  'test_script_sha256': 'b7f4a23eaffed3576d649078f6bb09f89b84e2a5573063b53552799af644560a',
+  'lines': ['cd /app/quickjs && make -j$(nproc) 2>&1'],
+  'role': 'Build the submitted interpreter sources with their original task build command; assertions run in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-system-administration_20260501_051538_001',
+  'test_script_sha256': 'e934431ff8929dc089f443561e2112c09c0cfc3d52a608c2e5338b2a98bc7461',
+  'lines': ['/start.sh &'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'contrastive_solver-system-administration_20260509_111805_009',
+  'test_script_sha256': '5994ff39b2eaafe03edd8c0c4c41c6116569cb9421c02883ebe7b0ee71abbc52',
+  'lines': ['/opt/start_holders.sh 2>/dev/null || true'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'contrastive_solver-system-administration_20260511_015840_004',
+  'test_script_sha256': '0065f498e3b4436b0a3cba3bfc3cbfa26c4cf0eed70c8e5606e5135076369dcd',
+  'lines': ['mkdir -p /app/logs /app/data', '/app/entrypoint.sh &'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'multi_solver-system-administration_20260414_211453_008',
+  'test_script_sha256': '0bf3b18b0bb6d0a4ad4986081e2d759d75603eb9b6d6f43baad163b828e43397',
+  'lines': ['/usr/bin/supervisord -c /etc/supervisor/supervisord.conf'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'multi_solver-system-administration_20260418_044216_005',
+  'test_script_sha256': '336c70a671faa5ddc8c81c595665596b51501c60c96236b3f067a8b23b1a2944',
+  'lines': ['/usr/bin/supervisord -c /etc/supervisor/supervisord.conf &'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'multi_solver-system-administration_20260419_112101_003',
+  'test_script_sha256': '285c0c146dc3c29ffab7e7234efdd36ef5b753ad750270d5d37c6632f0ac7c8d',
+  'lines': ['mkdir -p /var/log/supervisor /run/haproxy',
+            '/usr/bin/supervisord -c /etc/supervisor/supervisord.conf'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'multi_solver-system-administration_20260419_112101_004',
+  'test_script_sha256': '8d87915e07c072cdbb23d7b2900107d39071788cb4fbafd264b25f720d242f44',
+  'lines': ['supervisord -c /etc/supervisor/supervisord.conf'],
+  'role': 'Initialize the service/process state being repaired, preserving agent configuration changes; '
+          'assertions run in the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260604_193356_001',
+  'test_script_sha256': 'cee8cd274e282397d91c37a0c1a9b66cf8e8a49e154defb817c6f1932cc31af9',
+  'lines': ['pkill -f "flag_server.py" 2>/dev/null || true',
+            'FLAG_PID=$!',
+            'kill $FLAG_PID 2>/dev/null || true'],
+  'tools': {'pkill': '/usr/bin/pkill'},
+  'role': 'Restart and clean up the task flag server; use pristine pkill and preserve the background service '
+          'PID.'},
+ {'task': 'multi_solver-software-engineering_20260418_044216_008',
+  'test_script_sha256': '7e5370c32f6040d9d9f439afd342ea9c21d9a39695477664566cf232486fa5ff',
+  'lines': ['cd /app/pipeline-daemon', './pipeline_daemon 2>&1 | tee /tmp/daemon_output.txt'],
+  'tools': {'tee': '/usr/bin/tee'},
+  'role': 'Execute the submitted daemon and preserve its exit status and output; clean tee only records its '
+          'output.'},
+ {'task': 'multi_solver-machine-learning_20260414_211453_002',
+  'test_script_sha256': 'c90e7543bb43c6b501b02ec41dd9d59c28de0111fdb37d8a8031685119f4339b',
+  'lines': ['find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true'],
+  'tools': {'find': '/usr/bin/find', 'rm': '/usr/bin/rm'},
+  'role': 'Clear task bytecode before evaluating the submitted training implementation; clean find/rm '
+          'preserve the original cache invalidation.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_161717_002',
+  'test_script_sha256': '838f940a848556781a4d81d7ecc5c27a3c01bcd768a0fd81cc835385334e3746',
+  'lines': ['ldconfig 2>/dev/null || true'],
+  'tools': {'ldconfig': '/usr/sbin/ldconfig.real'},
+  'role': 'Refresh dynamic linker configuration for submitted SQLite libraries with the original Debian '
+          'ldconfig.real ELF. The pristine image wrapper only defers execution inside dpkg maintenance; this '
+          'verifier invokes it directly outside dpkg.',
+  'tool_provenance': {'image_sha256': 'dfd533b1d006da77ff397da16f3126c8526599a4af985c80f2c3b086bbcfa229',
+                      'wrapper_sha256': 'bfd5df90c7f070feab584435f106f254ffffaa268a04de5b5c3bd61d59c092f3',
+                      'elf_sha256': 'd879c9a8a41240aeb7fd0f3221116fc4cf41cc6c64c24e10541d1bafbe537ab1',
+                      'probe_job': '5890404'}},
+ {'task': 'contrastive_solver-software-engineering_20260507_093408_003',
+  'test_script_sha256': '22649d960b08c244cb1101e91327bb023221c3639198d599342f2c1f9d372098',
+  'lines': [],
+  'tools': {'ps': '/usr/bin/ps'},
+  'role': 'Original zombie-process grader uses pristine ps; submitted runner and signal behavior remain '
+          'evaluated.'},
+ {'task': 'contrastive_solver-security_20260501_172213_006',
+  'test_script_sha256': '5335fcbe838e6b9b1dae48ca7d67271ca5d8eedd6e9d954c401f4a978a6b84ac',
+  'lines': ['bash /usr/local/bin/entrypoint.sh'],
+  'tools': {'setfattr': '/usr/bin/setfattr'},
+  'restored_shell_helpers': [{'source': 'environment/files/setup_scenario.sh',
+                              'target': 'tests/ot_forensic_scenario.sh',
+                              'command': 'bash /usr/local/bin/entrypoint.sh',
+                              'sha256': 'f05764cb7e9f093221e810540b4e768dd976594c21fae7b49c538a7f9c2d85f4'}],
+  'reason': 'Original xattr initialization is restored from supplied Docker COPY source; clean setfattr '
+            'preserves its literal values and paths.'},
+ {'task': 'multi_solver-software-engineering_20260414_091921_020',
+  'test_script_sha256': '389a94eb7f3051b3a8e80736b5c178a76a867c7e5c3124924ee0dd70e3802bde',
+  'lines': ['cd /app/mypackage'],
+  'tools': {},
+  'reason': 'Original package install working directory, followed by original cd /app.'},
+ {'task': 'contrastive_solver-system-administration_20260509_065529_007',
+  'test_script_sha256': '6c9fb6c393875282c7d2c9651705d272ddd064e34417104969776398410d37d2',
+  'lines': ['ip addr add 127.0.0.2/8 dev lo 2>/dev/null || true',
+            'ip addr add 127.0.0.3/8 dev lo 2>/dev/null || true',
+            'pkill -f "backend_server.py" 2>/dev/null || true',
+            'pkill dnsmasq 2>/dev/null || true',
+            '/usr/sbin/nginx -s stop 2>/dev/null || true',
+            'sleep 1',
+            "cat > /app/dnsmasq.conf << 'DNS'",
+            'listen-address=127.0.0.1',
+            'bind-interfaces',
+            'no-resolv',
+            'no-poll',
+            'log-queries',
+            'address=/api.service.local/127.0.0.3',
+            'max-ttl=5',
+            'min-cache-ttl=0',
+            'DNS',
+            '/usr/sbin/dnsmasq --conf-file=/app/dnsmasq.conf &',
+            'sleep 2',
+            '/usr/bin/python3 /app/backend_server.py --bind 127.0.0.3 8081 &',
+            'sleep 1',
+            'for i in {1..10}; do',
+            'if dig +short api.service.local @127.0.0.1 | grep -q "127.0.0.3"; then',
+            'echo "DNS is ready, resolving to 127.0.0.3"',
+            'break',
+            'fi',
+            'echo "Waiting for DNS to be ready... attempt $i"',
+            'sleep 1',
+            'done',
+            '/usr/sbin/nginx -c /app/nginx.conf',
+            'sleep 2',
+            'echo "Broken state created. NGINX uses hardcoded 127.0.0.2 but backend is at 127.0.0.3"'],
+  'tools': {'ip': '/usr/sbin/ip',
+            'pkill': '/usr/bin/pkill',
+            'dig': '/usr/bin/dig',
+            'dnsmasq': '/usr/sbin/dnsmasq',
+            'nginx': '/usr/sbin/nginx',
+            'curl': '/usr/bin/curl'},
+  'tool_replacements': {'/usr/sbin/nginx -s stop 2>/dev/null || true': 'nginx',
+                        '/usr/sbin/dnsmasq --conf-file=/app/dnsmasq.conf &': 'dnsmasq',
+                        '/usr/sbin/nginx -c /app/nginx.conf': 'nginx'},
+  'role': 'Preserve original loopback/DNS/backend/nginx initialization and submitted /app/nginx.conf, '
+          'restoring backend source fresh and using exact clean helper Python and native tools.'}]
+
+_TASK_INSTALLATION_ROLES = [{'task': 'contrastive_solver-data-science_20260604_002443_007',
+  'source_sha256': '8951df05f3e388f035afb0ffe8fb949d0023a92982506a49fa8e66275b02f94c',
+  'call_ast_sha256': '3385978bb1cdeaee1687004bd09d1b10f5a74928e28265b67d3a358fbb50cee2',
+  'executables': ['python3'],
+  'snippet': 'import pymc; print(pymc.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-data-science_20260604_002443_007',
+  'source_sha256': '8951df05f3e388f035afb0ffe8fb949d0023a92982506a49fa8e66275b02f94c',
+  'call_ast_sha256': '0f72fe918809db3b8ab62d009f5cbbd11a06123ad8c3e1305158699b1e5305e1',
+  'executables': ['python3'],
+  'snippet': 'import cmdstanpy',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-data-science_20260604_002443_007',
+  'source_sha256': '8951df05f3e388f035afb0ffe8fb949d0023a92982506a49fa8e66275b02f94c',
+  'call_ast_sha256': 'b776cb4eb3b93f63326ab4bd02b6c773be66f0e93070594c0448a535c2270655',
+  'executables': ['python3'],
+  'snippet': 'import pystan',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-data-science_20260606_172554_002',
+  'source_sha256': '3a58df03deacd0c3173374ba95ea791e226dcdb822d24734d3520304f8a8730d',
+  'call_ast_sha256': 'ce8dadc3881796df4343f34599789965265d6c5837c0db481d77f51b49b36a18',
+  'executables': ['python3'],
+  'snippet': 'import pyabc; print(pyabc.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-data-science_20260610_111702_002',
+  'source_sha256': 'f4c1ed5f835ee7a80df8adf0149040dae34f2930b47c2d2edb8bc5f273edd067',
+  'call_ast_sha256': '9dce4d28131cbd6b47ccd9abbc9a527a7943eb96d4b2594dcc31b83c1a1213bc',
+  'executables': ['python3'],
+  'snippet': 'import lifelines; print(lifelines.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-machine-learning_20260606_172606_001',
+  'source_sha256': 'e5d24b5c4019352d59151079412dbff0b97603b90b3acd9415beef59e19ce928',
+  'call_ast_sha256': 'fa6311d265d20503a2c538e5a6ea93435e50629790b44e49b3edd19c872bf522',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import xgboost; print(xgboost.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-machine-learning_20260611_205750_001',
+  'source_sha256': 'e3ef682eff2f5ed28a944462d7404892fb36db7744d67623de106b7254019b6c',
+  'call_ast_sha256': 'd0b0df9750c6b5add5e500fd7c2a089655970732e49180a32cd94957f72bfe47',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import xgboost; print(xgboost.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260420_020307_007',
+  'source_sha256': '427b54db9a176380225ae0490d35b3349beae4c8d92b14371e937a9aa84bf0f2',
+  'call_ast_sha256': '14832821f45e881bdb6e385cc18946b667fe11b6756b813975c4d0df4ea7fe8a',
+  'executables': ['/opt/venv/bin/python'],
+  'snippet': 'import app.main',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260420_020307_007',
+  'source_sha256': '427b54db9a176380225ae0490d35b3349beae4c8d92b14371e937a9aa84bf0f2',
+  'call_ast_sha256': 'd92654a51807a53072ebb25274707503cabfebae1441361a50d5f588023a5d62',
+  'executables': ['/opt/venv/bin/python'],
+  'snippet': 'from app.schemas import UserResponse, PostResponse, CommentResponse, UserDetail, PostDetail',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260420_020307_007',
+  'source_sha256': '427b54db9a176380225ae0490d35b3349beae4c8d92b14371e937a9aa84bf0f2',
+  'call_ast_sha256': '4f43c3e8d4ad53229a6d2b2858305a7f245274c6305f423f339c5fbc50bbd1a4',
+  'executables': ['/opt/venv/bin/python'],
+  'snippet': 'from app.services import UserService, PostService, CommentService',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260424_090344_020',
+  'source_sha256': 'fb77d3771406b7c1c7f94a9d8d09cf6b7dc4f553038106cdca30298f7a04776e',
+  'call_ast_sha256': 'f4558b912e0a752cec9cc1eb99ff4881925c3b53aa991a6af649008d041d7842',
+  'executables': ['/usr/local/bin/python3'],
+  'snippet': 'import datatool; print(datatool.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260429_103257_003',
+  'source_sha256': '1fbefa956d0afa7021aaeca5de5e91007ffacc02baccdf7f5ca5f5cc1e6eea83',
+  'call_ast_sha256': '2b6c81f18652e51409e0bb722ec67fda1c9a86ec959f4704cb9b25ccabfca631',
+  'executables': ['python'],
+  'snippet': "from run import run_tasks; print('OK')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_204815_009',
+  'source_sha256': 'e703831d4ed59dc656e4c4beb0443254ac0ff6b7cad307c0dd2d927ebfc168db',
+  'call_ast_sha256': '6835b32b21f76a133caf621742a9a8dd07bda56f54211cd90cde5ab244485b0f',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import dataform; print(dataform.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260510_053611_005',
+  'source_sha256': 'a9a50cfd7bfd08673634f7165f82d4d5982b6afc68081726f4e2a1fdb33c5176',
+  'call_ast_sha256': 'd0909c496565ef82e16cb32b5df85d879488f224ba284a3b905be24495936e14',
+  'executables': ['python3'],
+  'snippet': '\nfrom dataproc import process_data\nimport dataproc\nprint(dataproc.__version__)\n',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260510_054909_009',
+  'source_sha256': '4cc9d3f99cf7eb6c86ec45dab902e6be312ede8a760d5920a40098272171dc69',
+  'call_ast_sha256': 'd5e4da62f28dfa4689b68e640462c1fd54c19440393be4fc280b6855008f9622',
+  'executables': ['/app/venv/bin/python'],
+  'snippet': 'import datatools; print(datatools.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-system-administration_20260606_172622_008',
+  'source_sha256': 'd4f736dd2e6bd54d08f9fb27d18f0b3eb452eeada3c0a70a384e841cc05c3103',
+  'call_ast_sha256': 'b37fd05f4a8c788749b377ceb95120a46e4264d8442db26a3aea31b4436cfc6d',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "import flask; print('ok')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-system-administration_20260606_172622_008',
+  'source_sha256': 'd4f736dd2e6bd54d08f9fb27d18f0b3eb452eeada3c0a70a384e841cc05c3103',
+  'call_ast_sha256': 'e921680ad8d63686f263174537de2e0ba5b8ca3c7a7c45e2f7579ed9e3394d89',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "import requests; print('ok')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-system-administration_20260606_172622_008',
+  'source_sha256': 'd4f736dd2e6bd54d08f9fb27d18f0b3eb452eeada3c0a70a384e841cc05c3103',
+  'call_ast_sha256': '8d1285c438338a7e0fb3b5a4d882c0efb254c08d047a7b5e13e5165d25cdd011',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "import redis; print('ok')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-debugging_20260414_211453_001',
+  'source_sha256': '3a99ff8abb369e15653628d5b86a06fcd6ecb1b7ca9d0abcf0a0991c82396e94',
+  'call_ast_sha256': 'f144a12dba5c20a7ac7aaf5ef483252026309e4b2a004c23caa7d3d139a990a4',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import turbomath',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260409_023346_006',
+  'source_sha256': '29e80d4a4f6ea6b8775ea1f76a86b4a7d5bfdf4bdad1068c2ecbab17cffb4c84',
+  'call_ast_sha256': '6795ee9066c36112b55e0eec937e05ad64266284aeb03d5b19ada9fa1164554f',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import fastmath',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_007',
+  'source_sha256': '068b870aae11f28c0c99a314ac5c2a109e3ece7e211b19a630a96d2110260b18',
+  'call_ast_sha256': '4517776e395a6d1cca6f780cb46f2a174592878d8c472724fa4085a9dcfe66bf',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import datatools; print(datatools.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_007',
+  'source_sha256': '068b870aae11f28c0c99a314ac5c2a109e3ece7e211b19a630a96d2110260b18',
+  'call_ast_sha256': 'ece50d780874877cb71e471d8fb5fe6429cfbbf08399f48c1e3c8143ee3a1112',
+  'executables': ['/usr/bin/python3'],
+  'snippet': '\n'
+             'from datatools import DataProcessor, Transformer, validate_schema\n'
+             'from datatools.core.processor import DataProcessor\n'
+             'from datatools.core.transformers import FilterTransformer, MapTransformer\n'
+             'from datatools.utils.validators import validate_schema, infer_schema\n'
+             'print("All modules imported successfully")\n',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260413_174325_003',
+  'source_sha256': 'f1a49b1f8c4ba87eae6ab7378a859bd911563a8240967cca2d2edb07293a017d',
+  'call_ast_sha256': 'b3d044779acf11bfb22bf2c032a2b1b6bf6fb66426a710eb6dd61576ac414a90',
+  'executables': ['python3'],
+  'snippet': "from worker_pool import run_jobs; print('ok')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260414_080620_009',
+  'source_sha256': '8de4edf3c9d853f07845cf7783b22cb45e4b40390838498dfcbe189ea25a8f74',
+  'call_ast_sha256': '5a6df920433fc9694dce087930e55619f932b096b9ad9035b1d530741f9899ba',
+  'executables': ['/opt/venv/bin/python3'],
+  'snippet': "from mypackage import DataProcessor, PluginRegistry, load_config; print('OK')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260414_080620_020',
+  'source_sha256': 'e03e286d106cff84f47c836c19c3be3de03791772d37bce71add5bfdc414f670',
+  'call_ast_sha256': '0e55e601306a867773761906bc8c5a3b66e27064e8b11c4e5c11f23e2ae844e2',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import datatools; print(datatools.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260414_211532_020',
+  'source_sha256': 'babc70ea4824ac56835d33f9c91678d0a322ef4910b1f449b996cf78738cb594',
+  'call_ast_sha256': '68df5be522f4d68067029714833ecb536b62e2ebfcbed075702e32e481ddaef4',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import plugin_framework; print(plugin_framework.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260414_211532_020',
+  'source_sha256': 'babc70ea4824ac56835d33f9c91678d0a322ef4910b1f449b996cf78738cb594',
+  'call_ast_sha256': '7b9ef8fe3e6b56beddd003b19bed3a49d649ecb43ea25ec8b3f4ca3977012b34',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import math_plugin; print(math_plugin.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260414_211532_020',
+  'source_sha256': 'babc70ea4824ac56835d33f9c91678d0a322ef4910b1f449b996cf78738cb594',
+  'call_ast_sha256': '55b4bbd30293c64a5a2239a8a1899ee0749a6ee8d828ec83ab00e08f56f40199',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import greeter_plugin; print(greeter_plugin.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260415_094424_019',
+  'source_sha256': '4dc13d6f3e10571e150c11e4682af088e1bff6a9d3cf5b350d02b941b97b8719',
+  'call_ast_sha256': 'bb7a381bc082bb6bce50cabb7bd2f3a226ca77351b2d5cfde048f8aaaeac6411',
+  'executables': ['python3'],
+  'snippet': 'import fast_math',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260415_123352_006',
+  'source_sha256': '7682f05899f7693225f181a25df9257bc9d1772d09f0870ad09b74ea548badbf',
+  'call_ast_sha256': '4c572afe754f2659ad5c23561cd125e1477d7377e6742b453cf4bb191d5b5bae',
+  'executables': ['/usr/bin/python3'],
+  'snippet': 'import myproject; print(myproject.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260415_123352_006',
+  'source_sha256': '7682f05899f7693225f181a25df9257bc9d1772d09f0870ad09b74ea548badbf',
+  'call_ast_sha256': '2c31fc343a89581d57cb45b259f00be3d79e6292a42c93f12d4889f86d4077f6',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "from myproject.utils import process_data, validate_config; print('OK')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260417_145736_002',
+  'source_sha256': 'bf2887feaece11b51eaf7a170c493b51b70f4f830130ec14d943c2f70384bed5',
+  'call_ast_sha256': 'b3e5bb9e01eb6db78fc5d2b6a1aea49bb4895e8c53c83ad0408bcf03a99898fc',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "import matrixops; print('OK')",
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260418_044216_020',
+  'source_sha256': '0d58555aabc8c1dab3472b09a6828ce865a89880d260f408cff781d592f19ec0',
+  'call_ast_sha256': '40e277108165e0488a54d17b7e4795b3f9ab554df2f1c871243a688e10357212',
+  'executables': ['/opt/test-venv/bin/python'],
+  'snippet': 'import dataflow; print(dataflow.__version__)',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'multi_solver-software-engineering_20260421_155939_005',
+  'source_sha256': 'e4e0cdff5efbb9055d3da754e058ebd60acfdbc78b82710d7447d19ed84dbf1a',
+  'call_ast_sha256': 'a20ddfc5265a070513afe6fa56b5a88e94e03bd6e63bd4c1fb48a238577c363f',
+  'executables': ['python3'],
+  'snippet': 'import lru_cache',
+  'role': 'Check importability/version of the submitted package or required task installation; assertions '
+          'remain in the clean parent.'},
+ {'task': 'contrastive_solver-data-science_20260617_210354_002',
+  'source_sha256': '4d2831cd675a806fcf348b646f38c80b3746fb40d3d5c4311d1fbfb5c1545477',
+  'call_ast_sha256': '39d2469c760d9f9b4d61e2519ad34b2118fcae53117e9553b1b070a85b2e52a5',
+  'executables': ['sys.executable'],
+  'snippet': "f'import {pkg}; print({pkg}.__version__)'",
+  'role': 'Check the agent-installed geopandas, libpysal and esda versions on the original task Python; '
+          'assertions remain in the clean parent.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_204815_009',
+  'source_sha256': 'e703831d4ed59dc656e4c4beb0443254ac0ff6b7cad307c0dd2d927ebfc168db',
+  'requires_source_binding': True,
+  'call_ast_sha256': '8601f5b5a0a4f83e8fd36a32feacff19a8f88da3492fc3714707b09579095257',
+  'executables': ['/usr/bin/python3'],
+  'snippet': "f'import {module}'",
+  'role': 'Inspect the submitted package installation or installed entry-point metadata in the original task '
+          'environment. All verdict assertions remain in the clean parent; source binding includes the '
+          'literal module loop and environment setup.'},
+ {'task': 'multi_solver-debugging_20260414_211453_001',
+  'source_sha256': '3a99ff8abb369e15653628d5b86a06fcd6ecb1b7ca9d0abcf0a0991c82396e94',
+  'requires_source_binding': True,
+  'call_ast_sha256': 'bd782eba3d51f54c53b7ece09ef88ba3b9e692e2f81c1aa4fd430cfac8a2bf00',
+  'executables': ['/usr/bin/python3'],
+  'snippet': '"import turbomath; print(\'OK\')"',
+  'role': 'Inspect the submitted package installation or installed entry-point metadata in the original task '
+          'environment. All verdict assertions remain in the clean parent; source binding includes the '
+          'literal module loop and environment setup.'},
+ {'task': 'multi_solver-software-engineering_20260415_123352_006',
+  'source_sha256': '7682f05899f7693225f181a25df9257bc9d1772d09f0870ad09b74ea548badbf',
+  'requires_source_binding': True,
+  'call_ast_sha256': '7bcaaf55f700f1930332b8b319dd73bc0ada633a62a7d9c8314006cd9a26388c',
+  'executables': ['/usr/bin/python3'],
+  'snippet': '"import importlib.metadata; eps = '
+             "list(importlib.metadata.entry_points(group='console_scripts')); names = [ep.name for ep in "
+             'eps]; print(\'\\\\n\'.join([n for n in names if \'myproject\' in n]))"',
+  'role': 'Inspect the submitted package installation or installed entry-point metadata in the original task '
+          'environment. All verdict assertions remain in the clean parent; source binding includes the '
+          'literal module loop and environment setup.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_204815_021',
+  'source_sha256': 'a0f616f52d449ffd23c82334f22b19ffa3fff8b9e16df2cd87dd375c991aad17',
+  'requires_source_binding': True,
+  'call_ast_sha256': 'a340dc2e94755081fda7e935ca5eb9d8bcdee58246acd39f010fd24ad6e23cf6',
+  'executables': ['/app/venv/bin/python'],
+  'snippet': "import _fastmath; print('SUCCESS')",
+  'role': 'Check importability of the submitted extension in the task venv. Functional assertions in the '
+          'other four child calls use the separately measured clean Python.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_002',
+  'source_sha256': '1822ef9f341f912420b1575f73fbf39bfccc780e257d0f0575c7aaccef9dc53e',
+  'requires_source_binding': True,
+  'call_ast_sha256': 'b2a200f89fa20f235b67c987a05a3fda7b8a3d9663d3dae56a1df638be1ebd23',
+  'executables': ['/usr/local/bin/python3.11'],
+  'snippet': '"import sqlite3; print(\'OK\')"',
+  'role_type': 'submitted_interpreter_functional_test',
+  'role': 'The task explicitly asks the agent to build Python3.11.9 with custom SQLite features. This '
+          'absolute Python binary is the submitted program under test, not a grading dependency. Preserve '
+          'its import/version/SQLite functionality checks; replacing it would test a different interpreter. '
+          'The parent pytest and verdict checks remain in the clean runtime. This intentional '
+          'task-interpreter exception is not a tamper-isolation claim.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_002',
+  'source_sha256': '1822ef9f341f912420b1575f73fbf39bfccc780e257d0f0575c7aaccef9dc53e',
+  'requires_source_binding': True,
+  'call_ast_sha256': '6e16044e8a76f9bed83066601c28171cdbdd344bae22ad6a330ff8907bc3cac1',
+  'executables': ['/usr/local/bin/python3.11'],
+  'snippet': "'import sqlite3; print(sqlite3.sqlite_version)'",
+  'role_type': 'submitted_interpreter_functional_test',
+  'role': 'The task explicitly asks the agent to build Python3.11.9 with custom SQLite features. This '
+          'absolute Python binary is the submitted program under test, not a grading dependency. Preserve '
+          'its import/version/SQLite functionality checks; replacing it would test a different interpreter. '
+          'The parent pytest and verdict checks remain in the clean runtime. This intentional '
+          'task-interpreter exception is not a tamper-isolation claim.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_002',
+  'source_sha256': '1822ef9f341f912420b1575f73fbf39bfccc780e257d0f0575c7aaccef9dc53e',
+  'requires_source_binding': True,
+  'call_ast_sha256': '5c3e2ee1b0263b830988e6aa0df5f8d026262a24711a1c80452f062f8bc28091',
+  'executables': ['/usr/local/bin/python3.11'],
+  'snippet': 'code',
+  'role_type': 'submitted_interpreter_functional_test',
+  'role': 'The task explicitly asks the agent to build Python3.11.9 with custom SQLite features. This '
+          'absolute Python binary is the submitted program under test, not a grading dependency. Preserve '
+          'its import/version/SQLite functionality checks; replacing it would test a different interpreter. '
+          'The parent pytest and verdict checks remain in the clean runtime. This intentional '
+          'task-interpreter exception is not a tamper-isolation claim.'},
+ {'task': 'contrastive_solver-data-science_20260614_141608_007',
+  'source_sha256': 'fd216b892d22368e25e768318fad409ba1bcf30f73cb8c3630197b0aa517c642',
+  'call_ast_sha256': '8799b716dda6d215a320914bc07dced9b2df2e3cbc6941051f260fbd09b983e6',
+  'executables': ['python3'],
+  'requires_source_binding': True,
+  'role_type': 'submitted_program_execution',
+  'reason': 'Runs submitted /app/em_gmm.py source with two input/output path substitutions on alternative '
+            'data; all grading assertions remain in the clean parent.'}]
+
+_TASK_MODULE_ROLES = [{'task': 'contrastive_solver-file-operations_20260601_053159_003',
+  'modules': ['process_data'],
+  'reason': 'Recovered Python module from the corrupted project archive, explicitly evaluated from '
+            '/app/recovered.',
+  'evidence_sha256': {},
+  'test_source_sha256': '79f9c45aec1eed301f1e1bd23f26980c89c77ba2d157256fa74fc97d05f8d194'},
+ {'task': 'contrastive_solver-mathematics_20260604_194036_001',
+  'modules': ['lll'],
+  'reason': 'Agent LLL implementation under /app, permitted as intermediate attack code and evaluated by the '
+            'original grader.',
+  'evidence_sha256': {'environment/files/subset_sum.py': 'eff5d2ff72e730b2c41b9cb2e29310d2968f83c18c48ed757641983b9e90afd2'},
+  'test_source_sha256': '656d5072e4a1413adba1a60f8981c228aad6a065e606b28e19a8c37fd010a9d2'},
+ {'task': 'contrastive_solver-optimization_20260618_093107_001',
+  'modules': ['cg_solver_c'],
+  'reason': 'Agent-built C solver extension. Original grader expects cg_solver_c although supplied setup.py '
+            'initially names cg_solver_ext; preserve the submitted extension and original checks.',
+  'evidence_sha256': {'environment/files/benchmark.py': 'b4869b83302f947dffcf3eb6ed4cd30ceef65b04af2c7116a9f04b4735fc95ee',
+                      'environment/files/cg_baseline.py': '7b18a09b43db7eb67f2f75fc589cb2b65ae33286606157d641138b806d2025cc',
+                      'environment/files/cg_solver.py': '7fdcf2859c395246c88e8123a37b9f0fa761de2b7c1953a6028feec6d8e65d1e',
+                      'environment/files/setup.py': 'f77de5f74a62559770b9519172cc9ee5ab018e06e84699c0381b54939ab5b103'},
+  'test_source_sha256': 'ef2e4d27abf19ac275c202c64ab3359e43a2e785360b8bd1f93984e1cfb13d8d'},
+ {'task': 'contrastive_solver-security_20260510_125534_003',
+  'modules': ['security_utils'],
+  'reason': 'Task gateway imports the agent security helper; retain its submitted validation functions.',
+  'evidence_sha256': {'environment/files/README.md': 'd10f18fe6dde055d25b7cafb70602c479c32f106ca1fc9e0acc93e40b4aeb9ed',
+                      'environment/files/gateway.py': 'fd52e7bc951d5a58a1c696b9694794a06334aa3cb90ebb8b9a0abf6f1e63e60c'},
+  'test_source_sha256': 'dfe85aa3a4a1694c47133afa6f40a408b7d05a66e8b10dfcf71986e9839ee1a8'},
+ {'task': 'contrastive_solver-software-engineering_20260508_153434_007',
+  'modules': ['percentile'],
+  'reason': 'Supplied setup_repo.sh creates percentile.py in the repository whose history the agent must '
+            'repair.',
+  'evidence_sha256': {'environment/files/setup_repo.sh': 'eba092560249507f93635ae648514282c340424492e45a32475f480c86150d6b'},
+  'test_source_sha256': 'f903c1f707aa1ed97e20b028329e3a72cd355db07f6523b0f64df6a79a99fe68'},
+ {'task': 'contrastive_solver-software-engineering_20260514_134238_009',
+  'modules': ['src'],
+  'reason': 'Supplied setup-repo.sh creates src package and lost feature commits; test the recovered task '
+            'package.',
+  'evidence_sha256': {'environment/files/setup-repo.sh': '787eca23f2dfd5323f5e2d70b026d83e7e24ca03412a48bae61c9831bd29c0bc'},
+  'test_source_sha256': 'b5e48a77fe992a0fb89f75e690e6c4c99da73dd6241de4a14a223d48d4b31673'},
+ {'task': 'contrastive_solver-software-engineering_20260605_015435_012',
+  'modules': ['editdistance'],
+  'reason': 'Agent ctypes wrapper module for the requested C distance library, named by the original grader; '
+            'never the unrelated PyPI package.',
+  'evidence_sha256': {},
+  'test_source_sha256': 'b86157c95c9c685d8924a75b18b4e9062a3703e44b3c84530e48efdf2d0a56c1'},
+ {'task': 'multi_solver-software-engineering_20260413_174325_022',
+  'modules': ['virtual_modules',
+              'simple_greeting',
+              'math_utils',
+              'data_processing',
+              'geometry',
+              'orchestrator',
+              'company'],
+  'reason': 'Agent import-hook implementation and virtual modules from the original task YAML configuration; '
+            'preserve the requested dynamic import behavior.',
+  'evidence_sha256': {},
+  'test_source_sha256': '90daf51875b07dd8f2af65262e50a42bf232b7de9df05d14e422399d3107963e'},
+ {'task': 'contrastive_solver-software-engineering_20260611_205750_012',
+  'modules': ['fasthash'],
+  'reason': 'Load the agent-built fasthash extension selected only from /app by the original source-bound '
+            'function.',
+  'evidence_sha256': {},
+  'test_source_sha256': 'dc377ea4a1d554d55d950effb7d8ac20ee42745989aba746b4916c50935084a7',
+  'extension_loader_functions': ['edced22e31beaf264725217a2d7aa4c6f96770b21b506440d19cd3aab34c65f8']},
+ {'task': 'contrastive_solver-software-engineering_20260618_093107_024',
+  'modules': ['bloomfilter'],
+  'reason': 'Load the agent-built bloomfilter extension selected only from /app by the original source-bound '
+            'function.',
+  'evidence_sha256': {},
+  'test_source_sha256': '1eda85bc99cc7a052f28c0dbad2a9315bfcc86454d35616a47a8ced1025c033e',
+  'extension_loader_functions': ['5a7edbbd125e8957c8c8593b2808ad476355c9a9a8174d05ac1efe41340aa3a3']},
+ {'task': 'multi_solver-software-engineering_20260416_020953_012',
+  'modules': ['mypkg'],
+  'evidence_sha256': {'environment/Dockerfile': '70a407e096aed7e186cdeabb0dd7e6681021263b3c806bae5718a835be33fb84'},
+  'test_source_sha256': 'da68b5db36baa5cc9852ca526ec36acacbed5b8ebfb873a269eb024fd13b09c6',
+  'installed_package_locations': {'image_sha256': '5704edd555088376db65860082e154c6964c2fd1d611c5844662d176fa33a477',
+                                  'python': '3.12.3',
+                                  'executable': '/opt/venv/bin/python',
+                                  'site_packages': ['/opt/venv/lib/python3.12/site-packages',
+                                                    '/opt/venv/local/lib/python3.12/dist-packages',
+                                                    '/opt/venv/lib/python3/dist-packages',
+                                                    '/opt/venv/lib/python3.12/dist-packages'],
+                                  'probe_job': '5890442'},
+  'reason': 'Preserve only the named submitted package through its measured original installation/editable '
+            'metadata locations. Do not add agent site directories to sys.path or execute .pth hooks; '
+            'grading dependencies remain private.'},
+ {'task': 'multi_solver-software-engineering_20260416_172928_020',
+  'modules': ['mathkit'],
+  'evidence_sha256': {'environment/Dockerfile': '1aa0b06a03906062326890d84edc61be5178639849fbd254075373a3ed22897f'},
+  'test_source_sha256': '11da37308c5d42d504544c003a5ee99a231a299ea2c355b6271124587373bea9',
+  'installed_package_locations': {'image_sha256': '5aa718987b242fa3d14e942cc0bebdaf550ac5e16c9efc84a95919a8f1d7da1f',
+                                  'python': '3.12.3',
+                                  'executable': '/usr/bin/python3',
+                                  'site_packages': ['/usr/local/lib/python3.12/dist-packages',
+                                                    '/usr/lib/python3/dist-packages',
+                                                    '/usr/lib/python3.12/dist-packages'],
+                                  'probe_job': '5890442'},
+  'reason': 'Preserve only the named submitted package through its measured original installation/editable '
+            'metadata locations. Do not add agent site directories to sys.path or execute .pth hooks; '
+            'grading dependencies remain private.'},
+ {'task': 'multi_solver-software-engineering_20260413_174325_006',
+  'modules': ['datatools'],
+  'evidence_sha256': {'environment/Dockerfile': '4b106dabfd318e70980e6fa0b0986ee19910390c381aa77bde03d77d38aefc22'},
+  'test_source_sha256': '01064d0fe958fa52c34965affade1292adbc41b9fddaa69281eb2a4bc50ab0bc',
+  'installed_package_locations': {'image_sha256': 'a2a8bc6e9219dc6ab033728a84cc85486ff6416ddf66d216196d2fde9fc4896d',
+                                  'python': '3.12.3',
+                                  'executable': '/opt/venv/bin/python',
+                                  'site_packages': ['/opt/venv/lib/python3.12/site-packages',
+                                                    '/opt/venv/local/lib/python3.12/dist-packages',
+                                                    '/opt/venv/lib/python3/dist-packages',
+                                                    '/opt/venv/lib/python3.12/dist-packages'],
+                                  'probe_job': '5890442'},
+  'reason': 'Preserve only the named submitted package through its measured original installation/editable '
+            'metadata locations. Do not add agent site directories to sys.path or execute .pth hooks; '
+            'grading dependencies remain private.'},
+ {'task': 'contrastive_solver-software-engineering_20260615_143301_003',
+  'test_source_sha256': '0ef0bfa22defe48a36fe7e9030a356f26e50edcdfd25228af4096006405128c0',
+  'modules': [],
+  'evidence_sha256': {},
+  'reason': 'Original grader discovers the submitted /app extension or ctypes binding by filename. Resolve '
+            'only that selected module from /app, with clean grading dependencies and unchanged assertions.',
+  'dynamic_import_calls': ['41cf6497ef09815e8ec05f946affcb3b23f249cf91fac271102bbe0d656e815f',
+                           '53a92599ebb917734de90eb4c10c21aac5b85696dc62adb8e77d15b95c845e18']},
+ {'task': 'contrastive_solver-software-engineering_20260604_194036_020',
+  'test_source_sha256': '1851014e5f3d8e40bfed9f88ec891f245f8d4a3b8c2fd3533cc9dc88e37b531e',
+  'modules': [],
+  'evidence_sha256': {},
+  'reason': 'Original grader discovers the submitted /app extension or ctypes binding by filename. Resolve '
+            'only that selected module from /app, with clean grading dependencies and unchanged assertions.',
+  'dynamic_import_calls': ['56a8f18cf1289d4b17a583342df0ad6a2f0d45d595bd53e8dbce1b1224e0b272']},
+ {'task': 'contrastive_solver-debugging_20260510_125534_005',
+  'test_source_sha256': '650609c7c88517c0ae97fcddfca5d91d1c897ead28443a0405edcd49b4570ffc',
+  'modules': [],
+  'evidence_sha256': {},
+  'unused_import_path_lines': ['sys.path.insert(0, "/opt/scripts")\n'],
+  'reason': 'Original nested grader only reads the submitted Redis backup script as text; it never imports '
+            'it. Remove the unused /opt/scripts import path, retaining all scan checks and clean Redis '
+            'client dependency.'},
+ {'task': 'contrastive_solver-model-training_20260509_154924_001',
+  'test_source_sha256': '3a1247b9418b7b6289d15154a3058a0ffaa0fff68a4d6aa27b5405341dcea839',
+  'modules': [],
+  'evidence_sha256': {},
+  'unused_import_path_lines': ["sys.path.insert(0, '/opt/venv/lib/python3.12/site-packages')\n"],
+  'reason': 'The original native grader already runs /opt/venv Python3.12.3 with torch2.14.1+cpu. Clean '
+            'setup preserves those exact versions. Remove the redundant original site-packages insertion so '
+            'Torch resolves from the clean runtime; /app training code remains submitted task code.',
+  'original_import_probe': {'image_sha256': '7facb55b3223bd565a7165f953240f86fb6b0d23e0e2c67e507b5613973c8d91',
+                            'python': '/opt/venv/bin/python',
+                            'torch': '2.14.1+cpu',
+                            'job': '5890494'}},
+ {'task': 'contrastive_solver-software-engineering_20260510_125534_023',
+  'test_source_sha256': '2f3018c729df565400e51a7d89c4c787365de306f031a19dcb7ace39413ec8d6',
+  'modules': ['taskrunner'],
+  'evidence_sha256': {},
+  'generated_script_write_calls': ['679dd2416c460dfb02597d6c4ceaf652336de8aec1a32cdbb405aa0d8e7a2388'],
+  'generated_script_run_calls': ['9cbee5c89f8a1a0cb3afb66e75ddc16c912b2a9da15809eed15395eed5099b5e'],
+  'generated_script_cwd': '/app',
+  'reason': 'Original helper writes literal grading scripts to fresh temporary files. Review every caller, '
+            'preserve all assertions and submitted project imports, validate generated file contents and run '
+            'clean Python with -I, including multiprocessing descendants.'},
+ {'task': 'contrastive_solver-software-engineering_20260514_010833_003',
+  'test_source_sha256': '94fe62ea9acb3ead850f9a1700215d90ffe6ca92ab9103082e1193960f170d9d',
+  'modules': ['pool'],
+  'evidence_sha256': {},
+  'generated_script_write_calls': ['4efa9d302acb8dbd9dfb700b64def3411c7b10e35c11e637c68a6eb28f3ac279'],
+  'generated_script_run_calls': ['56bd77ca2a3dcaa057cc4e30240217448811afdaef4cb6d9a0729eb0da2a9f25'],
+  'generated_script_cwd': '/app',
+  'reason': 'Original helper writes literal grading scripts to fresh temporary files. Review every caller, '
+            'preserve all assertions and submitted project imports, validate generated file contents and run '
+            'clean Python with -I, including multiprocessing descendants.'},
+ {'task': 'multi_solver-debugging_20260414_091921_003',
+  'test_source_sha256': '3b2c8cc6377c2167b7991c2ecdbcd9c6c52c56176c2bc21de9db3db2ed1269f2',
+  'modules': ['pipeline'],
+  'evidence_sha256': {'environment/files/test_pipeline.py': 'e1ba8b5802fed9c4ab4b80bd430c0c88b1647815c178b1007a99e1ee8c5465d8',
+                      'environment/Dockerfile': 'f10d7ba7e4a1248042212238539e2a17204a08e8b72782534d97c1bf9673bd32'},
+  'project_test_calls': ['b7096417f16f1ec197b2c435e2c86ff6dee22965fbe15f0f1f8b9d414a68d153'],
+  'project_test_sources': {'/app/test_pipeline.py': {'source_file': 'environment/files/test_pipeline.py',
+                                                     'import_root': '/app'}},
+  'reason': 'Restore the supplied original project regression tests from uploaded /tests content into a '
+            'fresh private /tests directory. Preserve every assertion and use clean isolated pytest with '
+            'selective imports of submitted project modules; original Docker COPY and suite bytes are bound. '
+            'These suites have no conftest or external plugins.'},
+ {'task': 'multi_solver-software-engineering_20260417_112147_022',
+  'test_source_sha256': '267d864f801e211c0954102bc7958f69e9677c174ba6b477d2ea5164b33b2f53',
+  'modules': ['miniyacc', 'examples'],
+  'evidence_sha256': {'environment/files/miniyacc/tests/test_parser.py': 'fd1a4cda50b79b58631f6f34539d6e974ba3c1e84b967df0c53474818d6f93d5',
+                      'environment/Dockerfile': 'e180d269725eb4a6ec5f1d3dba4ce468ef151553885e4cee952d8c21fb3a53a4'},
+  'project_test_calls': ['a8653841027da1099b57f247b8d8afeb29e5cc9da72ae74a0c2eb0e1cfcab43c'],
+  'project_test_sources': {'/app/miniyacc/tests/test_parser.py': {'source_file': 'environment/files/miniyacc/tests/test_parser.py',
+                                                                  'import_root': '/app/miniyacc'}},
+  'reason': 'Restore the supplied original project regression tests from uploaded /tests content into a '
+            'fresh private /tests directory. Preserve every assertion and use clean isolated pytest with '
+            'selective imports of submitted project modules; original Docker COPY and suite bytes are bound. '
+            'These suites have no conftest or external plugins.'},
+ {'task': 'contrastive_solver-software-engineering_20260604_002443_009',
+  'test_source_sha256': 'ebdcb04da36ffa900ec52d801ac1b5d334aa6b2d58a7ecb8bb3c31e4c5143d49',
+  'modules': ['wrapper'],
+  'evidence_sha256': {'environment/files/project/tests/test_faststats.py': '050fa3441c43376eaff315ced208db99b8c6f68c2c1654a2082295de4d788db0',
+                      'environment/Dockerfile': '46e4751e9fd48c38bca1afa564c95f6e8b21fb4a21b967ce4c360857c0fd0213'},
+  'project_test_calls': ['4f914e20c9d0022e2beca9a909c1abd19a1311613cd50c699b99c6fcb467803b'],
+  'project_test_sources': {'/app/project/tests/test_faststats.py': {'source_file': 'environment/files/project/tests/test_faststats.py',
+                                                                    'import_root': '/app/project/python'}},
+  'reason': 'Restore the supplied original project regression tests from uploaded /tests content into a '
+            'fresh private /tests directory. Preserve every assertion and use clean isolated pytest with '
+            'selective imports of submitted project modules; original Docker COPY and suite bytes are bound. '
+            'These suites have no conftest or external plugins.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_204815_021',
+  'test_source_sha256': 'a0f616f52d449ffd23c82334f22b19ffa3fff8b9e16df2cd87dd375c991aad17',
+  'modules': ['_fastmath'],
+  'evidence_sha256': {'environment/Dockerfile': '376657183a494f613a79f0151eaf463ca677c91212511270e4b174298f36f915'},
+  'literal_environment': {'image_sha256': 'c6447b7ad7e220e60035943b8cc6644f7944d471ffda573e533b65a85930625f',
+                          'python': '3.12.3',
+                          'executable': '/app/venv/bin/python',
+                          'variable': 'env',
+                          'task_root': '/app',
+                          'modules': ['_fastmath'],
+                          'roots': ['/app', '/app/venv/lib/python3.12/site-packages']},
+  'reason': 'Source-bound functional assertions use exact measured clean Python3.12.3. Preserve '
+            'LD_LIBRARY_PATH for submitted libfastmath and resolve only _fastmath from the original two '
+            'extension search directories; ignore global PYTHONPATH with -I.'},
+ {'task': 'contrastive_solver-software-engineering_20260606_153537_020',
+  'test_source_sha256': '51da06f56fe278ca4ceead087a490ca535e43629ffcf42c424b189da16ba0e39',
+  'evidence_sha256': {'environment/Dockerfile': '0b9590eead6faecd127f644586708dd372dcdaa2a0223076e721f894cf29eeb1'},
+  'modules': ['pymathlib'],
+  'distributions': ['pymathlib'],
+  'reason': 'Instruction explicitly requires creating and pip-installing this Python binding for the '
+            'submitted C library. Preserve its installed task package and C library; keep grading Python and '
+            'unrelated imports clean.'},
+ {'task': 'contrastive_solver-software-engineering_20260604_004411_020',
+  'test_source_sha256': 'f4cadd579927d94e7ae3a3a304aca2b0c6e51e4fe92b774dbd11a4f3fc1ef460',
+  'evidence_sha256': {'environment/Dockerfile': '39373394fc05c009285f3811fd1c8f9543b24ce5469b21dac9c2ec93daeba852'},
+  'modules': ['pathutil'],
+  'distributions': ['pathutil'],
+  'reason': 'Instruction explicitly requires creating and pip-installing this Python binding for the '
+            'submitted C library. Preserve its installed task package and C library; keep grading Python and '
+            'unrelated imports clean.',
+  'private_installed_modules': ['pathutil'],
+  'selector_package_installation': {'python': '3.13.9',
+                                    'build_requirements': ['setuptools', 'wheel'],
+                                    'offline_builder': {'image_sha256': '55a8e6712e73159d096139d7bcdfec505f5d05d45958a47aea87faeb881f29de',
+                                                        'python': '/usr/local/bin/python3'}}},
+ {'task': 'contrastive_solver-software-engineering_20260507_093408_003',
+  'test_source_sha256': 'a19c04b7595d93927deff4b1f2f7b7b83c4a4fc24ee6fe9b82ef71be54e33a03',
+  'evidence_sha256': {'environment/Dockerfile': '8cf4d8b2170fd3a74bc2dce698ce079e3777c3c0bc7974563d8b7587b9cc605b',
+                      'environment/files/test_basic.py': 'b5d81785f3681e6edd65db4d639343c5e9354fcc92180e808e93f435dee5da60',
+                      'environment/files/test_concurrent.py': '663b8e6131a5364d1665908d2461f7799ae98f8308bf634775505fc1997cb5dd',
+                      'environment/files/test_no_zombies.py': 'd8da471e9ba3ebb59f5a721511b580459c8da22218312ce40577d65a748e9187',
+                      'environment/files/test_sentinel.py': '4c14fb5c4d182b6168ddb4c9d96a09f11862d3ead5545d81af048cc97527b3de',
+                      'environment/files/test_signal_cleanup.py': '9628fccdc12a9337f96c88c9f38d9459d6f149d7cc9e331c05b8ff88d345b0f3',
+                      'environment/files/test_spawn_context.py': '2cf4f7b9fee1c916f09d21ce4ad6b8a763c814d804d3e1a29bcb96af78e5cbd2'},
+  'modules': ['runner'],
+  'verifier_helper_sources': {'tests/test_basic.py': 'environment/files/test_basic.py',
+                              'tests/test_concurrent.py': 'environment/files/test_concurrent.py',
+                              'tests/test_no_zombies.py': 'environment/files/test_no_zombies.py',
+                              'tests/test_sentinel.py': 'environment/files/test_sentinel.py',
+                              'tests/test_signal_cleanup.py': 'environment/files/test_signal_cleanup.py',
+                              'tests/test_spawn_context.py': 'environment/files/test_spawn_context.py'},
+  'reason': 'Six original Docker-copied /tests multiprocessing graders are restored from immutable supplied '
+            'bytes; clean Python executes their unchanged assertions and selectively imports submitted '
+            'runner.py.'},
+ {'task': 'contrastive_solver-software-engineering_20260508_045740_001',
+  'test_source_sha256': '61c1bfb0d34fcdd2c1bc8a9a1a7442f91b3bdd5f98c28fbeb09ca9a75ca5eca6',
+  'evidence_sha256': {'environment/Dockerfile': '6ad72878c0459fc40f8b1f6063b65433ceb77adb5cc008bb92abc2e204726961'},
+  'modules': ['fastlz4'],
+  'generated_script_write_calls': ['c1bfd419cbfdafbd9adb3ef2baf440812f0c80ca20fbc688920347749ece4ef9'],
+  'generated_script_run_calls': ['4f44d7d846e65d7f7118288fa9bc62700ef4b1d87fd2a197c48a172ebd86d3a7'],
+  'generated_script_cwd': '/app',
+  'generated_script_invocation': 'python3',
+  'reason': 'Literal temporary graders use the measured original native Python in a clean runtime and '
+            'selectively import the submitted installed fastlz4 extension; original assertions and ldd check '
+            'remain.'},
+ {'task': 'contrastive_solver-software-engineering_20260511_015840_020',
+  'test_source_sha256': 'b75830c4927fa3bb701daa3692b00891973e1d2efcf2dcaa8c7b19bbe1346dc4',
+  'evidence_sha256': {'environment/Dockerfile': '702470a683dc29fa371580ff097d40e8b881016f64693930954c798d0aae87a1'},
+  'modules': ['dataflow'],
+  'installed_modules': ['dataflow'],
+  'namespace_modules': ['dataflow'],
+  'distributions': ['dataflow-core', 'dataflow-connectors', 'dataflow-transforms'],
+  'reason': 'Instruction names three editable distributions sharing dataflow. Preserve their '
+            'installed/editable metadata, aggregate PEP420 portions, and support explicit '
+            'pkgutil/pkg_resources namespace declarations without exposing task roots to unrelated grading '
+            'imports. Broken ordinary __init__.py still prevents namespace merging.'},
+ {'task': 'contrastive_solver-software-engineering_20260607_104421_003',
+  'test_source_sha256': 'dda2c1f0aef1b584a01633e464e0774da86b00200a8f16bad147fc7f219e37a8',
+  'evidence_sha256': {'environment/Dockerfile': '901812b5fbe8ac92f222514fd8969b78d859d4a3b8cd08dde1942586e1a7f425'},
+  'modules': ['ringbuf'],
+  'valgrind_call_ast_sha256': 'd87a3f1444a358f1afa58cf882b4c62247998a063d74350408829d040a4aea2b',
+  'clean_tools': {'valgrind': '/usr/bin/valgrind.bin'},
+  'native_resources': {'valgrind/memcheck-amd64-linux': '/usr/libexec/valgrind/memcheck-amd64-linux',
+                       'valgrind/vgpreload_core-amd64-linux.so': '/usr/libexec/valgrind/vgpreload_core-amd64-linux.so',
+                       'valgrind/vgpreload_memcheck-amd64-linux.so': '/usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so',
+                       'valgrind/default.supp': '/usr/libexec/valgrind/default.supp'},
+  'reason': 'Original Valgrind3.22.0 wraps a Python grading snippet importing the submitted ringbuf '
+            'extension. Keep its exact flags and assertions, run clean original-version Python under '
+            'pristine memcheck, and keep original task interpreter for compiling submitted sources. Pristine '
+            'Debian launcher metadata (job5890707) proves the wrapper only appends /usr/lib/debug, sets '
+            'GLIBCPP_FORCE_NEW/GLIBCXX_FORCE_NEW, and execs valgrind.bin; the clean helper preserves those '
+            'environment settings.'},
+ {'task': 'contrastive_solver-system-administration_20260513_205011_001',
+  'test_source_sha256': 'b59a47d1fce3dab12fcf3a42156b950cd3790c9821de6a79d9c7e890f91d725f',
+  'evidence_sha256': {'environment/Dockerfile': '68315d638403d1e4fea1b913d0a4541d56a339a82c85d4cc9c91f5fc4456d4f0',
+                      'tests/test.sh': 'cb1614b7fa197923e4750a886240e6b47ade16a08f964961f63974cafe410979'},
+  'modules': [],
+  'uvx_task_program_calls': ['634bc3aebfb51c95de096f80f32bf12ed9f1453dbcfc1020d4eecedba28b1056'],
+  'redundant_pip_calls': ['1dff910282025f53528042a83cf039a47efb6321e86e76964199e9a95d43e03e'],
+  'reason': 'Original uvx uses Python3.13.9 and websockets16.0 for both selected submitted server and '
+            'grading client. Only the Popen choosing one of six literal /app server filenames retains the '
+            'primary Python without isolation flags. Remove the unused system-pip installer only when the '
+            'declared clean primary dependency is present; client assertions remain isolated.'},
+ {'task': 'contrastive_solver-debugging_20260506_213248_001',
+  'test_source_sha256': '6a4c994d4bea1b24ed2103f83f86568b597b515f448d13af132b3f9ad1bd9b03',
+  'evidence_sha256': {'environment/Dockerfile': '25097aae1bb9f7fc2f9b0bd6de2fa39657000cee84934484dc07d1ed1c953ff0',
+                      'environment/files/test_evemit.py': 'ccacbb8f59f6c8a94f42b98374f337da2ee017458a2e384bb7353dfcff78594f'},
+  'modules': ['evemit'],
+  'verifier_helper_sources': {'tests/ot_evemit_stress.py': 'environment/files/test_evemit.py'},
+  'helper_import_roots': {'tests/ot_evemit_stress.py': '/app'},
+  'stdin_grading_helper': {'function': 'run_python_script',
+                           'function_ast_sha256': 'ff376b25ba3889fad777dc4ed2111a354b86058d01badc9e9f21ac0cf372bba1',
+                           'scripts': {'/app/test_evemit.py': '/tests/ot_evemit_stress.py'}},
+  'reason': 'Nine literal stdin graders and the supplied evemit stress regression use original uvx Python in '
+            'isolated clean children. Restore the original stress script into fresh /tests and selectively '
+            'import submitted /app/evemit.py. All callbacks, stress loops and assertions remain unchanged.'},
+ {'task': 'contrastive_solver-debugging_20260606_172554_001',
+  'test_source_sha256': '30f811c25fe4d4a1c5582b7407f748d27a588de7506ff7bf73d4005cf4d7f486',
+  'evidence_sha256': {'environment/Dockerfile': 'e473bfa153777f87641d95ebf6f621ac35b91e43560e7e139ebe20d981a3ad2c'},
+  'modules': ['fitsio'],
+  'installed_modules': ['fitsio'],
+  'distributions': ['fitsio'],
+  'pristine_suite': {'package': 'fitsio',
+                     'image_sha256': '4affce1a85937cd19f8bda64766a98a22a231f684d48985eeb4de3cc7d3db996',
+                     'files': {'fitsio/test_images/test_gzip_compressed_image.fits.fz': {'bytes': 8640,
+                                                                                         'sha256': 'ca6e26a031df51571e775dd29ede94532ff6c0717ee70188acceb089002cdd23',
+                                                                                         'base64': 'U0lNUExFICA9ICAgICAgICAgICAgICAgICAgICBUIC8gY29uZm9ybXMgdG8gRklUUyBzdGFuZGFyZCAgICAgICAgICAgICAgICAgICAgICBCSVRQSVggID0gICAgICAgICAgICAgICAgICAgIDggLyBhcnJheSBkYXRhIHR5cGUgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIE5BWElTICAgPSAgICAgICAgICAgICAgICAgICAgMCAvIG51bWJlciBvZiBhcnJheSBkaW1lbnNpb25zICAgICAgICAgICAgICAgICAgICAgRVhURU5EICA9ICAgICAgICAgICAgICAgICAgICBUICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBFTkQgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgWFRFTlNJT049ICdCSU5UQUJMRScgICAgICAgICAgIC8gYmluYXJ5IHRhYmxlIGV4dGVuc2lvbiAgICAgICAgICAgICAgICAgICAgICAgICBCSVRQSVggID0gICAgICAgICAgICAgICAgICAgIDggLyBhcnJheSBkYXRhIHR5cGUgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIE5BWElTICAgPSAgICAgICAgICAgICAgICAgICAgMiAvIG51bWJlciBvZiBhcnJheSBkaW1lbnNpb25zICAgICAgICAgICAgICAgICAgICAgTkFYSVMxICA9ICAgICAgICAgICAgICAgICAgICA4IC8gd2lkdGggb2YgdGFibGUgaW4gYnl0ZXMgICAgICAgICAgICAgICAgICAgICAgICBOQVhJUzIgID0gICAgICAgICAgICAgICAgICAgMTAgLyBudW1iZXIgb2Ygcm93cyBpbiB0YWJsZSAgICAgICAgICAgICAgICAgICAgICAgIFBDT1VOVCAgPSAgICAgICAgICAgICAgICAgIDI0MCAvIG51bWJlciBvZiBncm91cCBwYXJhbWV0ZXJzICAgICAgICAgICAgICAgICAgICAgR0NPVU5UICA9ICAgICAgICAgICAgICAgICAgICAxIC8gbnVtYmVyIG9mIGdyb3VwcyAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBURklFTERTID0gICAgICAgICAgICAgICAgICAgIDEgLyBudW1iZXIgb2YgZmllbGRzIGluIGVhY2ggcm93ICAgICAgICAgICAgICAgICAgIFRUWVBFMSAgPSAnQ09NUFJFU1NFRF9EQVRBJyAgICAvIGxhYmVsIGZvciBmaWVsZCAxICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgVEZPUk0xICA9ICcxUEIoMjQpICcgICAgICAgICAgIC8gZGF0YSBmb3JtYXQgb2YgZmllbGQ6IHZhcmlhYmxlIGxlbmd0aCBhcnJheSAgICBaSU1BR0UgID0gICAgICAgICAgICAgICAgICAgIFQgLyBleHRlbnNpb24gY29udGFpbnMgY29tcHJlc3NlZCBpbWFnZSAgICAgICAgICAgIFpURU5TSU9OPSAnSU1BR0UgICAnICAgICAgICAgICAvIEltYWdlIGV4dGVuc2lvbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgWkJJVFBJWCA9ICAgICAgICAgICAgICAgICAgLTY0IC8gZGF0YSB0eXBlIG9mIG9yaWdpbmFsIGltYWdlICAgICAgICAgICAgICAgICAgICBaTkFYSVMgID0gICAgICAgICAgICAgICAgICAgIDIgLyBkaW1lbnNpb24gb2Ygb3JpZ2luYWwgaW1hZ2UgICAgICAgICAgICAgICAgICAgIFpOQVhJUzEgPSAgICAgICAgICAgICAgICAgICAxMCAvIGxlbmd0aCBvZiBvcmlnaW5hbCBpbWFnZSBheGlzICAgICAgICAgICAgICAgICAgWk5BWElTMiA9ICAgICAgICAgICAgICAgICAgIDEwIC8gbGVuZ3RoIG9mIG9yaWdpbmFsIGltYWdlIGF4aXMgICAgICAgICAgICAgICAgICBaUENPVU5UID0gICAgICAgICAgICAgICAgICAgIDAgLyBudW1iZXIgb2YgcGFyYW1ldGVycyAgICAgICAgICAgICAgICAgICAgICAgICAgIFpHQ09VTlQgPSAgICAgICAgICAgICAgICAgICAgMSAvIG51bWJlciBvZiBncm91cHMgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgWlRJTEUxICA9ICAgICAgICAgICAgICAgICAgIDEwIC8gc2l6ZSBvZiB0aWxlcyB0byBiZSBjb21wcmVzc2VkICAgICAgICAgICAgICAgICBaVElMRTIgID0gICAgICAgICAgICAgICAgICAgIDEgLyBzaXplIG9mIHRpbGVzIHRvIGJlIGNvbXByZXNzZWQgICAgICAgICAgICAgICAgIFpDTVBUWVBFPSAnR1pJUF8yICAnICAgICAgICAgICAvIGNvbXByZXNzaW9uIGFsZ29yaXRobSAgICAgICAgICAgICAgICAgICAgICAgICAgWk5BTUUxICA9ICdOT0lTRUJJVCcgICAgICAgICAgIC8gZmxvYXRpbmcgcG9pbnQgcXVhbnRpemF0aW9uIGxldmVsICAgICAgICAgICAgICBaVkFMMSAgID0gICAgICAgICAgICAgICAgICAgIDAgLyBmbG9hdGluZyBwb2ludCBxdWFudGl6YXRpb24gbGV2ZWwgICAgICAgICAgICAgIFpRVUFOVElaPSAnTk9fRElUSEVSJyAgICAgICAgICAvIE5vIGRpdGhlcmluZyBkdXJpbmcgcXVhbnRpemF0aW9uICAgICAgICAgICAgICAgRVhUTkFNRSA9ICdDT01QUkVTU0VEX0lNQUdFJyAgIC8gbmFtZSBvZiB0aGlzIGJpbmFyeSB0YWJsZSBleHRlbnNpb24gICAgICAgICAgICBFTkQgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAGAAAAAAAAAAYAAAAGAAAABgAAAAwAAAAGAAAAEgAAAAYAAAAYAAAABgAAAB4AAAAGAAAAJAAAAAYAAAAqAAAABgAAADAAAAAGAAAANgfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAfiwgAAAAAAAQDY2CgLgAA5hgjjlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'},
+                               'fitsio/tests/__init__.py': {'bytes': 0,
+                                                            'sha256': 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                                                            'text': ''},
+                               'fitsio/tests/checks.py': {'bytes': 6155,
+                                                          'sha256': 'e699e68ae2710fb094c1515b13898a48dea9db4e1c93a7499fb9bbb4f31e7bf7',
+                                                          'text': 'import sys\n'
+                                                                  'import numpy as np\n'
+                                                                  'from .. import util\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def check_header(header, rh):\n'
+                                                                  '    for k in header:\n'
+                                                                  '        v = header[k]\n'
+                                                                  '        rv = rh[k]\n'
+                                                                  '\n'
+                                                                  '        if isinstance(rv, str):\n'
+                                                                  '            v = v.strip()\n'
+                                                                  '            rv = rv.strip()\n'
+                                                                  '\n'
+                                                                  '        assert v == rv, "testing equal '
+                                                                  'key \'%s\'" % k\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def '
+                                                                  'compare_headerlist_header(header_list, '
+                                                                  'header):\n'
+                                                                  '    """\n'
+                                                                  '    The first is a list of dicts, second '
+                                                                  'a FITSHDR\n'
+                                                                  '    """\n'
+                                                                  '    for entry in header_list:\n'
+                                                                  "        name = entry['name'].upper()\n"
+                                                                  "        value = entry['value']\n"
+                                                                  '        hvalue = header[name]\n'
+                                                                  '\n'
+                                                                  '        if isinstance(hvalue, str):\n'
+                                                                  '            hvalue = hvalue.strip()\n'
+                                                                  '\n'
+                                                                  '        assert value == hvalue, (\n'
+                                                                  '            "testing header key \'%s\'" % '
+                                                                  'name\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  "        if 'comment' in entry:\n"
+                                                                  '            assert (\n'
+                                                                  "                entry['comment'].strip() "
+                                                                  '==\n'
+                                                                  '                '
+                                                                  'header.get_comment(name).strip()\n'
+                                                                  '            ), "testing comment for '
+                                                                  'header key \'%s\'" % name\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def cast_shape(shape):\n'
+                                                                  '    if len(shape) == 2 and shape[1] == '
+                                                                  '1:\n'
+                                                                  '        return (shape[0], )\n'
+                                                                  '    elif shape == (1, ):\n'
+                                                                  '        return tuple()\n'
+                                                                  '    else:\n'
+                                                                  '        return shape\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_array(arr1, arr2, name):\n'
+                                                                  '    arr1_shape = cast_shape(arr1.shape)\n'
+                                                                  '    arr2_shape = cast_shape(arr2.shape)\n'
+                                                                  '\n'
+                                                                  '    assert arr1_shape == arr2_shape, (\n'
+                                                                  '        "testing arrays \'%s\' shapes are '
+                                                                  'equal: "\n'
+                                                                  '        "input %s, read: %s" % (name, '
+                                                                  'arr1_shape, arr2_shape)\n'
+                                                                  '    )\n'
+                                                                  '\n'
+                                                                  '    if sys.version_info >= (3, 0, 0) and '
+                                                                  "arr1.dtype.char == 'S':\n"
+                                                                  "        _arr1 = arr1.astype('U')\n"
+                                                                  '    else:\n'
+                                                                  '        _arr1 = arr1\n'
+                                                                  '\n'
+                                                                  '    res = np.where(_arr1 != arr2)\n'
+                                                                  '    for i, w in enumerate(res):\n'
+                                                                  '        assert w.size == 0, "testing '
+                                                                  'array \'%s\' dim %d are equal" % (name, '
+                                                                  'i)\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_array_tol(arr1, arr2, tol, '
+                                                                  'name):\n'
+                                                                  '    assert arr1.shape == arr2.shape, (\n'
+                                                                  '        "testing arrays \'%s\' shapes are '
+                                                                  'equal: "\n'
+                                                                  '        "input %s, read: %s" % (name, '
+                                                                  'arr1.shape, arr2.shape)\n'
+                                                                  '    )\n'
+                                                                  '\n'
+                                                                  '    adiff = np.abs((arr1 - arr2)/arr1)\n'
+                                                                  '    maxdiff = adiff.max()\n'
+                                                                  '    res = np.where(adiff > tol)\n'
+                                                                  '    for i, w in enumerate(res):\n'
+                                                                  '        assert w.size == 0, (\n'
+                                                                  '            "testing array \'%s\' dim %d '
+                                                                  'are "\n'
+                                                                  '            "equal within tolerance %e, '
+                                                                  'found "\n'
+                                                                  '            "max diff %e" % (name, i, '
+                                                                  'tol, maxdiff)\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_array_abstol(arr1, arr2, tol, '
+                                                                  'name):\n'
+                                                                  '    assert arr1.shape == arr2.shape, (\n'
+                                                                  '        "testing arrays \'%s\' shapes are '
+                                                                  'equal: "\n'
+                                                                  '        "input %s, read: %s" % (name, '
+                                                                  'arr1.shape, arr2.shape)\n'
+                                                                  '    )\n'
+                                                                  '\n'
+                                                                  '    adiff = np.abs(arr1-arr2)\n'
+                                                                  '    maxdiff = adiff.max()\n'
+                                                                  '    res = np.where(adiff > tol)\n'
+                                                                  '    for i, w in enumerate(res):\n'
+                                                                  '        assert w.size == 0, (\n'
+                                                                  '            "testing array \'%s\' dim %d '
+                                                                  'are "\n'
+                                                                  '            "equal within tolerance %e, '
+                                                                  'found "\n'
+                                                                  '            "max diff %e" % (name, i, '
+                                                                  'tol, maxdiff)\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_object_array(arr1, arr2, '
+                                                                  'name, rows=None):\n'
+                                                                  '    """\n'
+                                                                  '    The first must be object\n'
+                                                                  '    """\n'
+                                                                  '    if rows is None:\n'
+                                                                  '        rows = np.arange(arr1.size)\n'
+                                                                  '\n'
+                                                                  '    for i, row in enumerate(rows):\n'
+                                                                  '        if ((sys.version_info >= (3, 0, '
+                                                                  '0) and isinstance(arr2[i], bytes))\n'
+                                                                  '                or isinstance(arr2[i], '
+                                                                  'str)):\n'
+                                                                  '\n'
+                                                                  '            if sys.version_info >= (3, 0, '
+                                                                  '0) and isinstance(arr1[row], bytes):\n'
+                                                                  '                _arr1row = '
+                                                                  "arr1[row].decode('ascii')\n"
+                                                                  '            else:\n'
+                                                                  '                _arr1row = arr1[row]\n'
+                                                                  '\n'
+                                                                  '            assert _arr1row == arr2[i], '
+                                                                  '(\n'
+                                                                  '                "%s str el %d equal" % '
+                                                                  '(name, i)\n'
+                                                                  '            )\n'
+                                                                  '        else:\n'
+                                                                  '            delement = arr2[i]\n'
+                                                                  '            orig = arr1[row]\n'
+                                                                  '            s = len(orig)\n'
+                                                                  '            compare_array(\n'
+                                                                  '                orig, delement[0:s], "%s '
+                                                                  'num el %d equal" % (name, i)\n'
+                                                                  '            )\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_rec(rec1, rec2, name):\n'
+                                                                  '    for f in rec1.dtype.names:\n'
+                                                                  '        rec1_shape = '
+                                                                  'cast_shape(rec1[f].shape)\n'
+                                                                  '        rec2_shape = '
+                                                                  'cast_shape(rec2[f].shape)\n'
+                                                                  '\n'
+                                                                  '        assert rec1_shape == rec2_shape, '
+                                                                  '(\n'
+                                                                  '            "testing \'%s\' field \'%s\' '
+                                                                  'shapes are equal: "\n'
+                                                                  '            "input %s, read: %s" % (\n'
+                                                                  '                name, f, rec1_shape, '
+                                                                  'rec2_shape)\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  '        if sys.version_info >= (3, 0, 0) '
+                                                                  "and rec1[f].dtype.char == 'S':\n"
+                                                                  '            # for python 3, we get back '
+                                                                  'unicode always\n'
+                                                                  "            _rec1f = rec1[f].astype('U')\n"
+                                                                  '        else:\n'
+                                                                  '            _rec1f = rec1[f]\n'
+                                                                  '\n'
+                                                                  '        assert np.all(_rec1f == rec2[f])\n'
+                                                                  '        # res = np.where(_rec1f != '
+                                                                  'rec2[f])\n'
+                                                                  '        # for w in res:\n'
+                                                                  '        #     assert w.size == 0, '
+                                                                  '"testing column %s" % f\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_rec_subrows(rec1, rec2, rows, '
+                                                                  'name):\n'
+                                                                  '    for f in rec1.dtype.names:\n'
+                                                                  '        rec1_shape = '
+                                                                  'cast_shape(rec1[f][rows].shape)\n'
+                                                                  '        rec2_shape = '
+                                                                  'cast_shape(rec2[f].shape)\n'
+                                                                  '\n'
+                                                                  '        assert rec1_shape == rec2_shape, '
+                                                                  '(\n'
+                                                                  '            "testing \'%s\' field \'%s\' '
+                                                                  'shapes are equal: "\n'
+                                                                  '            "input %s, read: %s" % (\n'
+                                                                  '                name, f, rec1_shape, '
+                                                                  'rec2_shape)\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  '        if sys.version_info >= (3, 0, 0) '
+                                                                  "and rec1[f].dtype.char == 'S':\n"
+                                                                  '            # for python 3, we get back '
+                                                                  'unicode always\n'
+                                                                  '            _rec1frows = '
+                                                                  "rec1[f][rows].astype('U')\n"
+                                                                  '        else:\n'
+                                                                  '            _rec1frows = rec1[f][rows]\n'
+                                                                  '\n'
+                                                                  '        res = np.where(_rec1frows != '
+                                                                  'rec2[f])\n'
+                                                                  '        for w in res:\n'
+                                                                  '            assert w.size == 0, "testing '
+                                                                  'column %s" % f\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_rec_with_var(rec1, rec2, '
+                                                                  'name, rows=None):\n'
+                                                                  '    """\n'
+                                                                  '\n'
+                                                                  '    First one *must* be the one with '
+                                                                  'object arrays\n'
+                                                                  '\n'
+                                                                  '    Second can have fixed length\n'
+                                                                  '\n'
+                                                                  '    both should be same number of rows\n'
+                                                                  '\n'
+                                                                  '    """\n'
+                                                                  '\n'
+                                                                  '    if rows is None:\n'
+                                                                  '        rows = np.arange(rec2.size)\n'
+                                                                  '        assert rec1.size == rec2.size, (\n'
+                                                                  '            "testing \'%s\' same number '
+                                                                  'of rows" % name\n'
+                                                                  '        )\n'
+                                                                  '\n'
+                                                                  '    # rec2 may have fewer fields\n'
+                                                                  '    for f in rec2.dtype.names:\n'
+                                                                  '\n'
+                                                                  '        # f1 will have the objects\n'
+                                                                  '        if util.is_object(rec1[f]):\n'
+                                                                  '            compare_object_array(\n'
+                                                                  '                rec1[f], rec2[f],\n'
+                                                                  '                "testing \'%s\' field '
+                                                                  '\'%s\'" % (name, f),\n'
+                                                                  '                rows=rows\n'
+                                                                  '            )\n'
+                                                                  '        else:\n'
+                                                                  '            compare_array(\n'
+                                                                  '                rec1[f][rows], rec2[f],\n'
+                                                                  '                "testing \'%s\' num field '
+                                                                  '\'%s\' equal" % (name, f)\n'
+                                                                  '            )\n'
+                                                                  '\n'
+                                                                  '\n'
+                                                                  'def compare_names(read_names, true_names, '
+                                                                  'lower=False, upper=False):\n'
+                                                                  '    for nread, ntrue in zip(read_names, '
+                                                                  'true_names):\n'
+                                                                  '        if lower:\n'
+                                                                  '            tname = ntrue.lower()\n'
+                                                                  '            mess = "lower: \'%s\' vs '
+                                                                  '\'%s\'" % (nread, tname)\n'
+                                                                  '        else:\n'
+                                                                  '            tname = ntrue.upper()\n'
+                                                                  '            mess = "upper: \'%s\' vs '
+                                                                  '\'%s\'" % (nread, tname)\n'
+                                                                  '\n'
+                                                                  '        assert nread == tname, mess\n'},
+                               'fitsio/tests/makedata.py': {'bytes': 11831,
+                                                            'sha256': '1639e83e2e10b91ab2d96c97788d7c65fe499549c8251b3a4bca8c8508021f3e',
+                                                            'text': 'import sys\n'
+                                                                    'import numpy as np\n'
+                                                                    'from functools import lru_cache\n'
+                                                                    '\n'
+                                                                    'from .._fitsio_wrap import '
+                                                                    'cfitsio_use_standard_strings\n'
+                                                                    '\n'
+                                                                    'lorem_ipsum = (\n'
+                                                                    "    'Lorem ipsum dolor sit amet, "
+                                                                    "consectetur adipiscing '\n"
+                                                                    "    'elit, sed do eiusmod tempor "
+                                                                    "incididunt ut labore '\n"
+                                                                    "    'et dolore magna aliqua'\n"
+                                                                    ')\n'
+                                                                    '\n'
+                                                                    '\n'
+                                                                    '@lru_cache(maxsize=1)\n'
+                                                                    'def make_data():\n'
+                                                                    '\n'
+                                                                    '    nvec = 2\n'
+                                                                    '    ashape = (21, 21)\n'
+                                                                    "    Sdtype = 'S6'\n"
+                                                                    "    Udtype = 'U6'\n"
+                                                                    '\n'
+                                                                    '    # all currently available types, '
+                                                                    'scalar, 1-d and 2-d array columns\n'
+                                                                    '    dtype = [\n'
+                                                                    "        ('u1scalar', 'u1'),\n"
+                                                                    "        ('i1scalar', 'i1'),\n"
+                                                                    "        ('b1scalar', '?'),\n"
+                                                                    "        ('u2scalar', 'u2'),\n"
+                                                                    "        ('i2scalar', 'i2'),\n"
+                                                                    "        ('u4scalar', 'u4'),\n"
+                                                                    "        ('i4scalar', '<i4'),  # mix the "
+                                                                    'byte orders a bit, test swapping\n'
+                                                                    "        ('i8scalar', 'i8'),\n"
+                                                                    "        ('f4scalar', 'f4'),\n"
+                                                                    "        ('f8scalar', '>f8'),\n"
+                                                                    "        ('c8scalar', 'c8'),  # complex, "
+                                                                    'two 32-bit\n'
+                                                                    "        ('c16scalar', 'c16'),  # "
+                                                                    'complex, two 32-bit\n'
+                                                                    '\n'
+                                                                    "        ('u1vec', 'u1', nvec),\n"
+                                                                    "        ('i1vec', 'i1', nvec),\n"
+                                                                    "        ('b1vec', '?', nvec),\n"
+                                                                    "        ('u2vec', 'u2', nvec),\n"
+                                                                    "        ('i2vec', 'i2', nvec),\n"
+                                                                    "        ('u4vec', 'u4', nvec),\n"
+                                                                    "        ('i4vec', 'i4', nvec),\n"
+                                                                    "        ('i8vec', 'i8', nvec),\n"
+                                                                    "        ('f4vec', 'f4', nvec),\n"
+                                                                    "        ('f8vec', 'f8', nvec),\n"
+                                                                    "        ('c8vec', 'c8', nvec),\n"
+                                                                    "        ('c16vec', 'c16', nvec),\n"
+                                                                    '\n'
+                                                                    "        ('u1arr', 'u1', ashape),\n"
+                                                                    "        ('i1arr', 'i1', ashape),\n"
+                                                                    "        ('b1arr', '?', ashape),\n"
+                                                                    "        ('u2arr', 'u2', ashape),\n"
+                                                                    "        ('i2arr', 'i2', ashape),\n"
+                                                                    "        ('u4arr', 'u4', ashape),\n"
+                                                                    "        ('i4arr', 'i4', ashape),\n"
+                                                                    "        ('i8arr', 'i8', ashape),\n"
+                                                                    "        ('f4arr', 'f4', ashape),\n"
+                                                                    "        ('f8arr', 'f8', ashape),\n"
+                                                                    "        ('c8arr', 'c8', ashape),\n"
+                                                                    "        ('c16arr', 'c16', ashape),\n"
+                                                                    '\n'
+                                                                    '        # special case of (1,)\n'
+                                                                    "        ('f8arr_dim1', 'f8', (1, )),\n"
+                                                                    '\n'
+                                                                    '\n'
+                                                                    "        ('Sscalar', Sdtype),\n"
+                                                                    "        ('Svec',   Sdtype, nvec),\n"
+                                                                    "        ('Sarr',   Sdtype, ashape),\n"
+                                                                    '    ]\n'
+                                                                    '\n'
+                                                                    '    if cfitsio_use_standard_strings():\n'
+                                                                    '        dtype += [\n'
+                                                                    "            ('Sscalar_nopad', Sdtype),\n"
+                                                                    "            ('Svec_nopad', Sdtype, "
+                                                                    'nvec),\n'
+                                                                    "            ('Sarr_nopad', Sdtype, "
+                                                                    'ashape),\n'
+                                                                    '        ]\n'
+                                                                    '\n'
+                                                                    '    if sys.version_info > (3, 0, 0):\n'
+                                                                    '        dtype += [\n'
+                                                                    "           ('Uscalar', Udtype),\n"
+                                                                    "           ('Uvec', Udtype, nvec),\n"
+                                                                    "           ('Uarr', Udtype, ashape),\n"
+                                                                    '        ]\n'
+                                                                    '\n'
+                                                                    '        if '
+                                                                    'cfitsio_use_standard_strings():\n'
+                                                                    '            dtype += [\n'
+                                                                    "               ('Uscalar_nopad', "
+                                                                    'Udtype),\n'
+                                                                    "               ('Uvec_nopad', Udtype, "
+                                                                    'nvec),\n'
+                                                                    "               ('Uarr_nopad', Udtype, "
+                                                                    'ashape),\n'
+                                                                    '            ]\n'
+                                                                    '\n'
+                                                                    '    dtype2 = [\n'
+                                                                    "        ('index', 'i4'),\n"
+                                                                    "        ('x', 'f8'),\n"
+                                                                    "        ('y', 'f8'),\n"
+                                                                    '    ]\n'
+                                                                    '\n'
+                                                                    '    nrows = 4\n'
+                                                                    '    data = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    '\n'
+                                                                    '    dtypes = [\n'
+                                                                    "        'u1', 'i1', 'u2', 'i2', 'u4', "
+                                                                    "'i4', 'i8', 'f4', 'f8', 'c8', 'c16',\n"
+                                                                    '    ]\n'
+                                                                    '    for t in dtypes:\n'
+                                                                    "        if t in ['c8', 'c16']:\n"
+                                                                    "            data[t+'scalar'] = "
+                                                                    '[complex(i+1, (i+1)*2) for i in '
+                                                                    'range(nrows)]\n'
+                                                                    "            vname = t + 'vec'\n"
+                                                                    '            for row in range(nrows):\n'
+                                                                    '                for i in range(nvec):\n'
+                                                                    '                    index = (row + 1) * '
+                                                                    '(i + 1)\n'
+                                                                    '                    data[vname][row, i] '
+                                                                    '= complex(index, index*2)\n'
+                                                                    "            aname = t+'arr'\n"
+                                                                    '            for row in range(nrows):\n'
+                                                                    '                for i in '
+                                                                    'range(ashape[0]):\n'
+                                                                    '                    for j in '
+                                                                    'range(ashape[1]):\n'
+                                                                    '                        index = (row + '
+                                                                    '1) * (i + 1) * (j + 1)\n'
+                                                                    '                        '
+                                                                    'data[aname][row, i, j] = complex(index, '
+                                                                    'index*2)\n'
+                                                                    '\n'
+                                                                    '        else:\n'
+                                                                    "            data[t+'scalar'] = 1 + "
+                                                                    'np.arange(nrows, dtype=t)\n'
+                                                                    "            data[t+'vec'] = 1 + "
+                                                                    'np.arange(\n'
+                                                                    '                nrows*nvec, dtype=t,\n'
+                                                                    '            ).reshape(nrows, nvec)\n'
+                                                                    '            arr = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1], '
+                                                                    'dtype=t)\n'
+                                                                    "            data[t+'arr'] = "
+                                                                    'arr.reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    "    for t in ['b1']:\n"
+                                                                    "        data[t+'scalar'] = "
+                                                                    '(np.arange(nrows) % 2 == '
+                                                                    "0).astype('?')\n"
+                                                                    "        data[t+'vec'] = (\n"
+                                                                    '            np.arange(nrows*nvec) % 2 '
+                                                                    '== 0\n'
+                                                                    "        ).astype('?').reshape(nrows, "
+                                                                    'nvec)\n'
+                                                                    '\n'
+                                                                    '        arr = '
+                                                                    '(np.arange(nrows*ashape[0]*ashape[1]) % '
+                                                                    "2 == 0).astype('?')\n"
+                                                                    "        data[t+'arr'] = "
+                                                                    'arr.reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    # strings get padded when written '
+                                                                    'to the fits file.  And the way I do\n'
+                                                                    '    # the read, I read all bytes (ala '
+                                                                    'mrdfits) so the spaces are preserved.\n'
+                                                                    '    #\n'
+                                                                    '    # so we need to pad out the strings '
+                                                                    'with blanks so we can compare\n'
+                                                                    '\n'
+                                                                    "    data['Sscalar'] = ['%-6s' % s for s "
+                                                                    "in ['hello', 'world', 'good', 'bye']]\n"
+                                                                    "    data['Svec'][:, 0] = '%-6s' % "
+                                                                    "'hello'\n"
+                                                                    "    data['Svec'][:, 1] = '%-6s' % "
+                                                                    "'world'\n"
+                                                                    '\n'
+                                                                    '    s = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1])\n'
+                                                                    "    s = ['%-6s' % el for el in s]\n"
+                                                                    "    data['Sarr'] = "
+                                                                    'np.array(s).reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    if cfitsio_use_standard_strings():\n'
+                                                                    "        data['Sscalar_nopad'] = "
+                                                                    "['hello', 'world', 'good', 'bye']\n"
+                                                                    "        data['Svec_nopad'][:, 0] = "
+                                                                    "'hello'\n"
+                                                                    "        data['Svec_nopad'][:, 1] = "
+                                                                    "'world'\n"
+                                                                    '\n'
+                                                                    '        s = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1])\n'
+                                                                    "        s = ['%s' % el for el in s]\n"
+                                                                    "        data['Sarr_nopad'] = "
+                                                                    'np.array(s).reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    if sys.version_info >= (3, 0, 0):\n'
+                                                                    "        data['Uscalar'] = [\n"
+                                                                    "            '%-6s' % s for s in "
+                                                                    "['hello', 'world', 'good', 'bye']\n"
+                                                                    '        ]\n'
+                                                                    "        data['Uvec'][:, 0] = '%-6s' % "
+                                                                    "'hello'\n"
+                                                                    "        data['Uvec'][:, 1] = '%-6s' % "
+                                                                    "'world'\n"
+                                                                    '\n'
+                                                                    '        s = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1])\n'
+                                                                    "        s = ['%-6s' % el for el in s]\n"
+                                                                    "        data['Uarr'] = "
+                                                                    'np.array(s).reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '        if '
+                                                                    'cfitsio_use_standard_strings():\n'
+                                                                    "            data['Uscalar_nopad'] = "
+                                                                    "['hello', 'world', 'good', 'bye']\n"
+                                                                    "            data['Uvec_nopad'][:, 0] = "
+                                                                    "'hello'\n"
+                                                                    "            data['Uvec_nopad'][:, 1] = "
+                                                                    "'world'\n"
+                                                                    '\n'
+                                                                    '            s = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1])\n'
+                                                                    "            s = ['%s' % el for el in "
+                                                                    's]\n'
+                                                                    "            data['Uarr_nopad'] = "
+                                                                    'np.array(s).reshape(\n'
+                                                                    '                nrows, ashape[0], '
+                                                                    'ashape[1],\n'
+                                                                    '            )\n'
+                                                                    '\n'
+                                                                    '    # use a dict list so we can have '
+                                                                    'comments\n'
+                                                                    '    # for long key we used the largest '
+                                                                    'possible\n'
+                                                                    '\n'
+                                                                    '    keys = [\n'
+                                                                    "        {'name': 'test1', 'value': "
+                                                                    '35},\n'
+                                                                    "        {'name': 'empty', 'value': "
+                                                                    "''},\n"
+                                                                    "        {'name': 'long_keyword_name', "
+                                                                    "'value': 'stuff'},\n"
+                                                                    "        {'name': 'test2', 'value': "
+                                                                    "'stuff',\n"
+                                                                    "         'comment': 'this is a string "
+                                                                    "keyword'},\n"
+                                                                    "        {'name': 'dbl', 'value': "
+                                                                    '23.299843,\n'
+                                                                    '         \'comment\': "this is a double '
+                                                                    'keyword"},\n'
+                                                                    "        {'name': 'edbl', 'value': "
+                                                                    '1.384123233e+43,\n'
+                                                                    '         \'comment\': "double keyword '
+                                                                    'with exponent"},\n'
+                                                                    "        {'name': 'lng', 'value': "
+                                                                    "2**63-1, 'comment': 'this is a long "
+                                                                    "keyword'},\n"
+                                                                    "        {'name': 'lngstr', 'value': "
+                                                                    "lorem_ipsum, 'comment': 'long string'}\n"
+                                                                    '    ]\n'
+                                                                    '\n'
+                                                                    '    # a second extension using the '
+                                                                    'convenience function\n'
+                                                                    '    nrows2 = 10\n'
+                                                                    '    data2 = np.zeros(nrows2, '
+                                                                    'dtype=dtype2)\n'
+                                                                    "    data2['index'] = np.arange(nrows2, "
+                                                                    "dtype='i4')\n"
+                                                                    "    data2['x'] = np.arange(nrows2, "
+                                                                    "dtype='f8')\n"
+                                                                    "    data2['y'] = np.arange(nrows2, "
+                                                                    "dtype='f8')\n"
+                                                                    '\n'
+                                                                    '    #\n'
+                                                                    '    # ascii table\n'
+                                                                    '    #\n'
+                                                                    '\n'
+                                                                    '    nvec = 2\n'
+                                                                    '    ashape = (2, 3)\n'
+                                                                    "    Sdtype = 'S6'\n"
+                                                                    "    Udtype = 'U6'\n"
+                                                                    '\n'
+                                                                    '    # we support writing i2, i4, i8, f4 '
+                                                                    'f8, but when reading cfitsio always\n'
+                                                                    '    # reports their types as i4 and f8, '
+                                                                    "so can't really use i8 and we are\n"
+                                                                    '    # forced to read all floats as f8 '
+                                                                    'precision\n'
+                                                                    '\n'
+                                                                    '    adtype = [\n'
+                                                                    "        ('i2scalar', 'i2'),\n"
+                                                                    "        ('i4scalar', 'i4'),\n"
+                                                                    "        #  ('i8scalar', 'i8'),\n"
+                                                                    "        ('f4scalar', 'f4'),\n"
+                                                                    "        ('f8scalar', 'f8'),\n"
+                                                                    "        ('Sscalar', Sdtype),\n"
+                                                                    '    ]\n'
+                                                                    '    if sys.version_info >= (3, 0, 0):\n'
+                                                                    "        adtype += [('Uscalar', "
+                                                                    'Udtype)]\n'
+                                                                    '\n'
+                                                                    '    nrows = 4\n'
+                                                                    '    try:\n'
+                                                                    '        tdt = np.dtype(adtype, '
+                                                                    'align=True)\n'
+                                                                    '    except TypeError:  # older numpy '
+                                                                    'may not understand `align` argument\n'
+                                                                    '        tdt = np.dtype(adtype)\n'
+                                                                    '    adata = np.zeros(nrows, dtype=tdt)\n'
+                                                                    '\n'
+                                                                    "    adata['i2scalar'][:] = -32222 + "
+                                                                    "np.arange(nrows, dtype='i2')\n"
+                                                                    "    adata['i4scalar'][:] = -1353423423 "
+                                                                    "+ np.arange(nrows, dtype='i4')\n"
+                                                                    "    adata['f4scalar'][:] = (\n"
+                                                                    '        -2.55555555555555555555555e35 + '
+                                                                    "np.arange(nrows, dtype='f4')*1.e35\n"
+                                                                    '    )\n'
+                                                                    "    adata['f8scalar'][:] = (\n"
+                                                                    '        -2.55555555555555555555555e110 '
+                                                                    "+ np.arange(nrows, dtype='f8')*1.e110\n"
+                                                                    '    )\n'
+                                                                    "    adata['Sscalar'] = ['hello', "
+                                                                    "'world', 'good', 'bye']\n"
+                                                                    '\n'
+                                                                    '    if sys.version_info >= (3, 0, 0):\n'
+                                                                    "        adata['Uscalar'] = ['hello', "
+                                                                    "'world', 'good', 'bye']\n"
+                                                                    '\n'
+                                                                    '    ascii_data = adata\n'
+                                                                    '\n'
+                                                                    '    #\n'
+                                                                    '    # for variable length columns\n'
+                                                                    '    #\n'
+                                                                    '\n'
+                                                                    '    # all currently available types, '
+                                                                    'scalar, 1-d and 2-d array columns\n'
+                                                                    '    dtype = [\n'
+                                                                    "        ('u1scalar', 'u1'),\n"
+                                                                    "        ('u1obj', 'O'),\n"
+                                                                    "        ('i1scalar', 'i1'),\n"
+                                                                    "        ('i1obj', 'O'),\n"
+                                                                    "        ('u2scalar', 'u2'),\n"
+                                                                    "        ('u2obj', 'O'),\n"
+                                                                    "        ('i2scalar', 'i2'),\n"
+                                                                    "        ('i2obj', 'O'),\n"
+                                                                    "        ('u4scalar', 'u4'),\n"
+                                                                    "        ('u4obj', 'O'),\n"
+                                                                    "        ('i4scalar', '<i4'),  # mix the "
+                                                                    'byte orders a bit, test swapping\n'
+                                                                    "        ('i4obj', 'O'),\n"
+                                                                    "        ('i8scalar', 'i8'),\n"
+                                                                    "        ('i8obj', 'O'),\n"
+                                                                    "        ('f4scalar', 'f4'),\n"
+                                                                    "        ('f4obj', 'O'),\n"
+                                                                    "        ('f8scalar', '>f8'),\n"
+                                                                    "        ('f8obj', 'O'),\n"
+                                                                    '\n'
+                                                                    "        ('u1vec', 'u1', nvec),\n"
+                                                                    "        ('i1vec', 'i1', nvec),\n"
+                                                                    "        ('u2vec', 'u2', nvec),\n"
+                                                                    "        ('i2vec', 'i2', nvec),\n"
+                                                                    "        ('u4vec', 'u4', nvec),\n"
+                                                                    "        ('i4vec', 'i4', nvec),\n"
+                                                                    "        ('i8vec', 'i8', nvec),\n"
+                                                                    "        ('f4vec', 'f4', nvec),\n"
+                                                                    "        ('f8vec', 'f8', nvec),\n"
+                                                                    '\n'
+                                                                    "        ('u1arr', 'u1', ashape),\n"
+                                                                    "        ('i1arr', 'i1', ashape),\n"
+                                                                    "        ('u2arr', 'u2', ashape),\n"
+                                                                    "        ('i2arr', 'i2', ashape),\n"
+                                                                    "        ('u4arr', 'u4', ashape),\n"
+                                                                    "        ('i4arr', 'i4', ashape),\n"
+                                                                    "        ('i8arr', 'i8', ashape),\n"
+                                                                    "        ('f4arr', 'f4', ashape),\n"
+                                                                    "        ('f8arr', 'f8', ashape),\n"
+                                                                    '\n'
+                                                                    '        # special case of (1,)\n'
+                                                                    "        ('f8arr_dim1', 'f8', (1, )),\n"
+                                                                    '\n'
+                                                                    "        ('Sscalar', Sdtype),\n"
+                                                                    "        ('Sobj', 'O'),\n"
+                                                                    "        ('Svec', Sdtype, nvec),\n"
+                                                                    "        ('Sarr', Sdtype, ashape),\n"
+                                                                    '    ]\n'
+                                                                    '\n'
+                                                                    '    if sys.version_info > (3, 0, 0):\n'
+                                                                    '        dtype += [\n'
+                                                                    "           ('Uscalar', Udtype),\n"
+                                                                    "           ('Uvec', Udtype, nvec),\n"
+                                                                    "           ('Uarr', Udtype, ashape)]\n"
+                                                                    '\n'
+                                                                    '    nrows = 4\n'
+                                                                    '    vardata = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    '\n'
+                                                                    "    for t in ['u1', 'i1', 'u2', 'i2', "
+                                                                    "'u4', 'i4', 'i8', 'f4', 'f8']:\n"
+                                                                    "        vardata[t+'scalar'] = 1 + "
+                                                                    'np.arange(nrows, dtype=t)\n'
+                                                                    "        vardata[t+'vec'] = 1 + "
+                                                                    'np.arange(nrows*nvec, '
+                                                                    'dtype=t).reshape(\n'
+                                                                    '            nrows, nvec,\n'
+                                                                    '        )\n'
+                                                                    '        arr = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1], '
+                                                                    'dtype=t)\n'
+                                                                    "        vardata[t+'arr'] = "
+                                                                    'arr.reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '        for i in range(nrows):\n'
+                                                                    "            vardata[t+'obj'][i] = "
+                                                                    "vardata[t+'vec'][i]\n"
+                                                                    '\n'
+                                                                    '    # strings get padded when written '
+                                                                    'to the fits file.  And the way I do\n'
+                                                                    '    # the read, I real all bytes (ala '
+                                                                    'mrdfits) so the spaces are preserved.\n'
+                                                                    '    #\n'
+                                                                    '    # so for comparisons, we need to '
+                                                                    'pad out the strings with blanks so we\n'
+                                                                    '    # can compare\n'
+                                                                    '\n'
+                                                                    "    vardata['Sscalar'] = [\n"
+                                                                    "        '%-6s' % s for s in ['hello', "
+                                                                    "'world', 'good', 'bye']\n"
+                                                                    '    ]\n'
+                                                                    "    vardata['Svec'][:, 0] = '%-6s' % "
+                                                                    "'hello'\n"
+                                                                    "    vardata['Svec'][:, 1] = '%-6s' % "
+                                                                    "'world'\n"
+                                                                    '\n'
+                                                                    '    s = 1 + np.arange(nrows * ashape[0] '
+                                                                    '* ashape[1])\n'
+                                                                    "    s = ['%-6s' % el for el in s]\n"
+                                                                    "    vardata['Sarr'] = "
+                                                                    'np.array(s).reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    if sys.version_info >= (3, 0, 0):\n'
+                                                                    "        vardata['Uscalar'] = [\n"
+                                                                    "            '%-6s' % s for s in "
+                                                                    "['hello', 'world', 'good', 'bye']\n"
+                                                                    '        ]\n'
+                                                                    "        vardata['Uvec'][:, 0] = '%-6s' "
+                                                                    "% 'hello'\n"
+                                                                    "        vardata['Uvec'][:, 1] = '%-6s' "
+                                                                    "% 'world'\n"
+                                                                    '\n'
+                                                                    '        s = 1 + '
+                                                                    'np.arange(nrows*ashape[0]*ashape[1])\n'
+                                                                    "        s = ['%-6s' % el for el in s]\n"
+                                                                    "        vardata['Uarr'] = "
+                                                                    'np.array(s).reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    for i in range(nrows):\n'
+                                                                    "        vardata['Sobj'][i] = "
+                                                                    "vardata['Sscalar'][i].rstrip()\n"
+                                                                    '\n'
+                                                                    '    #\n'
+                                                                    '    # for bitcol columns\n'
+                                                                    '    #\n'
+                                                                    '    nvec = 2\n'
+                                                                    '    ashape = (21, 21)\n'
+                                                                    '\n'
+                                                                    '    dtype = [\n'
+                                                                    "        ('b1vec', '?', nvec),\n"
+                                                                    "        ('b1arr', '?', ashape)\n"
+                                                                    '    ]\n'
+                                                                    '\n'
+                                                                    '    nrows = 4\n'
+                                                                    '    bdata = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    '\n'
+                                                                    "    for t in ['b1']:\n"
+                                                                    "        bdata[t+'vec'] = "
+                                                                    '(np.arange(nrows*nvec) % 2 == '
+                                                                    "0).astype('?').reshape(\n"
+                                                                    '            nrows, nvec,\n'
+                                                                    '        )\n'
+                                                                    '        arr = '
+                                                                    '(np.arange(nrows*ashape[0]*ashape[1]) % '
+                                                                    "2 == 0).astype('?')\n"
+                                                                    "        bdata[t+'arr'] = "
+                                                                    'arr.reshape(nrows, ashape[0], '
+                                                                    'ashape[1])\n'
+                                                                    '\n'
+                                                                    '    return {\n'
+                                                                    "        'data': data,\n"
+                                                                    "        'keys': keys,\n"
+                                                                    "        'data2': data2,\n"
+                                                                    "        'ascii_data': ascii_data,\n"
+                                                                    "        'vardata': vardata,\n"
+                                                                    "        'bdata': bdata,\n"
+                                                                    '    }\n'},
+                               'fitsio/tests/test_header.py': {'bytes': 18789,
+                                                               'sha256': '83ec2dcf36289b99e7511f11ed983e3a050816b096df26071c6b058777cf9883',
+                                                               'text': 'import os\n'
+                                                                       'import tempfile\n'
+                                                                       'import warnings\n'
+                                                                       'import numpy as np\n'
+                                                                       'from .makedata import make_data, '
+                                                                       'lorem_ipsum\n'
+                                                                       'from .checks import check_header, '
+                                                                       'compare_headerlist_header\n'
+                                                                       'from ..fitslib import FITS, '
+                                                                       'read_header, write\n'
+                                                                       'from ..header import FITSHDR\n'
+                                                                       'from ..hdu.base import '
+                                                                       'INVALID_HDR_CHARS\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def '
+                                                                       'test_add_delete_and_update_records():\n'
+                                                                       '    # Build a FITSHDR from a few '
+                                                                       'records (no need to write on disk)\n'
+                                                                       '    # Record names have to be in '
+                                                                       'upper case to match with '
+                                                                       'FITSHDR.add_record\n'
+                                                                       '    recs = [\n'
+                                                                       "        {'name': "
+                                                                       '"First_record".upper(), \'value\': '
+                                                                       '1,\n'
+                                                                       '         \'comment\': "number 1"},\n'
+                                                                       "        {'name': "
+                                                                       '"Second_record".upper(), \'value\': '
+                                                                       '"2"},\n'
+                                                                       "        {'name': "
+                                                                       '"Third_record".upper(), \'value\': '
+                                                                       '"3"},\n'
+                                                                       "        {'name': "
+                                                                       '"Last_record".upper(), \'value\': '
+                                                                       '4,\n'
+                                                                       '         \'comment\': "number 4"}\n'
+                                                                       '    ]\n'
+                                                                       '    hdr = FITSHDR(recs)\n'
+                                                                       '\n'
+                                                                       '    # Add a new record\n'
+                                                                       "    hdr.add_record({'name': "
+                                                                       "'New_record'.upper(), 'value': 5})\n"
+                                                                       '\n'
+                                                                       '    # Delete number 2 and 4\n'
+                                                                       '    '
+                                                                       "hdr.delete('Second_record'.upper())\n"
+                                                                       '    '
+                                                                       "hdr.delete('Last_record'.upper())\n"
+                                                                       '\n'
+                                                                       '    # Update records : first and new '
+                                                                       'one\n'
+                                                                       "    hdr['First_record'] = 11\n"
+                                                                       "    hdr['New_record'] = 3\n"
+                                                                       '\n'
+                                                                       '    # Do some checks : len and get '
+                                                                       'value/comment\n'
+                                                                       '    assert len(hdr) == 3\n'
+                                                                       "    assert hdr['First_record'] == "
+                                                                       '11\n'
+                                                                       "    assert hdr['New_record'] == 3\n"
+                                                                       "    assert hdr['Third_record'] == "
+                                                                       "'3'\n"
+                                                                       '    assert '
+                                                                       "hdr.get_comment('First_record') == "
+                                                                       "'number 1'\n"
+                                                                       '    assert not '
+                                                                       "hdr.get_comment('New_record')\n"
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def testHeaderCommentPreserved():\n'
+                                                                       '    """\n'
+                                                                       '    Test that the comment is '
+                                                                       'preserved after resetting the value\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       "    l1 = 'KEY1    "
+                                                                       '=                   77 / My '
+                                                                       "comment1'\n"
+                                                                       "    l2 = 'KEY2    "
+                                                                       '=                   88 / My '
+                                                                       "comment2'\n"
+                                                                       '    hdr = FITSHDR()\n'
+                                                                       '    hdr.add_record(l1)\n'
+                                                                       '    hdr.add_record(l2)\n'
+                                                                       '\n'
+                                                                       "    hdr['key1'] = 99\n"
+                                                                       "    assert hdr.get_comment('key1') "
+                                                                       "== 'My comment1', (\n"
+                                                                       "        'comment not preserved'\n"
+                                                                       '    )\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_header_write_read():\n'
+                                                                       '    """\n'
+                                                                       '    Test a basic header write and '
+                                                                       'read\n'
+                                                                       '\n'
+                                                                       '    Note the other read/write tests '
+                                                                       'also are checking header writing '
+                                                                       'with\n'
+                                                                       '    a list of dicts\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            data = np.zeros(10)\n'
+                                                                       '            header = {\n'
+                                                                       "                'x': 35,\n"
+                                                                       "                'y': 88.215,\n"
+                                                                       "                'eval': "
+                                                                       '1.384123233e+43,\n'
+                                                                       "                'empty': '',\n"
+                                                                       "                'funky': '35-8',  # "
+                                                                       'test old bug when strings look\n'
+                                                                       '                                  # '
+                                                                       'like expressions\n'
+                                                                       "                'name': 'J. Smith',\n"
+                                                                       "                'what': '89113e6',  "
+                                                                       '# test bug where converted to float\n'
+                                                                       "                'und': None,\n"
+                                                                       "                'binop': '25-3',  # "
+                                                                       'test string with binary operation in '
+                                                                       'it\n'
+                                                                       "                'unders': "
+                                                                       "'1_000_000',  # test string with "
+                                                                       'underscore\n'
+                                                                       "                'longs': "
+                                                                       'lorem_ipsum,\n'
+                                                                       '            }\n'
+                                                                       '            fits.write_image(data, '
+                                                                       'header=header)\n'
+                                                                       '\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            check_header(header, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '        with FITS(fname) as fits:\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            check_header(header, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_header_update():\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            data = np.zeros(10)\n'
+                                                                       '            header1 = {\n'
+                                                                       "                'SCARD': 'one',\n"
+                                                                       "                'ICARD': 1,\n"
+                                                                       "                'FCARD': 1.0,\n"
+                                                                       "                'LCARD': True\n"
+                                                                       '            }\n'
+                                                                       '            header2 = {\n'
+                                                                       "                'SCARD': 'two',\n"
+                                                                       "                'ICARD': 2,\n"
+                                                                       "                'FCARD': 2.0,\n"
+                                                                       "                'LCARD': False,\n"
+                                                                       '\n'
+                                                                       "                'SNEW': 'two',\n"
+                                                                       "                'INEW': 2,\n"
+                                                                       "                'FNEW': 2.0,\n"
+                                                                       "                'LNEW': False\n"
+                                                                       '            }\n'
+                                                                       '            fits.write_image(data, '
+                                                                       'header=header1)\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            check_header(header1, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '            # Update header\n'
+                                                                       '            '
+                                                                       'fits[0].write_keys(header2)\n'
+                                                                       '\n'
+                                                                       '        with FITS(fname) as fits:\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            check_header(header2, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_read_header_case():\n'
+                                                                       '    """\n'
+                                                                       '    Test read_header with and '
+                                                                       'without case sensitivity\n'
+                                                                       '\n'
+                                                                       '    The reason we need a special '
+                                                                       'test for this is because\n'
+                                                                       '    the read_header code is '
+                                                                       'optimized for speed and has\n'
+                                                                       '    a different code path\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            data = np.zeros(10)\n'
+                                                                       '            adata = make_data()\n'
+                                                                       '            fits.write_image(data, '
+                                                                       "header=adata['keys'], "
+                                                                       "extname='First')\n"
+                                                                       '            fits.write_image(data, '
+                                                                       "header=adata['keys'], "
+                                                                       "extname='second')\n"
+                                                                       '\n'
+                                                                       '        cases = [\n'
+                                                                       "            ('First', True),\n"
+                                                                       "            ('FIRST', False),\n"
+                                                                       "            ('second', True),\n"
+                                                                       "            ('seConD', False),\n"
+                                                                       '        ]\n'
+                                                                       '        for ext, ci in cases:\n'
+                                                                       '            h = read_header(fname, '
+                                                                       'ext=ext, case_sensitive=ci)\n'
+                                                                       '            '
+                                                                       "compare_headerlist_header(adata['keys'], "
+                                                                       'h)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_blank_key_comments():\n'
+                                                                       '    """\n'
+                                                                       '    test a few different comments\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            records = [\n'
+                                                                       '                # empty should '
+                                                                       'return empty\n'
+                                                                       "                {'name': None, "
+                                                                       "'value': '', 'comment': ''},\n"
+                                                                       '                # this will also '
+                                                                       'return empty\n'
+                                                                       "                {'name': None, "
+                                                                       "'value': '', 'comment': ' '},\n"
+                                                                       '                # this will return '
+                                                                       'exactly\n'
+                                                                       "                {'name': None, "
+                                                                       "'value': '', 'comment': ' h'},\n"
+                                                                       '                # this will return '
+                                                                       'exactly\n'
+                                                                       "                {'name': None, "
+                                                                       "'value': '', 'comment': '--- test "
+                                                                       "comment ---'},\n"
+                                                                       '            ]\n'
+                                                                       '            header = '
+                                                                       'FITSHDR(records)\n'
+                                                                       '\n'
+                                                                       '            fits.write(None, '
+                                                                       'header=header)\n'
+                                                                       '\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '\n'
+                                                                       '            rrecords = rh.records()\n'
+                                                                       '\n'
+                                                                       '            for i, ri in ((0, 6), '
+                                                                       '(1, 7), (2, 8)):\n'
+                                                                       '                rec = records[i]\n'
+                                                                       '                rrec = rrecords[ri]\n'
+                                                                       '\n'
+                                                                       "                assert rec['name'] "
+                                                                       'is None, (\n'
+                                                                       "                    'checking name "
+                                                                       "is None'\n"
+                                                                       '                )\n'
+                                                                       '\n'
+                                                                       '                comment = '
+                                                                       "rec['comment']\n"
+                                                                       '                rcomment = '
+                                                                       "rrec['comment']\n"
+                                                                       "                if '' == "
+                                                                       'comment.strip():\n'
+                                                                       "                    comment = ''\n"
+                                                                       '\n'
+                                                                       '                assert comment == '
+                                                                       'rcomment, (\n'
+                                                                       '                    "check empty key '
+                                                                       'comment"\n'
+                                                                       '                )\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def '
+                                                                       'test_blank_key_comments_from_cards():\n'
+                                                                       '    """\n'
+                                                                       '    test a few different comments\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            records = [\n'
+                                                                       '                '
+                                                                       "'                                                                                "
+                                                                       "',  # noqa\n"
+                                                                       "                '         --- "
+                                                                       'testing comment '
+                                                                       '---                                                '
+                                                                       "',  # noqa\n"
+                                                                       "                '        --- testing "
+                                                                       'comment '
+                                                                       '---                                                 '
+                                                                       "',  # noqa\n"
+                                                                       '                "COMMENT '
+                                                                       'testing                                                                 '
+                                                                       '",  # noqa\n'
+                                                                       '            ]\n'
+                                                                       '            header = '
+                                                                       'FITSHDR(records)\n'
+                                                                       '\n'
+                                                                       '            fits.write(None, '
+                                                                       'header=header)\n'
+                                                                       '\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '\n'
+                                                                       '            rrecords = rh.records()\n'
+                                                                       '\n'
+                                                                       '            assert '
+                                                                       "rrecords[6]['name'] is None, (\n"
+                                                                       "                'checking name is "
+                                                                       "None'\n"
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[6]['comment'] == '', (\n"
+                                                                       "                'check empty key "
+                                                                       "comment'\n"
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[7]['name'] is None, (\n"
+                                                                       "                'checking name is "
+                                                                       "None'\n"
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[7]['comment'] == ' --- "
+                                                                       "testing comment ---', (\n"
+                                                                       '                "check empty key '
+                                                                       'comment"\n'
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[8]['name'] is None, (\n"
+                                                                       "                'checking name is "
+                                                                       "None'\n"
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[8]['comment'] == '--- "
+                                                                       "testing comment ---', (\n"
+                                                                       '                "check empty key '
+                                                                       'comment"\n'
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[9]['name'] == 'COMMENT', (\n"
+                                                                       "                'checking name is "
+                                                                       "COMMENT'\n"
+                                                                       '            )\n'
+                                                                       '            assert '
+                                                                       "rrecords[9]['comment'] == 'testing', "
+                                                                       '(\n'
+                                                                       '                "check comment"\n'
+                                                                       '            )\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_header_from_cards():\n'
+                                                                       '    """\n'
+                                                                       '    test generating a header from '
+                                                                       'cards, writing it out and getting\n'
+                                                                       '    back what we put in\n'
+                                                                       '    """\n'
+                                                                       '    hdr_from_cards = FITSHDR([\n'
+                                                                       '        "IVAL    =                   '
+                                                                       '35 / integer '
+                                                                       'value                                  '
+                                                                       '",  # noqa\n'
+                                                                       '        "SHORTS  = \'hello '
+                                                                       "world'                                                         "
+                                                                       '",  # noqa\n'
+                                                                       '        "UND     '
+                                                                       '=                                                                       '
+                                                                       '",  # noqa\n'
+                                                                       '        "LONGS   = \'Lorem ipsum '
+                                                                       'dolor sit amet, consectetur '
+                                                                       'adipiscing elit, sed do eiu&\'",  # '
+                                                                       'noqa\n'
+                                                                       '        "CONTINUE  \'smod tempor '
+                                                                       'incididunt ut labore et dolore magna '
+                                                                       'aliqua\'             ",  # noqa\n'
+                                                                       '        "DBL     =                 '
+                                                                       '1.25                                                  '
+                                                                       '",  # noqa\n'
+                                                                       '    ])\n'
+                                                                       '    header = [\n'
+                                                                       "        {'name': 'ival', 'value': "
+                                                                       "35, 'comment': 'integer value'},\n"
+                                                                       "        {'name': 'shorts', 'value': "
+                                                                       "'hello world'},\n"
+                                                                       "        {'name': 'und', 'value': "
+                                                                       'None},\n'
+                                                                       "        {'name': 'longs', 'value': "
+                                                                       'lorem_ipsum},\n'
+                                                                       "        {'name': 'dbl', 'value': "
+                                                                       '1.25},\n'
+                                                                       '    ]\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            data = np.zeros(10)\n'
+                                                                       '            fits.write_image(data, '
+                                                                       'header=hdr_from_cards)\n'
+                                                                       '\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            '
+                                                                       'compare_headerlist_header(header, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '        with FITS(fname) as fits:\n'
+                                                                       '            rh = '
+                                                                       'fits[0].read_header()\n'
+                                                                       '            '
+                                                                       'compare_headerlist_header(header, '
+                                                                       'rh)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_bad_header_write_raises():\n'
+                                                                       '    """\n'
+                                                                       '    Test that an invalid header '
+                                                                       'raises.\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    for c in INVALID_HDR_CHARS:\n'
+                                                                       '        with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '            fname = '
+                                                                       "os.path.join(tmpdir, 'test.fits')\n"
+                                                                       '            try:\n'
+                                                                       "                hdr = {'bla%sg' % c: "
+                                                                       '3}\n'
+                                                                       '                data = np.zeros(10)\n'
+                                                                       '\n'
+                                                                       '                write(fname, data, '
+                                                                       'header=hdr, clobber=True)\n'
+                                                                       '            except Exception as e:\n'
+                                                                       '                assert "header key '
+                                                                       '\'BLA%sG\' has" % c in str(e)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_header_template():\n'
+                                                                       '    """\n'
+                                                                       '    test adding bunch of cards from '
+                                                                       'a split template\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    header_template = """SIMPLE  '
+                                                                       '=                    T /\n'
+                                                                       'BITPIX  =                    8 / '
+                                                                       'bits per data value\n'
+                                                                       'NAXIS   =                    0 / '
+                                                                       'number of axes\n'
+                                                                       'EXTEND  =                    T / '
+                                                                       'Extensions are permitted\n'
+                                                                       "ORIGIN  = 'LSST DM Header Service'/ "
+                                                                       'FITS file originator\n'
+                                                                       '\n'
+                                                                       '     ---- Date, night and basic '
+                                                                       'image information ----\n'
+                                                                       'DATE    =                      / '
+                                                                       'Creation Date and Time of File\n'
+                                                                       'DATE-OBS=                      / '
+                                                                       'Date of the observation (image '
+                                                                       'acquisition)\n'
+                                                                       'DATE-BEG=                      / '
+                                                                       'Time at the start of integration\n'
+                                                                       'DATE-END=                      / end '
+                                                                       'date of the observation\n'
+                                                                       'MJD     =                      / '
+                                                                       'Modified Julian Date that the file '
+                                                                       'was written\n'
+                                                                       'MJD-OBS =                      / '
+                                                                       'Modified Julian Date of observation\n'
+                                                                       'MJD-BEG =                      / '
+                                                                       'Modified Julian Date derived from '
+                                                                       'DATE-BEG\n'
+                                                                       'MJD-END =                      / '
+                                                                       'Modified Julian Date derived from '
+                                                                       'DATE-END\n'
+                                                                       'OBSID   =                      / '
+                                                                       'ImageName from Camera '
+                                                                       'StartIntergration\n'
+                                                                       'GROUPID =                      / '
+                                                                       'imageSequenceName from '
+                                                                       'StartIntergration\n'
+                                                                       'OBSTYPE =                      / '
+                                                                       'BIAS, DARK, FLAT, OBJECT\n'
+                                                                       "BUNIT   = 'adu     '           / "
+                                                                       'Brightness units for pixel array\n'
+                                                                       '\n'
+                                                                       '     ---- Telescope info, location, '
+                                                                       'observer ----\n'
+                                                                       "TELESCOP= 'LSST AuxTelescope'  / "
+                                                                       'Telescope name\n'
+                                                                       "INSTRUME= 'LATISS'             / "
+                                                                       'Instrument used to obtain these '
+                                                                       'data\n'
+                                                                       "OBSERVER= 'LSST'               / "
+                                                                       'Observer name(s)\n'
+                                                                       'OBS-LONG=           -70.749417 / '
+                                                                       '[deg] Observatory east longitude\n'
+                                                                       'OBS-LAT =           -30.244639 / '
+                                                                       '[deg] Observatory latitude\n'
+                                                                       'OBS-ELEV=               2663.0 / [m] '
+                                                                       'Observatory elevation\n'
+                                                                       'OBSGEO-X=           1818938.94 / [m] '
+                                                                       'X-axis Geocentric coordinate\n'
+                                                                       'OBSGEO-Y=          -5208470.95 / [m] '
+                                                                       'Y-axis Geocentric coordinate\n'
+                                                                       'OBSGEO-Z=          -3195172.08 / [m] '
+                                                                       'Z-axis Geocentric coordinate\n'
+                                                                       '\n'
+                                                                       '    ---- Pointing info, etc. ----\n'
+                                                                       '\n'
+                                                                       'DECTEL  =                      / '
+                                                                       'Telescope DEC of observation\n'
+                                                                       'ROTPATEL=                      / '
+                                                                       'Telescope Rotation\n'
+                                                                       "ROTCOORD= 'sky'                / "
+                                                                       'Telescope Rotation Coordinates\n'
+                                                                       'RA      =                      / RA '
+                                                                       'of Target\n'
+                                                                       'DEC     =                      / DEC '
+                                                                       'of Target\n'
+                                                                       'ROTPA   =                      / '
+                                                                       'Rotation angle relative to the sky '
+                                                                       '(deg)\n'
+                                                                       'HASTART =                      / '
+                                                                       '[HH:MM:SS] Telescope hour angle at '
+                                                                       'start\n'
+                                                                       'ELSTART =                      / '
+                                                                       '[deg] Telescope zenith distance at '
+                                                                       'start\n'
+                                                                       'AZSTART =                      / '
+                                                                       '[deg] Telescope azimuth angle at '
+                                                                       'start\n'
+                                                                       'AMSTART =                      / '
+                                                                       'Airmass at start\n'
+                                                                       'HAEND   =                      / '
+                                                                       '[HH:MM:SS] Telescope hour angle at '
+                                                                       'end\n'
+                                                                       'ELEND   =                      / '
+                                                                       '[deg] Telescope zenith distance at '
+                                                                       'end\n'
+                                                                       'AZEND   =                      / '
+                                                                       '[deg] Telescope azimuth angle at '
+                                                                       'end\n'
+                                                                       'AMEND   =                      / '
+                                                                       'Airmass at end\n'
+                                                                       '\n'
+                                                                       '    ---- Image-identifying used to '
+                                                                       'build OBS-ID ----\n'
+                                                                       "TELCODE = 'AT'                 / The "
+                                                                       'code for the telecope\n'
+                                                                       'CONTRLLR=                      / The '
+                                                                       'controller (e.g. O for OCS, C for '
+                                                                       'CCS)\n'
+                                                                       'DAYOBS  =                      / The '
+                                                                       'observation day as defined by image '
+                                                                       'name\n'
+                                                                       'SEQNUM  =                      / The '
+                                                                       'sequence number from the image name\n'
+                                                                       'GROUPID =                      /\n'
+                                                                       '\n'
+                                                                       '    ---- Information from Camera\n'
+                                                                       "CCD_MANU= 'ITL'                / CCD "
+                                                                       'Manufacturer\n'
+                                                                       "CCD_TYPE= '3800C'              / CCD "
+                                                                       'Model Number\n'
+                                                                       "CCD_SERN= '20304'              / "
+                                                                       'Manufacturers? CCD Serial Number\n'
+                                                                       "LSST_NUM= 'ITL-3800C-098'      / "
+                                                                       'LSST Assigned CCD Number\n'
+                                                                       'SEQCKSUM=                      / '
+                                                                       'Checksum of Sequencer\n'
+                                                                       'SEQNAME =                      / '
+                                                                       'SequenceName from Camera '
+                                                                       'StartIntergration\n'
+                                                                       'REBNAME =                      / '
+                                                                       'Name of the REB\n'
+                                                                       'CONTNUM =                      / CCD '
+                                                                       'Controller (WREB) Serial Number\n'
+                                                                       'IMAGETAG=                      / DAQ '
+                                                                       'Image id\n'
+                                                                       'TEMP_SET=                      / '
+                                                                       'Temperature set point (deg C)\n'
+                                                                       'CCDTEMP =                      / '
+                                                                       'Measured temperature (deg C)\n'
+                                                                       '\n'
+                                                                       '    ---- Geometry from Camera ----\n'
+                                                                       'DETSIZE =                      / '
+                                                                       'Size of sensor\n'
+                                                                       'OVERH   =                      / '
+                                                                       'Over-scan pixels\n'
+                                                                       'OVERV   =                      / '
+                                                                       'Vert-overscan pix\n'
+                                                                       'PREH    =                      / '
+                                                                       'Pre-scan pixels\n'
+                                                                       '\n'
+                                                                       '    ---- Filter/grating information '
+                                                                       '----\n'
+                                                                       'FILTER  =                      / '
+                                                                       'Name of the filter\n'
+                                                                       'FILTPOS =                      / '
+                                                                       'Filter position\n'
+                                                                       'GRATING =                      / '
+                                                                       'Name of the second disperser\n'
+                                                                       'GRATPOS =                      / '
+                                                                       'disperser position\n'
+                                                                       'LINSPOS =                      / '
+                                                                       'Linear Stage\n'
+                                                                       '\n'
+                                                                       '    ---- Exposure-related '
+                                                                       'information ----\n'
+                                                                       'EXPTIME =                      / '
+                                                                       'Exposure time in seconds\n'
+                                                                       'SHUTTIME=                      / '
+                                                                       'Shutter exposure time in seconds\n'
+                                                                       'DARKTIME=                      / '
+                                                                       'Dark time in seconds\n'
+                                                                       '\n'
+                                                                       '    ---- Header information ----\n'
+                                                                       'FILENAME=                      / '
+                                                                       'Original file name\n'
+                                                                       'HEADVER =                      / '
+                                                                       'Version of header\n'
+                                                                       '\n'
+                                                                       '    ---- Checksums ----\n'
+                                                                       'CHECKSUM=                      / '
+                                                                       'checksum for the current HDU\n'
+                                                                       'DATASUM =                      / '
+                                                                       'checksum of the data records\\n"""\n'
+                                                                       '\n'
+                                                                       '    lines = '
+                                                                       'header_template.splitlines()\n'
+                                                                       '    hdr = FITSHDR()\n'
+                                                                       '    for line in lines:\n'
+                                                                       '        hdr.add_record(line)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_corrupt_continue():\n'
+                                                                       '    """\n'
+                                                                       '    test with corrupt continue, just '
+                                                                       "make sure it doesn't crash\n"
+                                                                       '    """\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '        with '
+                                                                       'warnings.catch_warnings(record=True) '
+                                                                       'as _:\n'
+                                                                       '\n'
+                                                                       '            hdr_from_cards = '
+                                                                       'FITSHDR([\n'
+                                                                       '                "IVAL    '
+                                                                       '=                   35 / integer '
+                                                                       'value                                  '
+                                                                       '",  # noqa\n'
+                                                                       '                "SHORTS  = \'hello '
+                                                                       "world'                                                         "
+                                                                       '",  # noqa\n'
+                                                                       '                "CONTINUE= \'        '
+                                                                       "'           /   '&' / Current "
+                                                                       'observing orogram              ",  # '
+                                                                       'noqa\n'
+                                                                       '                "UND     '
+                                                                       '=                                                                       '
+                                                                       '",  # noqa\n'
+                                                                       '                "DBL     '
+                                                                       '=                 '
+                                                                       '1.25                                                  '
+                                                                       '",  # noqa\n'
+                                                                       '            ])\n'
+                                                                       '\n'
+                                                                       "            with FITS(fname, 'rw') "
+                                                                       'as fits:\n'
+                                                                       '                fits.write(None, '
+                                                                       'header=hdr_from_cards)\n'
+                                                                       '\n'
+                                                                       '            read_header(fname)\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '        with '
+                                                                       'warnings.catch_warnings(record=True) '
+                                                                       'as _:\n'
+                                                                       '\n'
+                                                                       '            hdr_from_cards = '
+                                                                       'FITSHDR([\n'
+                                                                       '                "IVAL    '
+                                                                       '=                   35 / integer '
+                                                                       'value                                  '
+                                                                       '",  # noqa\n'
+                                                                       '                "SHORTS  = \'hello '
+                                                                       "world'                                                         "
+                                                                       '",  # noqa\n'
+                                                                       '                "PROGRAM = \'Setting '
+                                                                       'the Scale: Determining the Absolute '
+                                                                       'Mass Normalization and &\'",  # '
+                                                                       'noqa\n'
+                                                                       '                "CONTINUE  \'Scaling '
+                                                                       'Relations for Clusters at '
+                                                                       "z~0.1&'                            "
+                                                                       '",  # noqa\n'
+                                                                       '                "CONTINUE  \'&\' / '
+                                                                       'Current observing '
+                                                                       'orogram                                       '
+                                                                       '",  # noqa\n'
+                                                                       '                "UND     '
+                                                                       '=                                                                       '
+                                                                       '",  # noqa\n'
+                                                                       '                "DBL     '
+                                                                       '=                 '
+                                                                       '1.25                                                  '
+                                                                       '",  # noqa\n'
+                                                                       '            ])\n'
+                                                                       '\n'
+                                                                       "            with FITS(fname, 'rw') "
+                                                                       'as fits:\n'
+                                                                       '                fits.write(None, '
+                                                                       'header=hdr_from_cards)\n'
+                                                                       '\n'
+                                                                       '            read_header(fname)\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def record_exists(header_records, '
+                                                                       'key, value):\n'
+                                                                       '    for rec in header_records:\n'
+                                                                       "        if rec['name'] == key and "
+                                                                       "rec['value'] == value:\n"
+                                                                       '            return True\n'
+                                                                       '\n'
+                                                                       '    return False\n'
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_read_comment_history():\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '            data = '
+                                                                       'np.arange(100).reshape(10, 10)\n'
+                                                                       '            '
+                                                                       'fits.create_image_hdu(data)\n'
+                                                                       '            hdu = fits[-1]\n'
+                                                                       "            hdu.write_comment('A "
+                                                                       "COMMENT 1')\n"
+                                                                       "            hdu.write_comment('A "
+                                                                       "COMMENT 2')\n"
+                                                                       "            hdu.write_history('SOME "
+                                                                       "HISTORY 1')\n"
+                                                                       "            hdu.write_history('SOME "
+                                                                       "HISTORY 2')\n"
+                                                                       '            fits.close()\n'
+                                                                       '\n'
+                                                                       "        with FITS(fname, 'r') as "
+                                                                       'fits:\n'
+                                                                       '            hdu = fits[-1]\n'
+                                                                       '            header = '
+                                                                       'hdu.read_header()\n'
+                                                                       '            records = '
+                                                                       'header.records()\n'
+                                                                       '            assert '
+                                                                       "record_exists(records, 'COMMENT', 'A "
+                                                                       "COMMENT 1')\n"
+                                                                       '            assert '
+                                                                       "record_exists(records, 'COMMENT', 'A "
+                                                                       "COMMENT 2')\n"
+                                                                       '            assert '
+                                                                       "record_exists(records, 'HISTORY', "
+                                                                       "'SOME HISTORY 1')\n"
+                                                                       '            assert '
+                                                                       "record_exists(records, 'HISTORY', "
+                                                                       "'SOME HISTORY 2')\n"
+                                                                       '\n'
+                                                                       '\n'
+                                                                       'def test_write_key_dict():\n'
+                                                                       '    """\n'
+                                                                       '    test that write_key works using '
+                                                                       'a standard key dict\n'
+                                                                       '    """\n'
+                                                                       '\n'
+                                                                       '    with '
+                                                                       'tempfile.TemporaryDirectory() as '
+                                                                       'tmpdir:\n'
+                                                                       '        fname = os.path.join(tmpdir, '
+                                                                       "'test.fits')\n"
+                                                                       "        with FITS(fname, 'rw') as "
+                                                                       'fits:\n'
+                                                                       '\n'
+                                                                       '            im = np.zeros((10, 10), '
+                                                                       "dtype='i2')\n"
+                                                                       '            fits.write(im)\n'
+                                                                       '\n'
+                                                                       '            keydict = {\n'
+                                                                       "                'name': 'test',\n"
+                                                                       "                'value': 35,\n"
+                                                                       "                'comment': 'keydict "
+                                                                       "test',\n"
+                                                                       '            }\n'
+                                                                       '            '
+                                                                       'fits[-1].write_key(**keydict)\n'
+                                                                       '\n'
+                                                                       '            h = '
+                                                                       'fits[-1].read_header()\n'
+                                                                       '\n'
+                                                                       "            assert h['test'] == "
+                                                                       "keydict['value']\n"
+                                                                       '            assert '
+                                                                       "h.get_comment('test') == "
+                                                                       "keydict['comment']\n"},
+                               'fitsio/tests/test_header_junk.py': {'bytes': 7248,
+                                                                    'sha256': '0715ff95bdf017bc0d291af59735072b41c7fc7fd4fafcf376c0956279a130fa',
+                                                                    'text': 'import os\n'
+                                                                            'import tempfile\n'
+                                                                            'from ..fitslib import '
+                                                                            'read_header\n'
+                                                                            '\n'
+                                                                            '\n'
+                                                                            'def test_header_junk():\n'
+                                                                            '    """\n'
+                                                                            '    test lenient treatment of '
+                                                                            'garbage written by IDL mwrfits\n'
+                                                                            '    """\n'
+                                                                            '\n'
+                                                                            '    data=b"""SIMPLE  '
+                                                                            '=                    T /Primary '
+                                                                            'Header created by MWRFITS '
+                                                                            'v1.11         BITPIX  '
+                                                                            '=                   16 '
+                                                                            '/                                                '
+                                                                            'NAXIS   =                    0 '
+                                                                            '/                                                '
+                                                                            'EXTEND  =                    T '
+                                                                            '/Extensions may be '
+                                                                            'present                       '
+                                                                            'BLAT    =                    1 '
+                                                                            '/integer                                         '
+                                                                            'FOO     =              1.00000 '
+                                                                            '/float (or '
+                                                                            'double?)                              '
+                                                                            'BAR@    =                  NAN '
+                                                                            '/float '
+                                                                            'NaN                                       '
+                                                                            'BI.Z    =                  NaN '
+                                                                            '/double '
+                                                                            'NaN                                      '
+                                                                            'BAT     =                  INF '
+                                                                            '/1.0 / '
+                                                                            '0.0                                       '
+                                                                            'BOO     =                 -INF '
+                                                                            '/-1.0 / '
+                                                                            '0.0                                      '
+                                                                            "QUAT    = '        '           "
+                                                                            '/blank '
+                                                                            'string                                    '
+                                                                            "QUIP    = '1.0     '           "
+                                                                            '/number in '
+                                                                            'quotes                                '
+                                                                            "QUIZ    = ' 1.0    '           "
+                                                                            '/number in quotes with a '
+                                                                            'leading space           '
+                                                                            "QUI\\xf4\\x04   = 'NaN     "
+                                                                            "'           /NaN in "
+                                                                            'quotes                                   '
+                                                                            "HIERARCH QU.@D = 'Inf     "
+                                                                            "'                                                     "
+                                                                            'END                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             '
+                                                                            '""" # noqa\n'
+                                                                            '\n'
+                                                                            '    with '
+                                                                            'tempfile.TemporaryDirectory() '
+                                                                            'as tmpdir:\n'
+                                                                            '        fname = '
+                                                                            'os.path.join(tmpdir, '
+                                                                            "'test.fits')\n"
+                                                                            '\n'
+                                                                            "        with open(fname, 'wb') "
+                                                                            'as fobj:\n'
+                                                                            '            fobj.write(data)\n'
+                                                                            '\n'
+                                                                            '        h = read_header(fname)\n'
+                                                                            '        # these keys are not '
+                                                                            'hierarch but we can parse the '
+                                                                            'name and then\n'
+                                                                            '        # leave the value as a '
+                                                                            'string, so we do that.\n'
+                                                                            "        assert h['bar@'] == "
+                                                                            "'NAN', 'NAN garbage'\n"
+                                                                            "        assert h['bi.z'] == "
+                                                                            "'NaN', 'NaN garbage'\n"
+                                                                            "        assert h['bat'] == "
+                                                                            "'INF', 'INF garbage'\n"
+                                                                            "        assert h['boo'] == "
+                                                                            "'-INF', '-INF garbage'\n"
+                                                                            "        assert h['quat'] == '', "
+                                                                            "'blank'\n"
+                                                                            "        assert h['quip'] == "
+                                                                            "'1.0', '1.0 in quotes'\n"
+                                                                            "        assert h['quiz'] == ' "
+                                                                            "1.0', '1.0 in quotes'\n"
+                                                                            '        # the key in the header '
+                                                                            "is 'QUI' + two non-ascii chars "
+                                                                            'and gets\n'
+                                                                            '        # translated to '
+                                                                            '`QUI__`\n'
+                                                                            "        assert h['qui__'] == "
+                                                                            "'NaN', 'NaN in quotes'\n"
+                                                                            '        # this key is `HIERARCH '
+                                                                            'QU.@D` in the header and so '
+                                                                            'gets read as is\n'
+                                                                            "        assert h['qu.@d'] == "
+                                                                            "'Inf', 'Inf in quotes'\n"
+                                                                            '\n'
+                                                                            '\n'
+                                                                            'def '
+                                                                            'test_Header_Junk_Non_Ascii():\n'
+                                                                            '    data = b"SIMPLE  '
+                                                                            '=                    T / file '
+                                                                            'does conform to FITS '
+                                                                            'standard             BITPIX  '
+                                                                            '=                   16 / number '
+                                                                            'of bits per data '
+                                                                            'pixel                  NAXIS   '
+                                                                            '=                    0 / number '
+                                                                            'of data '
+                                                                            'axes                            '
+                                                                            'EXTEND  =                    T '
+                                                                            '/ FITS dataset may contain '
+                                                                            'extensions            COMMENT   '
+                                                                            'FITS (Flexible Image Transport '
+                                                                            'System) format is defined in '
+                                                                            "'AstronomyCOMMENT   and "
+                                                                            "Astrophysics', volume 376, page "
+                                                                            '359; bibcode: '
+                                                                            '2001A&A...376..359H '
+                                                                            '@\\x0f@\\x0f '
+                                                                            '\\x02\\x05\\x18@\\x02\\x02\\xc5@\\x0c\\x03\\xf3@\\x080\\x02\\x03\\xbc@\\x0f@@@@@@@@                                                '
+                                                                            'END                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             '
+                                                                            '" # noqa\n'
+                                                                            '\n'
+                                                                            '    with '
+                                                                            'tempfile.TemporaryDirectory() '
+                                                                            'as tmpdir:\n'
+                                                                            '        fname = '
+                                                                            'os.path.join(tmpdir, '
+                                                                            "'test.fits')\n"
+                                                                            "        with open(fname, 'wb') "
+                                                                            'as fobj:\n'
+                                                                            '            fobj.write(data)\n'
+                                                                            '\n'
+                                                                            '        h = read_header(fname)\n'
+                                                                            '        assert h["@_@_"] is '
+                                                                            'None\n'},
+                               'fitsio/tests/test_image.py': {'bytes': 8768,
+                                                              'sha256': '1d511916b52e46e88c8e9db0ba8c247a5dd698e7cd0e09df3e5ec22c34294472',
+                                                              'text': 'import os\n'
+                                                                      'import tempfile\n'
+                                                                      '# import warnings\n'
+                                                                      'from .checks import check_header, '
+                                                                      'compare_array\n'
+                                                                      'import numpy as np\n'
+                                                                      'from ..fitslib import FITS\n'
+                                                                      '\n'
+                                                                      "DTYPES = ['u1', 'i1', 'u2', 'i2', "
+                                                                      "'<u4', 'i4', 'i8', '>f4', 'f8']\n"
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_image_write_read():\n'
+                                                                      '    """\n'
+                                                                      '    Test a basic image write, data '
+                                                                      'and a header, then reading back in '
+                                                                      'to\n'
+                                                                      '    check the values\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            # note mixing up byte '
+                                                                      'orders a bit\n'
+                                                                      '            for dtype in DTYPES:\n'
+                                                                      '                data = '
+                                                                      'np.arange(5*20, '
+                                                                      'dtype=dtype).reshape(5, 20)\n'
+                                                                      "                header = {'DTYPE': "
+                                                                      "dtype, 'NBYTES': "
+                                                                      'data.dtype.itemsize}\n'
+                                                                      '                '
+                                                                      'fits.write_image(data, '
+                                                                      'header=header)\n'
+                                                                      '                rdata = '
+                                                                      'fits[-1].read()\n'
+                                                                      '\n'
+                                                                      '                compare_array(data, '
+                                                                      'rdata, "images")\n'
+                                                                      '\n'
+                                                                      '                rh = '
+                                                                      'fits[-1].read_header()\n'
+                                                                      '                check_header(header, '
+                                                                      'rh)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            for i in '
+                                                                      'range(len(DTYPES)):\n'
+                                                                      '                assert not '
+                                                                      "fits[i].is_compressed(), 'not "
+                                                                      "compressed'\n"
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_image_write_empty():\n'
+                                                                      '    """\n'
+                                                                      '    Test a basic image write, with no '
+                                                                      'data and just a header, then reading\n'
+                                                                      '    back in to check the values\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      '        data = None\n'
+                                                                      '\n'
+                                                                      '        header = {\n'
+                                                                      "            'EXPTIME': 120,\n"
+                                                                      "            'OBSERVER': 'Beatrice "
+                                                                      "Tinsley',\n"
+                                                                      "            'INSTRUME': 'DECam',\n"
+                                                                      "            'FILTER': 'r',\n"
+                                                                      '        }\n'
+                                                                      "        ccds = ['CCD1', 'CCD2', "
+                                                                      "'CCD3', 'CCD4', 'CCD5', 'CCD6', "
+                                                                      "'CCD7', 'CCD8']\n"
+                                                                      "        with FITS(fname, 'rw', "
+                                                                      'ignore_empty=True) as fits:\n'
+                                                                      '            for extname in ccds:\n'
+                                                                      '                '
+                                                                      'fits.write_image(data, '
+                                                                      'header=header)\n'
+                                                                      '                _ = fits[-1].read()\n'
+                                                                      '                rh = '
+                                                                      'fits[-1].read_header()\n'
+                                                                      '                check_header(header, '
+                                                                      'rh)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_image_write_read_from_dims():\n'
+                                                                      '    """\n'
+                                                                      '    Test creating an image from dims '
+                                                                      'and writing in place\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            # note mixing up byte '
+                                                                      'orders a bit\n'
+                                                                      '            for dtype in DTYPES:\n'
+                                                                      '                data = '
+                                                                      'np.arange(5*20, '
+                                                                      'dtype=dtype).reshape(5, 20)\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits.create_image_hdu(dims=data.shape, '
+                                                                      'dtype=data.dtype)\n'
+                                                                      '\n'
+                                                                      '                fits[-1].write(data)\n'
+                                                                      '                rdata = '
+                                                                      'fits[-1].read()\n'
+                                                                      '\n'
+                                                                      '                compare_array(data, '
+                                                                      'rdata, "images")\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            for i in '
+                                                                      'range(len(DTYPES)):\n'
+                                                                      '                assert not '
+                                                                      'fits[i].is_compressed(), "not '
+                                                                      'compressed"\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_image_write_read_from_dims_chunks():\n'
+                                                                      '    """\n'
+                                                                      '    Test creating an image and '
+                                                                      'reading/writing chunks\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            # note mixing up byte '
+                                                                      'orders a bit\n'
+                                                                      '            for dtype in DTYPES:\n'
+                                                                      '                data = np.arange(5*3, '
+                                                                      'dtype=dtype).reshape(5, 3)\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits.create_image_hdu(dims=data.shape, '
+                                                                      'dtype=data.dtype)\n'
+                                                                      '\n'
+                                                                      '                chunk1 = data[0:2, '
+                                                                      ':]\n'
+                                                                      '                chunk2 = data[2:, :]\n'
+                                                                      '\n'
+                                                                      '                #\n'
+                                                                      '                # first using scalar '
+                                                                      'pixel offset\n'
+                                                                      '                #\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits[-1].write(chunk1)\n'
+                                                                      '\n'
+                                                                      '                start = chunk1.size\n'
+                                                                      '                '
+                                                                      'fits[-1].write(chunk2, start=start)\n'
+                                                                      '\n'
+                                                                      '                rdata = '
+                                                                      'fits[-1].read()\n'
+                                                                      '\n'
+                                                                      '                compare_array(data, '
+                                                                      'rdata, "images")\n'
+                                                                      '\n'
+                                                                      '                #\n'
+                                                                      '                # now using sequence, '
+                                                                      'easier to calculate\n'
+                                                                      '                #\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits.create_image_hdu(dims=data.shape,\n'
+                                                                      '                                      '
+                                                                      'dtype=data.dtype)\n'
+                                                                      '\n'
+                                                                      '                # first using pixel '
+                                                                      'offset\n'
+                                                                      '                '
+                                                                      'fits[-1].write(chunk1)\n'
+                                                                      '\n'
+                                                                      '                start = [2, 0]\n'
+                                                                      '                '
+                                                                      'fits[-1].write(chunk2, start=start)\n'
+                                                                      '\n'
+                                                                      '                rdata2 = '
+                                                                      'fits[-1].read()\n'
+                                                                      '\n'
+                                                                      '                compare_array(data, '
+                                                                      'rdata2, "images")\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            for i in '
+                                                                      'range(len(DTYPES)):\n'
+                                                                      '                assert not '
+                                                                      'fits[i].is_compressed(), "not '
+                                                                      'compressed"\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_image_slice():\n'
+                                                                      '    """\n'
+                                                                      '    test reading an image slice\n'
+                                                                      '    """\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            # note mixing up byte '
+                                                                      'orders a bit\n'
+                                                                      '            for dtype in DTYPES:\n'
+                                                                      '                data = '
+                                                                      'np.arange(16*20, '
+                                                                      'dtype=dtype).reshape(16, 20)\n'
+                                                                      "                header = {'DTYPE': "
+                                                                      "dtype, 'NBYTES': "
+                                                                      'data.dtype.itemsize}\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits.write_image(data, '
+                                                                      'header=header)\n'
+                                                                      '                rdata = '
+                                                                      'fits[-1][4:12, 9:17]\n'
+                                                                      '\n'
+                                                                      '                '
+                                                                      'compare_array(data[4:12, 9:17], '
+                                                                      'rdata, "images")\n'
+                                                                      '\n'
+                                                                      '                rh = '
+                                                                      'fits[-1].read_header()\n'
+                                                                      '                check_header(header, '
+                                                                      'rh)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def _check_shape(expected_data, '
+                                                                      'rdata):\n'
+                                                                      '    mess = (\n'
+                                                                      "        'Data are not the same "
+                                                                      "(Expected shape: %s, '\n"
+                                                                      "        'actual shape: %s.' % "
+                                                                      '(expected_data.shape, rdata.shape)\n'
+                                                                      '    )\n'
+                                                                      '    '
+                                                                      'np.testing.assert_array_equal(expected_data, '
+                                                                      'rdata, mess)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_read_flip_axis_slice():\n'
+                                                                      '    """\n'
+                                                                      '    Test reading a slice when the '
+                                                                      "slice's start is less than the "
+                                                                      "slice's stop.\n"
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            dtype = np.int16\n'
+                                                                      '            data = np.arange(100 * '
+                                                                      '200, dtype=dtype).reshape(100, 200)\n'
+                                                                      '            fits.write_image(data)\n'
+                                                                      '            hdu = fits[-1]\n'
+                                                                      '            rdata = hdu[:, 130:70]\n'
+                                                                      '\n'
+                                                                      '            # Expanded by two to '
+                                                                      'emulate adding one to the start '
+                                                                      'value, and\n'
+                                                                      '            # adding one to the '
+                                                                      'calculated dimension.\n'
+                                                                      '            expected_data = data[:, '
+                                                                      '130:70:-1]\n'
+                                                                      '\n'
+                                                                      '            '
+                                                                      '_check_shape(expected_data, rdata)\n'
+                                                                      '\n'
+                                                                      '            rdata = hdu[:, '
+                                                                      '130:70:-6]\n'
+                                                                      '            expected_data = data[:, '
+                                                                      '130:70:-6]\n'
+                                                                      '            '
+                                                                      '_check_shape(expected_data, rdata)\n'
+                                                                      '\n'
+                                                                      '            # Expanded by two to '
+                                                                      'emulate adding one to the start '
+                                                                      'value, and\n'
+                                                                      '            # adding one to the '
+                                                                      'calculated dimension.\n'
+                                                                      '            expected_data = data[:, '
+                                                                      '130:70:-6]\n'
+                                                                      '            '
+                                                                      '_check_shape(expected_data, rdata)\n'
+                                                                      '\n'
+                                                                      '            # Positive step integer '
+                                                                      'with start > stop will return an '
+                                                                      'empty\n'
+                                                                      '            # array\n'
+                                                                      '            rdata = hdu[:, 90:60:4]\n'
+                                                                      '            expected_data = '
+                                                                      'np.empty(0, dtype=dtype)\n'
+                                                                      '            '
+                                                                      '_check_shape(expected_data, rdata)\n'
+                                                                      '\n'
+                                                                      '            # Negative step integer '
+                                                                      'with start < stop will return an '
+                                                                      'empty\n'
+                                                                      '            # array.\n'
+                                                                      '            rdata = hdu[:, 60:90:-4]\n'
+                                                                      '            expected_data = '
+                                                                      'np.empty(0, dtype=dtype)\n'
+                                                                      '            '
+                                                                      '_check_shape(expected_data, rdata)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_image_slice_striding():\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            # note mixing up byte '
+                                                                      'orders a bit\n'
+                                                                      '            for dtype in DTYPES:\n'
+                                                                      '                data = '
+                                                                      'np.arange(16*20, '
+                                                                      'dtype=dtype).reshape(16, 20)\n'
+                                                                      "                header = {'DTYPE': "
+                                                                      "dtype, 'NBYTES': "
+                                                                      'data.dtype.itemsize}\n'
+                                                                      '                '
+                                                                      'fits.write_image(data, '
+                                                                      'header=header)\n'
+                                                                      '\n'
+                                                                      '                rdata = '
+                                                                      'fits[-1][4:16:4, 2:20:2]\n'
+                                                                      '                expected_data = '
+                                                                      'data[4:16:4, 2:20:2]\n'
+                                                                      '                assert rdata.shape == '
+                                                                      'expected_data.shape, (\n'
+                                                                      '                    "Shapes differ '
+                                                                      'with dtype %s" % dtype\n'
+                                                                      '                )\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    expected_data, '
+                                                                      'rdata, "images with dtype %s" % '
+                                                                      'dtype\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_read_ignore_scaling():\n'
+                                                                      '    """\n'
+                                                                      '    Test the flag to ignore scaling '
+                                                                      'when reading an HDU.\n'
+                                                                      '    """\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      "            dtype = 'i2'\n"
+                                                                      '            data = np.arange(10 * 20, '
+                                                                      'dtype=dtype).reshape(10, 20)\n'
+                                                                      '            header = {\n'
+                                                                      "                'DTYPE': dtype,\n"
+                                                                      "                'BITPIX': 16,\n"
+                                                                      "                'NBYTES': "
+                                                                      'data.dtype.itemsize,\n'
+                                                                      "                'BZERO': 9.33,\n"
+                                                                      "                'BSCALE': 3.281\n"
+                                                                      '            }\n'
+                                                                      '\n'
+                                                                      '            fits.write_image(data, '
+                                                                      'header=header)\n'
+                                                                      '            hdu = fits[-1]\n'
+                                                                      '\n'
+                                                                      '            rdata = hdu.read()\n'
+                                                                      '            assert rdata.dtype == '
+                                                                      "np.float32, 'Wrong dtype.'\n"
+                                                                      '\n'
+                                                                      '            hdu.ignore_scaling = '
+                                                                      'True\n'
+                                                                      '            rdata = hdu[:, :]\n'
+                                                                      '            assert rdata.dtype == '
+                                                                      "dtype, 'Wrong dtype when ignoring.'\n"
+                                                                      '            '
+                                                                      'np.testing.assert_array_equal(\n'
+                                                                      '                data, rdata, '
+                                                                      "err_msg='Wrong unscaled data.'\n"
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '            rh = '
+                                                                      'fits[-1].read_header()\n'
+                                                                      '            check_header(header, rh)\n'
+                                                                      '\n'
+                                                                      '            hdu.ignore_scaling = '
+                                                                      'False\n'
+                                                                      '            rdata = hdu[:, :]\n'
+                                                                      '            assert rdata.dtype == '
+                                                                      'np.float32, (\n'
+                                                                      "                'Wrong dtype when not "
+                                                                      "ignoring.'\n"
+                                                                      '            )\n'
+                                                                      '            '
+                                                                      'np.testing.assert_array_equal(\n'
+                                                                      '                '
+                                                                      'data.astype(np.float32), rdata,\n'
+                                                                      "                err_msg='Wrong scaled "
+                                                                      "data returned.'\n"
+                                                                      '            )\n'},
+                               'fitsio/tests/test_image_compression.py': {'bytes': 4220,
+                                                                          'sha256': '85dba718d48eea669484943f07fb4eb68e366bc30c6339cf8064715dcfdd3b9d',
+                                                                          'text': 'import pytest\n'
+                                                                                  'import sys\n'
+                                                                                  'import os\n'
+                                                                                  'import tempfile\n'
+                                                                                  'from .checks import (\n'
+                                                                                  '    # check_header,\n'
+                                                                                  '    compare_array,\n'
+                                                                                  '    '
+                                                                                  'compare_array_abstol,\n'
+                                                                                  ')\n'
+                                                                                  'import numpy as np\n'
+                                                                                  'from ..fitslib import (\n'
+                                                                                  '    FITS,\n'
+                                                                                  '    read,\n'
+                                                                                  ')\n'
+                                                                                  '\n'
+                                                                                  '\n'
+                                                                                  '@pytest.mark.parametrize(\n'
+                                                                                  "    'compress',\n"
+                                                                                  '    [\n'
+                                                                                  "        'rice',\n"
+                                                                                  "        'hcompress',\n"
+                                                                                  "        'plio',\n"
+                                                                                  "        'gzip',\n"
+                                                                                  "        'gzip_2',\n"
+                                                                                  "        'gzip_lossless',\n"
+                                                                                  '        '
+                                                                                  "'gzip_2_lossless',\n"
+                                                                                  '    ]\n'
+                                                                                  ')\n'
+                                                                                  'def '
+                                                                                  'test_compressed_write_read(compress):\n'
+                                                                                  '    """\n'
+                                                                                  '    Test writing and '
+                                                                                  'reading a rice compressed '
+                                                                                  'image\n'
+                                                                                  '    """\n'
+                                                                                  '    nrows = 5\n'
+                                                                                  '    ncols = 20\n'
+                                                                                  '    if compress in '
+                                                                                  "['rice', 'hcompress'] or "
+                                                                                  "'gzip' in compress:\n"
+                                                                                  "        dtypes = ['u1', "
+                                                                                  "'i1', 'u2', 'i2', 'u4', "
+                                                                                  "'i4', 'f4', 'f8']\n"
+                                                                                  '        # dtypes = '
+                                                                                  "['u2']\n"
+                                                                                  '    elif compress == '
+                                                                                  "'plio':\n"
+                                                                                  "        dtypes = ['i1', "
+                                                                                  "'i2', 'i4', 'f4', 'f8']\n"
+                                                                                  '    else:\n'
+                                                                                  '        raise '
+                                                                                  "ValueError('unexpected "
+                                                                                  "compress %s' % compress)\n"
+                                                                                  '\n'
+                                                                                  "    if 'lossless' in "
+                                                                                  'compress:\n'
+                                                                                  '        qlevel = None\n'
+                                                                                  '    else:\n'
+                                                                                  '        qlevel = 16\n'
+                                                                                  '\n'
+                                                                                  '    seed = 1919\n'
+                                                                                  '    rng = '
+                                                                                  'np.random.RandomState(seed)\n'
+                                                                                  '\n'
+                                                                                  '    with '
+                                                                                  'tempfile.TemporaryDirectory() '
+                                                                                  'as tmpdir:\n'
+                                                                                  '        fname = '
+                                                                                  'os.path.join(tmpdir, '
+                                                                                  "'test.fits')\n"
+                                                                                  '\n'
+                                                                                  '        with FITS(fname, '
+                                                                                  "'rw') as fits:\n"
+                                                                                  '            # note i8 not '
+                                                                                  'supported for '
+                                                                                  'compressed!\n'
+                                                                                  '\n'
+                                                                                  '            for dtype in '
+                                                                                  'dtypes:\n'
+                                                                                  '                if '
+                                                                                  "dtype[0] == 'f':\n"
+                                                                                  '                    data '
+                                                                                  '= rng.normal(size=(nrows, '
+                                                                                  'ncols))\n'
+                                                                                  '                    if '
+                                                                                  "compress == 'plio':\n"
+                                                                                  '                        '
+                                                                                  'data = data.clip(min=0)\n'
+                                                                                  '                    data '
+                                                                                  '= data.astype(dtype)\n'
+                                                                                  '                else:\n'
+                                                                                  '                    data '
+                                                                                  '= np.arange(\n'
+                                                                                  '                        '
+                                                                                  'nrows * ncols, '
+                                                                                  'dtype=dtype,\n'
+                                                                                  '                    '
+                                                                                  ').reshape(nrows, ncols)\n'
+                                                                                  '\n'
+                                                                                  '                csend = '
+                                                                                  "compress.replace('_lossless', "
+                                                                                  "'')\n"
+                                                                                  '                '
+                                                                                  'fits.write_image(data, '
+                                                                                  'compress=csend, '
+                                                                                  'qlevel=qlevel)\n'
+                                                                                  '                rdata = '
+                                                                                  'fits[-1].read()\n'
+                                                                                  '\n'
+                                                                                  '                if '
+                                                                                  "dtype[0] == 'f':\n"
+                                                                                  '                    '
+                                                                                  'compare_array_abstol(\n'
+                                                                                  '                        '
+                                                                                  'data,\n'
+                                                                                  '                        '
+                                                                                  'rdata,\n'
+                                                                                  '                        '
+                                                                                  '0.2,\n'
+                                                                                  '                        '
+                                                                                  '"%s compressed images '
+                                                                                  '(\'%s\')" % (compress, '
+                                                                                  'dtype),\n'
+                                                                                  '                    )\n'
+                                                                                  '                else:\n'
+                                                                                  '                    # for '
+                                                                                  'integers we have chosen a '
+                                                                                  'wide range of values, so\n'
+                                                                                  '                    # '
+                                                                                  'there will be no '
+                                                                                  'quantization and we '
+                                                                                  'expect no\n'
+                                                                                  '                    # '
+                                                                                  'information loss\n'
+                                                                                  '                    '
+                                                                                  'compare_array(\n'
+                                                                                  '                        '
+                                                                                  'data, rdata,\n'
+                                                                                  '                        '
+                                                                                  '"%s compressed images '
+                                                                                  '(\'%s\')" % (compress, '
+                                                                                  'dtype)\n'
+                                                                                  '                    )\n'
+                                                                                  '\n'
+                                                                                  '        with FITS(fname) '
+                                                                                  'as fits:\n'
+                                                                                  '            for ii in '
+                                                                                  'range(len(dtypes)):\n'
+                                                                                  '                i = ii + '
+                                                                                  '1\n'
+                                                                                  '                assert '
+                                                                                  'fits[i].is_compressed(), '
+                                                                                  '"is compressed"\n'
+                                                                                  '\n'
+                                                                                  '\n'
+                                                                                  '@pytest.mark.skipif(sys.version_info '
+                                                                                  '< (3, 9),\n'
+                                                                                  '                    '
+                                                                                  "reason='importlib bug in "
+                                                                                  "3.8')\n"
+                                                                                  'def '
+                                                                                  'test_gzip_tile_compressed_read_lossless_astropy():\n'
+                                                                                  '    """\n'
+                                                                                  '    Test reading an image '
+                                                                                  'gzip compressed by '
+                                                                                  'astropy (fixed by cfitsio '
+                                                                                  '3.49)\n'
+                                                                                  '    """\n'
+                                                                                  '    import '
+                                                                                  'importlib.resources\n'
+                                                                                  '    ref = '
+                                                                                  'importlib.resources.files("fitsio") '
+                                                                                  "/ 'test_images' / "
+                                                                                  "'test_gzip_compressed_image.fits.fz'  "
+                                                                                  '# noqa\n'
+                                                                                  '    with '
+                                                                                  'importlib.resources.as_file(ref) '
+                                                                                  'as gzip_file:\n'
+                                                                                  '        data = '
+                                                                                  'read(gzip_file)\n'
+                                                                                  '\n'
+                                                                                  '    compare_array(data, '
+                                                                                  'data*0.0, "astropy '
+                                                                                  'lossless compressed '
+                                                                                  'image")\n'
+                                                                                  '\n'
+                                                                                  '\n'
+                                                                                  'def '
+                                                                                  'test_compress_preserve_zeros():\n'
+                                                                                  '    """\n'
+                                                                                  '    Test writing and '
+                                                                                  'reading gzip compressed '
+                                                                                  'image\n'
+                                                                                  '    """\n'
+                                                                                  '\n'
+                                                                                  '    zinds = [\n'
+                                                                                  '        (1, 3),\n'
+                                                                                  '        (2, 9),\n'
+                                                                                  '    ]\n'
+                                                                                  '\n'
+                                                                                  "    dtypes = ['f4', "
+                                                                                  "'f8']\n"
+                                                                                  '\n'
+                                                                                  '    seed = 2020\n'
+                                                                                  '    rng = '
+                                                                                  'np.random.RandomState(seed)\n'
+                                                                                  '\n'
+                                                                                  '    # Do not test '
+                                                                                  "hcompress as it doesn't "
+                                                                                  'support '
+                                                                                  'SUBTRACTIVE_DITHER_2\n'
+                                                                                  '    for compress in '
+                                                                                  "['gzip', 'gzip_2', "
+                                                                                  "'rice']:\n"
+                                                                                  '        with '
+                                                                                  'tempfile.TemporaryDirectory() '
+                                                                                  'as tmpdir:\n'
+                                                                                  '            fname = '
+                                                                                  'os.path.join(tmpdir, '
+                                                                                  "'test.fits')\n"
+                                                                                  '\n'
+                                                                                  '            with '
+                                                                                  "FITS(fname, 'rw') as "
+                                                                                  'fits:\n'
+                                                                                  '\n'
+                                                                                  '                for dtype '
+                                                                                  'in dtypes:\n'
+                                                                                  '\n'
+                                                                                  '                    data '
+                                                                                  '= '
+                                                                                  'rng.normal(size=5*20).reshape(5, '
+                                                                                  '20).astype(dtype)\n'
+                                                                                  '                    for '
+                                                                                  'zind in zinds:\n'
+                                                                                  '                        '
+                                                                                  'data[zind[0], zind[1]] = '
+                                                                                  '0.0\n'
+                                                                                  '\n'
+                                                                                  '                    '
+                                                                                  'fits.write_image(\n'
+                                                                                  '                        '
+                                                                                  'data,\n'
+                                                                                  '                        '
+                                                                                  'compress=compress,\n'
+                                                                                  '                        '
+                                                                                  'qlevel=16,\n'
+                                                                                  '                        '
+                                                                                  "qmethod='SUBTRACTIVE_DITHER_2',\n"
+                                                                                  '                    )\n'
+                                                                                  '                    rdata '
+                                                                                  '= fits[-1].read()\n'
+                                                                                  '\n'
+                                                                                  '                    for '
+                                                                                  'zind in zinds:\n'
+                                                                                  '                        '
+                                                                                  'assert rdata[zind[0], '
+                                                                                  'zind[1]] == 0.0\n'},
+                               'fitsio/tests/test_lib.py': {'bytes': 3638,
+                                                            'sha256': 'd324ebe53097a639b8219d9aa97d1248ca349f6878ad3a5950c96133dc2adc8b',
+                                                            'text': 'import os\n'
+                                                                    'import tempfile\n'
+                                                                    'import numpy as np\n'
+                                                                    'from ..fitslib import FITS, '
+                                                                    'read_header\n'
+                                                                    'from .checks import compare_array, '
+                                                                    'compare_rec\n'
+                                                                    '\n'
+                                                                    '\n'
+                                                                    'def test_move_by_name():\n'
+                                                                    '    """\n'
+                                                                    '    test moving hdus by name\n'
+                                                                    '    """\n'
+                                                                    '\n'
+                                                                    '    nrows = 3\n'
+                                                                    '\n'
+                                                                    '    seed = 1234\n'
+                                                                    '    rng = np.random.RandomState(seed)\n'
+                                                                    '\n'
+                                                                    '    with tempfile.TemporaryDirectory() '
+                                                                    'as tmpdir:\n'
+                                                                    '        fname = os.path.join(tmpdir, '
+                                                                    "'test.fits')\n"
+                                                                    '\n'
+                                                                    "        with FITS(fname, 'rw') as "
+                                                                    'fits:\n'
+                                                                    '\n'
+                                                                    '            data1 = np.zeros(nrows, '
+                                                                    "dtype=[('ra', 'f8'), ('dec', 'f8')])\n"
+                                                                    "            data1['ra'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    "            data1['dec'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    '            fits.write_table(data1, '
+                                                                    "extname='mytable')\n"
+                                                                    '\n'
+                                                                    '            '
+                                                                    "fits[-1].write_key('EXTVER', 1)\n"
+                                                                    '\n'
+                                                                    '            data2 = np.zeros(nrows, '
+                                                                    "dtype=[('ra', 'f8'), ('dec', 'f8')])\n"
+                                                                    "            data2['ra'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    "            data2['dec'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    '\n'
+                                                                    '            fits.write_table(data2, '
+                                                                    "extname='mytable')\n"
+                                                                    '            '
+                                                                    "fits[-1].write_key('EXTVER', 2)\n"
+                                                                    '\n'
+                                                                    '            hdunum1 = '
+                                                                    "fits.movnam_hdu('mytable', extver=1)\n"
+                                                                    '            assert hdunum1 == 2\n'
+                                                                    '            hdunum2 = '
+                                                                    "fits.movnam_hdu('mytable', extver=2)\n"
+                                                                    '            assert hdunum2 == 3\n'
+                                                                    '\n'
+                                                                    '\n'
+                                                                    'def test_ext_ver():\n'
+                                                                    '    """\n'
+                                                                    '    Test using extname and extver, all '
+                                                                    'combinations I can think of\n'
+                                                                    '    """\n'
+                                                                    '\n'
+                                                                    '    seed = 9889\n'
+                                                                    '    rng = np.random.RandomState(seed)\n'
+                                                                    '\n'
+                                                                    "    dtype = [('num', 'i4'), ('ra', "
+                                                                    "'f8'), ('dec', 'f8')]\n"
+                                                                    '\n'
+                                                                    '    with tempfile.TemporaryDirectory() '
+                                                                    'as tmpdir:\n'
+                                                                    '        fname = os.path.join(tmpdir, '
+                                                                    "'test.fits')\n"
+                                                                    '\n'
+                                                                    "        with FITS(fname, 'rw') as "
+                                                                    'fits:\n'
+                                                                    '\n'
+                                                                    '            img1 = np.arange(2*3, '
+                                                                    "dtype='i4').reshape(2, 3) + 5\n"
+                                                                    '            img2 = np.arange(2*3, '
+                                                                    "dtype='i4').reshape(2, 3) + 6\n"
+                                                                    '            img3 = np.arange(2*3, '
+                                                                    "dtype='i4').reshape(2, 3) + 7\n"
+                                                                    '\n'
+                                                                    '            nrows = 3\n'
+                                                                    '            data1 = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    '\n'
+                                                                    "            data1['num'] = 1\n"
+                                                                    "            data1['ra'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    "            data1['dec'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    '\n'
+                                                                    '            data2 = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    '\n'
+                                                                    "            data2['num'] = 2\n"
+                                                                    "            data2['ra'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    "            data2['dec'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    '\n'
+                                                                    '            data3 = np.zeros(nrows, '
+                                                                    'dtype=dtype)\n'
+                                                                    "            data3['num'] = 3\n"
+                                                                    "            data3['ra'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    "            data3['dec'] = "
+                                                                    'rng.uniform(nrows)\n'
+                                                                    '\n'
+                                                                    "            hdr1 = {'k1': 'key1'}\n"
+                                                                    "            hdr2 = {'k2': 'key2'}\n"
+                                                                    '\n'
+                                                                    '            fits.write_image(img1, '
+                                                                    "extname='myimage', header=hdr1, "
+                                                                    'extver=1)\n'
+                                                                    '            fits.write_table(data1)\n'
+                                                                    '            fits.write_table(data2, '
+                                                                    "extname='mytable', extver=1)\n"
+                                                                    '            fits.write_image(img2, '
+                                                                    "extname='myimage', header=hdr2, "
+                                                                    'extver=2)\n'
+                                                                    '            fits.write_table(data3, '
+                                                                    "extname='mytable', extver=2)\n"
+                                                                    '            fits.write_image(img3)\n'
+                                                                    '\n'
+                                                                    '            d1 = fits[1].read()\n'
+                                                                    '            d2 = '
+                                                                    "fits['mytable'].read()\n"
+                                                                    "            d2b = fits['mytable', "
+                                                                    '1].read()\n'
+                                                                    "            d3 = fits['mytable', "
+                                                                    '2].read()\n'
+                                                                    '\n'
+                                                                    '            for f in '
+                                                                    'data1.dtype.names:\n'
+                                                                    '                compare_rec(data1, d1, '
+                                                                    '"data1")\n'
+                                                                    '                compare_rec(data2, d2, '
+                                                                    '"data2")\n'
+                                                                    '                compare_rec(data2, d2b, '
+                                                                    '"data2b")\n'
+                                                                    '                compare_rec(data3, d3, '
+                                                                    '"data3")\n'
+                                                                    '\n'
+                                                                    '            dimg1 = fits[0].read()\n'
+                                                                    "            dimg1b = fits['myimage', "
+                                                                    '1].read()\n'
+                                                                    "            dimg2 = fits['myimage', "
+                                                                    '2].read()\n'
+                                                                    '            dimg3 = fits[5].read()\n'
+                                                                    '\n'
+                                                                    '            compare_array(img1, dimg1, '
+                                                                    '"img1")\n'
+                                                                    '            compare_array(img1, dimg1b, '
+                                                                    '"img1b")\n'
+                                                                    '            compare_array(img2, dimg2, '
+                                                                    '"img2")\n'
+                                                                    '            compare_array(img3, dimg3, '
+                                                                    '"img3")\n'
+                                                                    '\n'
+                                                                    '        rhdr1 = read_header(fname, '
+                                                                    "ext='myimage', extver=1)\n"
+                                                                    '        rhdr2 = read_header(fname, '
+                                                                    "ext='myimage', extver=2)\n"
+                                                                    "        assert 'k1' in rhdr1, 'testing "
+                                                                    "k1 in header version 1'\n"
+                                                                    "        assert 'k2' in rhdr2, 'testing "
+                                                                    "k2 in header version 2'\n"},
+                               'fitsio/tests/test_table.py': {'bytes': 42339,
+                                                              'sha256': 'cacdbeebbe116d3bbca48f59a0c3af7699cf9ab4104cd69309dd3e16b2433de8',
+                                                              'text': 'import pytest\n'
+                                                                      'import numpy as np\n'
+                                                                      'import os\n'
+                                                                      'import tempfile\n'
+                                                                      'from .checks import (\n'
+                                                                      '    compare_names,\n'
+                                                                      '    compare_array,\n'
+                                                                      '    compare_array_tol,\n'
+                                                                      '    compare_object_array,\n'
+                                                                      '    compare_rec,\n'
+                                                                      '    compare_headerlist_header,\n'
+                                                                      '    compare_rec_with_var,\n'
+                                                                      '    compare_rec_subrows,\n'
+                                                                      ')\n'
+                                                                      'from .makedata import make_data\n'
+                                                                      'from ..fitslib import FITS, write, '
+                                                                      'read\n'
+                                                                      'from .. import util\n'
+                                                                      '\n'
+                                                                      "DTYPES = ['u1', 'i1', 'u2', 'i2', "
+                                                                      "'<u4', 'i4', 'i8', '>f4', 'f8']\n"
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_read_write():\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(\n'
+                                                                      "                adata['data'], "
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable'\n"
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            '
+                                                                      "compare_rec(adata['data'], d, "
+                                                                      '"table read/write")\n'
+                                                                      '\n'
+                                                                      '            h = '
+                                                                      'fits[1].read_header()\n'
+                                                                      '            '
+                                                                      "compare_headerlist_header(adata['keys'], "
+                                                                      'h)\n'
+                                                                      '\n'
+                                                                      '        # see if our convenience '
+                                                                      'functions are working\n'
+                                                                      '        write(\n'
+                                                                      '            fname,\n'
+                                                                      "            adata['data2'],\n"
+                                                                      '            extname="newext",\n'
+                                                                      "            header={'ra': 335.2, "
+                                                                      "'dec': -25.2},\n"
+                                                                      '        )\n'
+                                                                      '        d = read(fname, '
+                                                                      "ext='newext')\n"
+                                                                      "        compare_rec(adata['data2'], "
+                                                                      'd, "table data2")\n'
+                                                                      '\n'
+                                                                      '        # now test read_column\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '\n'
+                                                                      '            for f in '
+                                                                      "adata['data'].dtype.names:\n"
+                                                                      '                d = '
+                                                                      'fits[1].read_column(f)\n'
+                                                                      '                compare_array(\n'
+                                                                      "                    adata['data'][f], "
+                                                                      'd, "table 1 single field read \'%s\'" '
+                                                                      '% f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '            for f in '
+                                                                      "adata['data2'].dtype.names:\n"
+                                                                      '                d = '
+                                                                      "fits['newext'].read_column(f)\n"
+                                                                      '                compare_array(\n'
+                                                                      '                    '
+                                                                      'adata[\'data2\'][f], d, "table 2 '
+                                                                      'single field read \'%s\'" % f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '            # now list of columns\n'
+                                                                      "            for cols in [['u2scalar', "
+                                                                      "'f4vec', 'Sarr'],\n"
+                                                                      "                         ['f8scalar', "
+                                                                      "'u2arr', 'Sscalar']]:\n"
+                                                                      '                d = '
+                                                                      'fits[1].read(columns=cols)\n'
+                                                                      '                for f in '
+                                                                      'd.dtype.names:\n'
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      'adata[\'data\'][f][:], d[f], "test '
+                                                                      'column list %s" % f\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                for rows in [[1, 3], '
+                                                                      '[3, 1], [2, 2, 1]]:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(columns=cols, '
+                                                                      'rows=rows)\n'
+                                                                      '                    for col in '
+                                                                      'd.dtype.names:\n'
+                                                                      '                        '
+                                                                      'compare_array(\n'
+                                                                      '                            '
+                                                                      "adata['data'][col][rows], d[col],\n"
+                                                                      '                            "test '
+                                                                      'column list %s row subset" % col\n'
+                                                                      '                        )\n'
+                                                                      '                    for col in cols:\n'
+                                                                      '                        d = '
+                                                                      'fits[1].read_column(col, rows=rows)\n'
+                                                                      '                        '
+                                                                      'compare_array(\n'
+                                                                      '                            '
+                                                                      "adata['data'][col][rows], d,\n"
+                                                                      '                            "test '
+                                                                      'column list %s row subset" % col\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_column_index_scalar():\n'
+                                                                      '    """\n'
+                                                                      '    Test a basic table write, data '
+                                                                      'and a header, then reading back in '
+                                                                      'to\n'
+                                                                      '    check the values\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            data = np.empty(1, '
+                                                                      "dtype=[('Z', 'f8')])\n"
+                                                                      "            data['Z'][:] = 1.0\n"
+                                                                      '            fits.write_table(data)\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'r') as "
+                                                                      'fits:\n'
+                                                                      '            assert '
+                                                                      "fits[1]['Z'][0].ndim == 0\n"
+                                                                      '            assert fits[1][0].ndim == '
+                                                                      '0\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_read_empty_rows():\n'
+                                                                      '    """\n'
+                                                                      '    test reading empty list of rows '
+                                                                      'from an table.\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            data = np.empty(1, '
+                                                                      "dtype=[('Z', 'f8')])\n"
+                                                                      "            data['Z'][:] = 1.0\n"
+                                                                      '            fits.write_table(data)\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'r') as "
+                                                                      'fits:\n'
+                                                                      '            assert '
+                                                                      'len(fits[1].read(rows=[])) == 0\n'
+                                                                      '            assert '
+                                                                      'len(fits[1].read(rows=range(0, 0))) '
+                                                                      '== 0\n'
+                                                                      '            assert '
+                                                                      'len(fits[1].read(rows=np.arange(0, '
+                                                                      '0))) == 0\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_format_column_subset():\n'
+                                                                      '    """\n'
+                                                                      '    Test a basic table write, data '
+                                                                      'and a header, then reading back in '
+                                                                      'to\n'
+                                                                      '    check the values\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            data = np.empty(1, '
+                                                                      "dtype=[('Z', 'f8'), ('Z_PERSON', "
+                                                                      "'f8')])\n"
+                                                                      "            data['Z'][:] = 1.0\n"
+                                                                      "            data['Z_PERSON'][:] = "
+                                                                      '1.0\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'r') as "
+                                                                      'fits:\n'
+                                                                      '            # assert we do not have '
+                                                                      "an extra row of 'Z'\n"
+                                                                      '            sz = '
+                                                                      "str(fits[2]['Z_PERSON']).split('\\n')\n"
+                                                                      '            s = '
+                                                                      "str(fits[2][('Z_PERSON', "
+                                                                      "'Z')]).split('\\n')\n"
+                                                                      '            assert len(sz) == len(s) '
+                                                                      '- 1\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_dict_of_arrays_scratch():\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            d = {}\n'
+                                                                      '            for n in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d[n] = data[n]\n'
+                                                                      '\n'
+                                                                      '            fits.write(d)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname)\n'
+                                                                      '        compare_rec(data, d, "list of '
+                                                                      'dicts, scratch")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_dict_of_arrays():\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            '
+                                                                      'fits.create_table_hdu(data, '
+                                                                      "extname='mytable')\n"
+                                                                      '\n'
+                                                                      '            d = {}\n'
+                                                                      '            for n in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d[n] = data[n]\n'
+                                                                      '\n'
+                                                                      '            fits[-1].write(d)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname)\n'
+                                                                      '        compare_rec(data, d, "list of '
+                                                                      'dicts")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_dict_of_arrays_var():\n'
+                                                                      '    """\n'
+                                                                      '    This version creating the table '
+                                                                      'from a dict of arrays, variable\n'
+                                                                      '    lenght columns\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    vardata = adata['vardata']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            d = {}\n'
+                                                                      '            for n in '
+                                                                      'vardata.dtype.names:\n'
+                                                                      '                d[n] = vardata[n]\n'
+                                                                      '\n'
+                                                                      '            fits.write(d)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname)\n'
+                                                                      '        compare_rec_with_var(vardata, '
+                                                                      'd, "dict of arrays, var")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_list_of_arrays_scratch():\n'
+                                                                      '    """\n'
+                                                                      '    This version creating the table '
+                                                                      'from the names and list, creating\n'
+                                                                      '    table first\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            names = [n for n in '
+                                                                      'data.dtype.names]\n'
+                                                                      '            dlist = [data[n] for n in '
+                                                                      'data.dtype.names]\n'
+                                                                      '            fits.write(dlist, '
+                                                                      'names=names)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname)\n'
+                                                                      '        compare_rec(data, d, "list of '
+                                                                      'arrays, scratch")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_list_of_arrays():\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            '
+                                                                      'fits.create_table_hdu(data, '
+                                                                      "extname='mytable')\n"
+                                                                      '\n'
+                                                                      '            columns = [n for n in '
+                                                                      'data.dtype.names]\n'
+                                                                      '            dlist = [data[n] for n in '
+                                                                      'data.dtype.names]\n'
+                                                                      '            fits[-1].write(dlist, '
+                                                                      'columns=columns)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname, '
+                                                                      "ext='mytable')\n"
+                                                                      '        compare_rec(data, d, "list of '
+                                                                      'arrays")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def '
+                                                                      'test_table_write_list_of_arrays_var():\n'
+                                                                      '    """\n'
+                                                                      '    This version creating the table '
+                                                                      'from the names and list, variable\n'
+                                                                      '    lenght cols\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    vardata = adata['vardata']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            names = [n for n in '
+                                                                      'vardata.dtype.names]\n'
+                                                                      '            dlist = [vardata[n] for n '
+                                                                      'in vardata.dtype.names]\n'
+                                                                      '            fits.write(dlist, '
+                                                                      'names=names)\n'
+                                                                      '\n'
+                                                                      '        d = read(fname)\n'
+                                                                      '        compare_rec_with_var(vardata, '
+                                                                      'd, "list of arrays, var")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_write_bad_string():\n'
+                                                                      '\n'
+                                                                      "    for d in ['S0', 'U0']:\n"
+                                                                      "        dt = [('s', d)]\n"
+                                                                      '\n'
+                                                                      "        # old numpy didn't allow this "
+                                                                      'dtype, so will throw\n'
+                                                                      '        # a TypeError for empty '
+                                                                      'dtype\n'
+                                                                      '        try:\n'
+                                                                      '            data = np.zeros(1, '
+                                                                      'dtype=dt)\n'
+                                                                      '            supported = True\n'
+                                                                      '        except TypeError:\n'
+                                                                      '            supported = False\n'
+                                                                      '\n'
+                                                                      '        if supported:\n'
+                                                                      '            with '
+                                                                      'pytest.raises(ValueError):\n'
+                                                                      '                with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '                    fname = '
+                                                                      "os.path.join(tmpdir, 'test.fits')\n"
+                                                                      '                    with FITS(fname, '
+                                                                      "'rw') as fits:\n"
+                                                                      '                        '
+                                                                      'fits.write(data)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_variable_length_columns():\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    vardata = adata['vardata']\n"
+                                                                      '\n'
+                                                                      "    for vstorage in ['fixed', "
+                                                                      "'object']:\n"
+                                                                      '        with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '            fname = '
+                                                                      "os.path.join(tmpdir, 'test.fits')\n"
+                                                                      '\n'
+                                                                      "            with FITS(fname, 'rw', "
+                                                                      'vstorage=vstorage) as fits:\n'
+                                                                      '                fits.write(vardata)\n'
+                                                                      '\n'
+                                                                      '                # reading multiple '
+                                                                      'columns\n'
+                                                                      '                d = fits[1].read()\n'
+                                                                      '                '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                    vardata, d, "read '
+                                                                      'all test \'%s\'" % vstorage\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      "                cols = ['u2scalar', "
+                                                                      "'Sobj']\n"
+                                                                      '                d = '
+                                                                      'fits[1].read(columns=cols)\n'
+                                                                      '                '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                    vardata, d, "read '
+                                                                      'all test subcols \'%s\'" % vstorage\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '                # one at a time\n'
+                                                                      '                for f in '
+                                                                      'vardata.dtype.names:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read_column(f)\n'
+                                                                      '                    if '
+                                                                      'util.is_object(vardata[f]):\n'
+                                                                      '                        '
+                                                                      'compare_object_array(\n'
+                                                                      '                            '
+                                                                      'vardata[f], d,\n'
+                                                                      '                            "read all '
+                                                                      'field \'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '                # same as above with '
+                                                                      'slices\n'
+                                                                      '                # reading multiple '
+                                                                      'columns\n'
+                                                                      '                d = fits[1][:]\n'
+                                                                      '                '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                    vardata, d, "read '
+                                                                      'all test \'%s\'" % vstorage\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '                d = fits[1][cols][:]\n'
+                                                                      '                '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                    vardata, d, "read '
+                                                                      'all test subcols \'%s\'" % vstorage\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '                # one at a time\n'
+                                                                      '                for f in '
+                                                                      'vardata.dtype.names:\n'
+                                                                      '                    d = '
+                                                                      'fits[1][f][:]\n'
+                                                                      '                    if '
+                                                                      'util.is_object(vardata[f]):\n'
+                                                                      '                        '
+                                                                      'compare_object_array(\n'
+                                                                      '                            '
+                                                                      'vardata[f], d,\n'
+                                                                      '                            "read all '
+                                                                      'field \'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '                #\n'
+                                                                      '                # now same with sub '
+                                                                      'rows\n'
+                                                                      '                #\n'
+                                                                      '\n'
+                                                                      '                # reading multiple '
+                                                                      'columns, sorted and unsorted\n'
+                                                                      '                for rows in [[0, 2], '
+                                                                      '[2, 0]]:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(rows=rows)\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata, d, '
+                                                                      '"read subrows test \'%s\'" % '
+                                                                      'vstorage,\n'
+                                                                      '                        rows=rows,\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(columns=cols, '
+                                                                      'rows=rows)\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata,\n'
+                                                                      '                        d,\n'
+                                                                      '                        "read subrows '
+                                                                      'test subcols \'%s\'" % vstorage,\n'
+                                                                      '                        rows=rows,\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    # one at a time\n'
+                                                                      '                    for f in '
+                                                                      'vardata.dtype.names:\n'
+                                                                      '                        d = '
+                                                                      'fits[1].read_column(f, rows=rows)\n'
+                                                                      '                        if '
+                                                                      'util.is_object(vardata[f]):\n'
+                                                                      '                            '
+                                                                      'compare_object_array(\n'
+                                                                      '                                '
+                                                                      'vardata[f], d,\n'
+                                                                      '                                "read '
+                                                                      'subrows field \'%s\'" % f,\n'
+                                                                      '                                '
+                                                                      'rows=rows,\n'
+                                                                      '                            )\n'
+                                                                      '\n'
+                                                                      '                    # same as above '
+                                                                      'with slices\n'
+                                                                      '                    # reading '
+                                                                      'multiple columns\n'
+                                                                      '                    d = '
+                                                                      'fits[1][rows]\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata, d, '
+                                                                      '"read subrows slice test \'%s\'" % '
+                                                                      'vstorage,\n'
+                                                                      '                        rows=rows,\n'
+                                                                      '                    )\n'
+                                                                      '                    d = fits[1][2:4]\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata,\n'
+                                                                      '                        d,\n'
+                                                                      '                        "read slice '
+                                                                      'test \'%s\'" % vstorage,\n'
+                                                                      '                        rows=[2, 3],\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1][cols][rows]\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata,\n'
+                                                                      '                        d,\n'
+                                                                      '                        "read subcols '
+                                                                      'subrows slice test \'%s\'" % '
+                                                                      'vstorage,\n'
+                                                                      '                        rows=rows,\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1][cols][2:4]\n'
+                                                                      '\n'
+                                                                      '                    '
+                                                                      'compare_rec_with_var(\n'
+                                                                      '                        vardata,\n'
+                                                                      '                        d,\n'
+                                                                      '                        "read subcols '
+                                                                      'slice test \'%s\'" % vstorage,\n'
+                                                                      '                        rows=[2, 3],\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    # one at a time\n'
+                                                                      '                    for f in '
+                                                                      'vardata.dtype.names:\n'
+                                                                      '                        d = '
+                                                                      'fits[1][f][rows]\n'
+                                                                      '                        if '
+                                                                      'util.is_object(vardata[f]):\n'
+                                                                      '                            '
+                                                                      'compare_object_array(\n'
+                                                                      '                                '
+                                                                      'vardata[f], d,\n'
+                                                                      '                                "read '
+                                                                      'subrows field \'%s\'" % f,\n'
+                                                                      '                                '
+                                                                      'rows=rows,\n'
+                                                                      '                            )\n'
+                                                                      '                        d = '
+                                                                      'fits[1][f][2:4]\n'
+                                                                      '                        if '
+                                                                      'util.is_object(vardata[f]):\n'
+                                                                      '                            '
+                                                                      'compare_object_array(\n'
+                                                                      '                                '
+                                                                      'vardata[f], d,\n'
+                                                                      '                                "read '
+                                                                      'slice field \'%s\'" % f,\n'
+                                                                      '                                '
+                                                                      'rows=[2, 3],\n'
+                                                                      '                            )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_iter():\n'
+                                                                      '    """\n'
+                                                                      '    Test iterating over rows of a '
+                                                                      'table\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(\n'
+                                                                      '                data,\n'
+                                                                      '                '
+                                                                      "header=adata['keys'],\n"
+                                                                      "                extname='mytable'\n"
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '        # one row at a time\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            hdu = fits["mytable"]\n'
+                                                                      '            i = 0\n'
+                                                                      '            for row_data in hdu:\n'
+                                                                      '                compare_rec(data[i], '
+                                                                      'row_data, "table data")\n'
+                                                                      '                i += 1\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_ascii_table_write_read():\n'
+                                                                      '    """\n'
+                                                                      '    Test write and read for an ascii '
+                                                                      'table\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    ascii_data = adata['ascii_data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            fits.write_table(\n'
+                                                                      '                ascii_data,\n'
+                                                                      "                table_type='ascii',\n"
+                                                                      '                '
+                                                                      "header=adata['keys'],\n"
+                                                                      "                extname='mytable',\n"
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '            # cfitsio always reports '
+                                                                      'type as i4 and f8, period, even if '
+                                                                      'if\n'
+                                                                      '            # written with higher '
+                                                                      'precision.  Need to fix that somehow\n'
+                                                                      '            for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '                d = '
+                                                                      'fits[1].read_column(f)\n'
+                                                                      '                if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                    # note we should '
+                                                                      'be able to do 1.11e-16 in principle, '
+                                                                      'but\n'
+                                                                      '                    # in practice we '
+                                                                      'get more like 2.15e-16\n'
+                                                                      '                    '
+                                                                      'compare_array_tol(\n'
+                                                                      '                        '
+                                                                      'ascii_data[f], d, 2.15e-16, "table '
+                                                                      'field read \'%s\'" % f\n'
+                                                                      '                    )\n'
+                                                                      '                else:\n'
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      'ascii_data[f], d, "table field read '
+                                                                      '\'%s\'" % f\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '            for rows in [[1, 3], [3, '
+                                                                      '1]]:\n'
+                                                                      '                for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read_column(f, rows=rows)\n'
+                                                                      '                    if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                        '
+                                                                      'compare_array_tol(ascii_data[f][rows], '
+                                                                      'd, 2.15e-16,\n'
+                                                                      '                                          '
+                                                                      '"table field read subrows \'%s\'" % '
+                                                                      'f)\n'
+                                                                      '                    else:\n'
+                                                                      '                        '
+                                                                      'compare_array(ascii_data[f][rows], '
+                                                                      'd,\n'
+                                                                      '                                      '
+                                                                      '"table field read subrows \'%s\'" % '
+                                                                      'f)\n'
+                                                                      '\n'
+                                                                      '            beg = 1\n'
+                                                                      '            end = 3\n'
+                                                                      '            for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '                d = '
+                                                                      'fits[1][f][beg:end]\n'
+                                                                      '                if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                    '
+                                                                      'compare_array_tol(ascii_data[f][beg:end], '
+                                                                      'd, 2.15e-16,\n'
+                                                                      '                                      '
+                                                                      '"table field read slice \'%s\'" % f)\n'
+                                                                      '                else:\n'
+                                                                      '                    '
+                                                                      'compare_array(ascii_data[f][beg:end], '
+                                                                      'd,\n'
+                                                                      '                                  '
+                                                                      '"table field read slice \'%s\'" % f)\n'
+                                                                      '\n'
+                                                                      "            cols = ['i2scalar', "
+                                                                      "'f4scalar']\n"
+                                                                      '            for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '                data = '
+                                                                      'fits[1].read(columns=cols)\n'
+                                                                      '                for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                    d = data[f]\n'
+                                                                      '                    if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                        '
+                                                                      'compare_array_tol(\n'
+                                                                      '                            '
+                                                                      'ascii_data[f],\n'
+                                                                      '                            d,\n'
+                                                                      '                            '
+                                                                      '2.15e-16,\n'
+                                                                      '                            "table '
+                                                                      'subcol, \'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '                    else:\n'
+                                                                      '                        '
+                                                                      'compare_array(\n'
+                                                                      '                            '
+                                                                      'ascii_data[f], d, "table subcol, '
+                                                                      '\'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '                data = '
+                                                                      'fits[1][cols][:]\n'
+                                                                      '                for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                    d = data[f]\n'
+                                                                      '                    if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                        '
+                                                                      'compare_array_tol(\n'
+                                                                      '                            '
+                                                                      'ascii_data[f],\n'
+                                                                      '                            d,\n'
+                                                                      '                            '
+                                                                      '2.15e-16,\n'
+                                                                      '                            "table '
+                                                                      'subcol, \'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '                    else:\n'
+                                                                      '                        '
+                                                                      'compare_array(\n'
+                                                                      '                            '
+                                                                      'ascii_data[f], d, "table subcol, '
+                                                                      '\'%s\'" % f\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '            for rows in [[1, 3], [3, '
+                                                                      '1]]:\n'
+                                                                      '                for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '                    data = '
+                                                                      'fits[1].read(columns=cols, '
+                                                                      'rows=rows)\n'
+                                                                      '                    for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                        d = data[f]\n'
+                                                                      '                        if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                            '
+                                                                      'compare_array_tol(ascii_data[f][rows], '
+                                                                      'd, 2.15e-16,\n'
+                                                                      '                                              '
+                                                                      '"table subcol, \'%s\'" % f)\n'
+                                                                      '                        else:\n'
+                                                                      '                            '
+                                                                      'compare_array(ascii_data[f][rows], '
+                                                                      'd,\n'
+                                                                      '                                          '
+                                                                      '"table subcol, \'%s\'" % f)\n'
+                                                                      '\n'
+                                                                      '                    data = '
+                                                                      'fits[1][cols][rows]\n'
+                                                                      '                    for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                        d = data[f]\n'
+                                                                      '                        if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                            '
+                                                                      'compare_array_tol(ascii_data[f][rows], '
+                                                                      'd, 2.15e-16,\n'
+                                                                      '                                              '
+                                                                      '"table subcol/row, \'%s\'" % f)\n'
+                                                                      '                        else:\n'
+                                                                      '                            '
+                                                                      'compare_array(ascii_data[f][rows], '
+                                                                      'd,\n'
+                                                                      '                                          '
+                                                                      '"table subcol/row, \'%s\'" % f)\n'
+                                                                      '\n'
+                                                                      '            for f in '
+                                                                      'ascii_data.dtype.names:\n'
+                                                                      '\n'
+                                                                      '                data = '
+                                                                      'fits[1][cols][beg:end]\n'
+                                                                      '                for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                    d = data[f]\n'
+                                                                      '                    if d.dtype == '
+                                                                      'np.float64:\n'
+                                                                      '                        '
+                                                                      'compare_array_tol(ascii_data[f][beg:end], '
+                                                                      'd, 2.15e-16,\n'
+                                                                      '                                          '
+                                                                      '"table subcol/slice, \'%s\'" % f)\n'
+                                                                      '                    else:\n'
+                                                                      '                        '
+                                                                      'compare_array(ascii_data[f][beg:end], '
+                                                                      'd,\n'
+                                                                      '                                      '
+                                                                      '"table subcol/slice, \'%s\'" % f)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_insert_column():\n'
+                                                                      '    """\n'
+                                                                      '    Insert a new column\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '            for n in d.dtype.names:\n'
+                                                                      '                newname = '
+                                                                      "n+'_insert'\n"
+                                                                      '\n'
+                                                                      '                '
+                                                                      'fits[1].insert_column(newname, d[n])\n'
+                                                                      '\n'
+                                                                      '                newdata = '
+                                                                      'fits[1][newname][:]\n'
+                                                                      '\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    d[n],\n'
+                                                                      '                    newdata,\n'
+                                                                      '                    "table single '
+                                                                      'field insert and read \'%s\'" % n\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_delete_row_range():\n'
+                                                                      '    """\n'
+                                                                      '    Test deleting a range of rows '
+                                                                      'using the delete_rows method\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      '        rowslice = slice(1, 3)\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            '
+                                                                      'fits[1].delete_rows(rowslice)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = data[[0, 3]]\n'
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"delete row range")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_delete_rows():\n'
+                                                                      '    """\n'
+                                                                      '    Test deleting specific set of '
+                                                                      'rows using the delete_rows method\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      '        rows2delete = [1, 3]\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            '
+                                                                      'fits[1].delete_rows(rows2delete)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = data[[0, 2]]\n'
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"delete rows")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_where():\n'
+                                                                      '    """\n'
+                                                                      '    Use the where method to get '
+                                                                      'indices for a row filter expression\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data2 = adata['data2']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(data2)\n'
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # get all indices\n'
+                                                                      '        #\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      "            a = fits[1].where('x > 3 "
+                                                                      "&& y < 8')\n"
+                                                                      "        b = np.where((data2['x'] > 3) "
+                                                                      "& (data2['y'] < 8))[0]\n"
+                                                                      '        '
+                                                                      'np.testing.assert_array_equal(a, b)\n'
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # get slice of indices\n'
+                                                                      '        #\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      "            a = fits[1].where('x > 3 "
+                                                                      "&& y < 8', 2, 8)\n"
+                                                                      "        b = np.where((data2['x'][2:8] "
+                                                                      "> 3) & (data2['y'][2:8] < 8))[0]\n"
+                                                                      '        '
+                                                                      'np.testing.assert_array_equal(a, b)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_resize():\n'
+                                                                      '    """\n'
+                                                                      '    Use the resize method to change '
+                                                                      'the size of a table\n'
+                                                                      '\n'
+                                                                      '    default values get filled in and '
+                                                                      'these are tested\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # shrink from back\n'
+                                                                      '        #\n'
+                                                                      "        with FITS(fname, 'rw', "
+                                                                      'clobber=True) as fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      '        nrows = 2\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits[1].resize(nrows)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = data[0:nrows]\n'
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"shrink from back")\n'
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # shrink from front\n'
+                                                                      '        #\n'
+                                                                      "        with FITS(fname, 'rw', "
+                                                                      'clobber=True) as fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits[1].resize(nrows, '
+                                                                      'front=True)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = '
+                                                                      'data[nrows-data.size:]\n'
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"shrink from front")\n'
+                                                                      '\n'
+                                                                      "        # These don't get zerod\n"
+                                                                      '\n'
+                                                                      '        nrows = 10\n'
+                                                                      '        add_data = '
+                                                                      'np.zeros(nrows-data.size, '
+                                                                      'dtype=data.dtype)\n'
+                                                                      "        add_data['i1scalar'] = -128\n"
+                                                                      "        add_data['i1vec'] = -128\n"
+                                                                      "        add_data['i1arr'] = -128\n"
+                                                                      "        add_data['u2scalar'] = 32768\n"
+                                                                      "        add_data['u2vec'] = 32768\n"
+                                                                      "        add_data['u2arr'] = 32768\n"
+                                                                      "        add_data['u4scalar'] = "
+                                                                      '2147483648\n'
+                                                                      "        add_data['u4vec'] = "
+                                                                      '2147483648\n'
+                                                                      "        add_data['u4arr'] = "
+                                                                      '2147483648\n'
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # expand at the back\n'
+                                                                      '        #\n'
+                                                                      "        with FITS(fname, 'rw', "
+                                                                      'clobber=True) as fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits[1].resize(nrows)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = '
+                                                                      'np.hstack((data, add_data))\n'
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"expand at the back")\n'
+                                                                      '\n'
+                                                                      '        #\n'
+                                                                      '        # expand at the front\n'
+                                                                      '        #\n'
+                                                                      "        with FITS(fname, 'rw', "
+                                                                      'clobber=True) as fits:\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits[1].resize(nrows, '
+                                                                      'front=True)\n'
+                                                                      '\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '\n'
+                                                                      '        compare_data = '
+                                                                      'np.hstack((add_data, data))\n'
+                                                                      "        # These don't get zerod\n"
+                                                                      '        compare_rec(compare_data, d, '
+                                                                      '"expand at the front")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_slice():\n'
+                                                                      '    """\n'
+                                                                      '    Test reading by slice\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            # initial write\n'
+                                                                      '            fits.write_table(data)\n'
+                                                                      '\n'
+                                                                      '            # test reading single '
+                                                                      'columns\n'
+                                                                      '            for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d = fits[1][f][:]\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    data[f], d, "test '
+                                                                      'read all rows %s column subset" % f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '            # test reading row '
+                                                                      'subsets\n'
+                                                                      '            rows = [1, 3]\n'
+                                                                      '            for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d = fits[1][f][rows]\n'
+                                                                      '                '
+                                                                      'compare_array(data[f][rows], d, "test '
+                                                                      '%s row subset" % f)\n'
+                                                                      '            for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d = fits[1][f][1:3]\n'
+                                                                      '                '
+                                                                      'compare_array(data[f][1:3], d, "test '
+                                                                      '%s row slice" % f)\n'
+                                                                      '            for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d = '
+                                                                      'fits[1][f][1:4:2]\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    data[f][1:4:2], '
+                                                                      'd, "test %s row slice with step" % f\n'
+                                                                      '                )\n'
+                                                                      '            for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                d = fits[1][f][::2]\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    data[f][::2], d, '
+                                                                      '"test %s row slice with only setp" % '
+                                                                      'f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '            # now list of columns\n'
+                                                                      "            cols = ['u2scalar', "
+                                                                      "'f4vec', 'Sarr']\n"
+                                                                      '            d = fits[1][cols][:]\n'
+                                                                      '            for f in d.dtype.names:\n'
+                                                                      '                '
+                                                                      'compare_array(data[f][:], d[f], "test '
+                                                                      'column list %s" % f)\n'
+                                                                      '\n'
+                                                                      "            cols = ['u2scalar', "
+                                                                      "'f4vec', 'Sarr']\n"
+                                                                      '            d = fits[1][cols][rows]\n'
+                                                                      '            for f in d.dtype.names:\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    data[f][rows], '
+                                                                      'd[f], "test column list %s row '
+                                                                      'subset" % f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      "            cols = ['u2scalar', "
+                                                                      "'f4vec', 'Sarr']\n"
+                                                                      '            d = fits[1][cols][1:3]\n'
+                                                                      '            for f in d.dtype.names:\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    data[f][1:3], '
+                                                                      'd[f], "test column list %s row slice" '
+                                                                      '% f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_append():\n'
+                                                                      '    """\n'
+                                                                      '    Test creating a table and '
+                                                                      'appending new rows.\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            # initial write\n'
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '            # now append\n'
+                                                                      '            data2 = data.copy()\n'
+                                                                      "            data2['f4scalar'] = 3\n"
+                                                                      '            fits[1].append(data2)\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            assert d.size == '
+                                                                      'data.size*2\n'
+                                                                      '\n'
+                                                                      '            compare_rec(data, '
+                                                                      'd[0:data.size], "Comparing initial '
+                                                                      'write")\n'
+                                                                      '            compare_rec(data2, '
+                                                                      'd[data.size:], "Comparing appended '
+                                                                      'data")\n'
+                                                                      '\n'
+                                                                      '            h = '
+                                                                      'fits[1].read_header()\n'
+                                                                      '            '
+                                                                      "compare_headerlist_header(adata['keys'], "
+                                                                      'h)\n'
+                                                                      '\n'
+                                                                      '            # append with list of '
+                                                                      'arrays and names\n'
+                                                                      '            names = data.dtype.names\n'
+                                                                      '            data3 = '
+                                                                      '[np.array(data[name]) for name in '
+                                                                      'names]\n'
+                                                                      '            fits[1].append(data3, '
+                                                                      'names=names)\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            assert d.size == '
+                                                                      'data.size*3\n'
+                                                                      '            compare_rec(data, '
+                                                                      'd[2*data.size:], "Comparing appended '
+                                                                      'data")\n'
+                                                                      '\n'
+                                                                      '            # append with list of '
+                                                                      'arrays and columns\n'
+                                                                      '            fits[1].append(data3, '
+                                                                      'columns=names)\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            assert d.size == '
+                                                                      'data.size*4\n'
+                                                                      '            compare_rec(data, '
+                                                                      'd[3*data.size:], "Comparing appended '
+                                                                      'data")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_subsets():\n'
+                                                                      '    """\n'
+                                                                      '    testing reading subsets\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '\n'
+                                                                      '            for rows in [[1, 3], [3, '
+                                                                      '1]]:\n'
+                                                                      '                d = '
+                                                                      'fits[1].read(rows=rows)\n'
+                                                                      '                '
+                                                                      'compare_rec_subrows(data, d, rows, '
+                                                                      '"table subset")\n'
+                                                                      '                columns = '
+                                                                      "['i1scalar', 'f4arr']\n"
+                                                                      '                d = '
+                                                                      'fits[1].read(columns=columns, '
+                                                                      'rows=rows)\n'
+                                                                      '\n'
+                                                                      '                for f in columns:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read_column(f, rows=rows)\n'
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      'data[f][rows], d, "row subset, '
+                                                                      'multi-column \'%s\'" % f\n'
+                                                                      '                    )\n'
+                                                                      '                for f in '
+                                                                      'data.dtype.names:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read_column(f, rows=rows)\n'
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      'data[f][rows], d, "row subset, column '
+                                                                      '\'%s\'" % f\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_gz_write_read():\n'
+                                                                      '    """\n'
+                                                                      '    Test a basic table write, data '
+                                                                      'and a header, then reading back in '
+                                                                      'to\n'
+                                                                      '    check the values\n'
+                                                                      '\n'
+                                                                      '    this code all works, but the file '
+                                                                      'is zere size when done!\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            compare_rec(data, d, '
+                                                                      '"gzip write/read")\n'
+                                                                      '\n'
+                                                                      '            h = '
+                                                                      'fits[1].read_header()\n'
+                                                                      '            for entry in '
+                                                                      "adata['keys']:\n"
+                                                                      '                name = '
+                                                                      "entry['name'].upper()\n"
+                                                                      '                value = '
+                                                                      "entry['value']\n"
+                                                                      '                hvalue = h[name]\n'
+                                                                      '                if isinstance(hvalue, '
+                                                                      'str):\n'
+                                                                      '                    hvalue = '
+                                                                      'hvalue.strip()\n'
+                                                                      '                assert value == '
+                                                                      'hvalue, "testing header key \'%s\'" % '
+                                                                      'name\n'
+                                                                      '\n'
+                                                                      "                if 'comment' in "
+                                                                      'entry:\n'
+                                                                      '                    assert (\n'
+                                                                      '                        '
+                                                                      "entry['comment'].strip()\n"
+                                                                      '                        == '
+                                                                      'h.get_comment(name).strip()\n'
+                                                                      '                    ), (\n'
+                                                                      '                        "testing '
+                                                                      'comment for header key \'%s\'" % '
+                                                                      'name\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '        stat = os.stat(fname)\n'
+                                                                      '        assert stat.st_size != 0, '
+                                                                      '"Making sure the data was flushed to '
+                                                                      'disk"\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      "@pytest.mark.skipif('SKIP_BZIP_TEST' "
+                                                                      'in os.environ,\n'
+                                                                      '                    '
+                                                                      "reason='SKIP_BZIP_TEST set')\n"
+                                                                      'def test_bz2_read():\n'
+                                                                      "    '''\n"
+                                                                      '    Write a normal .fits file, run '
+                                                                      'bzip2 on it, then read the bz2\n'
+                                                                      "    file and verify that it's the "
+                                                                      "same as what we put in; we don't\n"
+                                                                      '    [currently support or] test '
+                                                                      '*writing* bzip2.\n'
+                                                                      "    '''\n"
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        bzfname = fname + '.bz2'\n"
+                                                                      '\n'
+                                                                      '        try:\n'
+                                                                      "            fits = FITS(fname, 'rw')\n"
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '            fits.close()\n'
+                                                                      '\n'
+                                                                      "            os.system('bzip2 %s' % "
+                                                                      'fname)\n'
+                                                                      '            f2 = FITS(bzfname)\n'
+                                                                      '            d = f2[1].read()\n'
+                                                                      '            compare_rec(data, d, '
+                                                                      '"bzip2 read")\n'
+                                                                      '\n'
+                                                                      '            h = f2[1].read_header()\n'
+                                                                      '            for entry in '
+                                                                      "adata['keys']:\n"
+                                                                      '                name = '
+                                                                      "entry['name'].upper()\n"
+                                                                      '                value = '
+                                                                      "entry['value']\n"
+                                                                      '                hvalue = h[name]\n'
+                                                                      '                if isinstance(hvalue, '
+                                                                      'str):\n'
+                                                                      '                    hvalue = '
+                                                                      'hvalue.strip()\n'
+                                                                      '\n'
+                                                                      '                assert value == '
+                                                                      'hvalue, "testing header key \'%s\'" % '
+                                                                      'name\n'
+                                                                      '\n'
+                                                                      "                if 'comment' in "
+                                                                      'entry:\n'
+                                                                      '                    assert (\n'
+                                                                      '                        '
+                                                                      "entry['comment'].strip()\n"
+                                                                      '                        == '
+                                                                      'h.get_comment(name).strip()\n'
+                                                                      '                    ), (\n'
+                                                                      '                        "testing '
+                                                                      'comment for header key \'%s\'" % '
+                                                                      'name\n'
+                                                                      '                    )\n'
+                                                                      '        except Exception:\n'
+                                                                      '            import traceback\n'
+                                                                      '            traceback.print_exc()\n'
+                                                                      '\n'
+                                                                      "            assert False, 'Exception "
+                                                                      "in testing bzip2 reading'\n"
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_checksum():\n'
+                                                                      '    """\n'
+                                                                      '    test that checksumming works\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    data = adata['data']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            fits.write_table(data, '
+                                                                      "header=adata['keys'], "
+                                                                      "extname='mytable')\n"
+                                                                      '            fits[1].write_checksum()\n'
+                                                                      '            '
+                                                                      'fits[1].verify_checksum()\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_trim_strings():\n'
+                                                                      '    """\n'
+                                                                      '    test mode where we strim strings '
+                                                                      'on read\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      "    dt = [('fval', 'f8'), ('name', "
+                                                                      "'S15'), ('vec', 'f4', 2)]\n"
+                                                                      '    n = 3\n'
+                                                                      '    data = np.zeros(n, dtype=dt)\n'
+                                                                      "    data['fval'] = "
+                                                                      'np.random.random(n)\n'
+                                                                      "    data['vec'] = "
+                                                                      'np.random.random(n*2).reshape(n, 2)\n'
+                                                                      '\n'
+                                                                      "    data['name'] = ['mike', "
+                                                                      "'really_long_name_to_fill', 'jan']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write(data)\n'
+                                                                      '\n'
+                                                                      '        for onconstruct in [True, '
+                                                                      'False]:\n'
+                                                                      '            if onconstruct:\n'
+                                                                      '                ctrim = True\n'
+                                                                      '                otrim = False\n'
+                                                                      '            else:\n'
+                                                                      '                ctrim = False\n'
+                                                                      '                otrim = True\n'
+                                                                      '\n'
+                                                                      "            with FITS(fname, 'rw', "
+                                                                      'trim_strings=ctrim) as fits:\n'
+                                                                      '\n'
+                                                                      '                if ctrim:\n'
+                                                                      '                    dread = '
+                                                                      'fits[1][:]\n'
+                                                                      '                    compare_rec(\n'
+                                                                      '                        data,\n'
+                                                                      '                        dread,\n'
+                                                                      '                        "trimmed '
+                                                                      'strings constructor",\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                    dname = '
+                                                                      "fits[1]['name'][:]\n"
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      "data['name'],\n"
+                                                                      '                        dname,\n'
+                                                                      '                        "trimmed '
+                                                                      'strings col read, constructor",\n'
+                                                                      '                    )\n'
+                                                                      '                    dread = '
+                                                                      "fits[1][['name']][:]\n"
+                                                                      '                    compare_array(\n'
+                                                                      '                        '
+                                                                      "data['name'],\n"
+                                                                      '                        '
+                                                                      "dread['name'],\n"
+                                                                      '                        "trimmed '
+                                                                      'strings col read, constructor",\n'
+                                                                      '                    )\n'
+                                                                      '\n'
+                                                                      '                dread = '
+                                                                      'fits[1].read(trim_strings=otrim)\n'
+                                                                      '                compare_rec(\n'
+                                                                      '                    data,\n'
+                                                                      '                    dread,\n'
+                                                                      '                    "trimmed strings '
+                                                                      'keyword",\n'
+                                                                      '                )\n'
+                                                                      '                dname = '
+                                                                      "fits[1].read(columns='name', "
+                                                                      'trim_strings=otrim)\n'
+                                                                      '                compare_array(\n'
+                                                                      "                    data['name'],\n"
+                                                                      '                    dname,\n'
+                                                                      '                    "trimmed strings '
+                                                                      'col keyword",\n'
+                                                                      '                )\n'
+                                                                      '                dread = '
+                                                                      "fits[1].read(columns=['name'], "
+                                                                      'trim_strings=otrim)\n'
+                                                                      '                compare_array(\n'
+                                                                      "                    data['name'],\n"
+                                                                      "                    dread['name'],\n"
+                                                                      '                    "trimmed strings '
+                                                                      'col keyword",\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '        # convenience function\n'
+                                                                      '        dread = read(fname, '
+                                                                      'trim_strings=True)\n'
+                                                                      '        compare_rec(\n'
+                                                                      '            data,\n'
+                                                                      '            dread,\n'
+                                                                      '            "trimmed strings '
+                                                                      'convenience function",\n'
+                                                                      '        )\n'
+                                                                      '        dname = read(fname, '
+                                                                      "columns='name', trim_strings=True)\n"
+                                                                      '        compare_array(\n'
+                                                                      "            data['name'],\n"
+                                                                      '            dname,\n'
+                                                                      '            "trimmed strings col '
+                                                                      'convenience function",\n'
+                                                                      '        )\n'
+                                                                      '        dread = read(fname, '
+                                                                      "columns=['name'], trim_strings=True)\n"
+                                                                      '        compare_array(\n'
+                                                                      "            data['name'],\n"
+                                                                      "            dread['name'],\n"
+                                                                      '            "trimmed strings col '
+                                                                      'convenience function",\n'
+                                                                      '        )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_lower_upper():\n'
+                                                                      '    """\n'
+                                                                      '    test forcing names to upper and '
+                                                                      'lower\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    rng = '
+                                                                      'np.random.RandomState(8908)\n'
+                                                                      '\n'
+                                                                      "    dt = [('MyName', 'f8'), "
+                                                                      "('StuffThings', 'i4'), ('Blah', "
+                                                                      "'f4')]\n"
+                                                                      '    data = np.zeros(3, dtype=dt)\n'
+                                                                      "    data['MyName'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      "    data['StuffThings'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      "    data['Blah'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write(data)\n'
+                                                                      '\n'
+                                                                      '        for i in [1, 2]:\n'
+                                                                      '            if i == 1:\n'
+                                                                      '                lower = True\n'
+                                                                      '                upper = False\n'
+                                                                      '            else:\n'
+                                                                      '                lower = False\n'
+                                                                      '                upper = True\n'
+                                                                      '\n'
+                                                                      "            with FITS(fname, 'rw', "
+                                                                      'lower=lower, upper=upper) as fits:\n'
+                                                                      '                for rows in [None, '
+                                                                      '[1, 2]]:\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(rows=rows)\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names,\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(\n'
+                                                                      '                        rows=rows, '
+                                                                      "columns=['MyName', 'stuffthings']\n"
+                                                                      '                    )\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names[0:2],\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                    d = fits[1][1:2]\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names,\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                    if rows is not '
+                                                                      'None:\n'
+                                                                      '                        d = '
+                                                                      'fits[1][rows]\n'
+                                                                      '                    else:\n'
+                                                                      '                        d = '
+                                                                      'fits[1][:]\n'
+                                                                      '\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names,\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                    if rows is not '
+                                                                      'None:\n'
+                                                                      '                        d = '
+                                                                      "fits[1][['myname', "
+                                                                      "'stuffthings']][rows]\n"
+                                                                      '                    else:\n'
+                                                                      '                        d = '
+                                                                      "fits[1][['myname', "
+                                                                      "'stuffthings']][:]\n"
+                                                                      '\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names[0:2],\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '            # using overrides\n'
+                                                                      "            with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '                for rows in [None, '
+                                                                      '[1, 2]]:\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(rows=rows, lower=lower, '
+                                                                      'upper=upper)\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names,\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(\n'
+                                                                      '                        rows=rows, '
+                                                                      "columns=['MyName', 'stuffthings'],\n"
+                                                                      '                        lower=lower, '
+                                                                      'upper=upper\n'
+                                                                      '                    )\n'
+                                                                      '                    '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names[0:2],\n'
+                                                                      '                                  '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '            for rows in [None, [1, '
+                                                                      '2]]:\n'
+                                                                      '                d = read(fname, '
+                                                                      'rows=rows, lower=lower, upper=upper)\n'
+                                                                      '                '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names,\n'
+                                                                      '                              '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '                d = read(fname, '
+                                                                      "rows=rows, columns=['MyName', "
+                                                                      "'stuffthings'],\n"
+                                                                      '                         lower=lower, '
+                                                                      'upper=upper)\n'
+                                                                      '                '
+                                                                      'compare_names(d.dtype.names, '
+                                                                      'data.dtype.names[0:2],\n'
+                                                                      '                              '
+                                                                      'lower=lower, upper=upper)\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_read_raw():\n'
+                                                                      '    """\n'
+                                                                      '    testing reading the file as raw '
+                                                                      'bytes\n'
+                                                                      '    """\n'
+                                                                      '    rng = '
+                                                                      'np.random.RandomState(8908)\n'
+                                                                      '\n'
+                                                                      "    dt = [('MyName', 'f8'), "
+                                                                      "('StuffThings', 'i4'), ('Blah', "
+                                                                      "'f4')]\n"
+                                                                      '    data = np.zeros(3, dtype=dt)\n'
+                                                                      "    data['MyName'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      "    data['StuffThings'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      "    data['Blah'] = "
+                                                                      'rng.uniform(data.size)\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      '        try:\n'
+                                                                      "            with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '                fits.write(data)\n'
+                                                                      '                raw1 = '
+                                                                      'fits.read_raw()\n'
+                                                                      '\n'
+                                                                      "            with FITS('mem://', 'rw') "
+                                                                      'as fits:\n'
+                                                                      '                fits.write(data)\n'
+                                                                      '                raw2 = '
+                                                                      'fits.read_raw()\n'
+                                                                      '\n'
+                                                                      "            with open(fname, 'rb') as "
+                                                                      'fobj:\n'
+                                                                      '                raw3 = fobj.read()\n'
+                                                                      '\n'
+                                                                      '            assert raw1 == raw2\n'
+                                                                      '            assert raw1 == raw3\n'
+                                                                      '        except Exception:\n'
+                                                                      '            import traceback\n'
+                                                                      '            traceback.print_exc()\n'
+                                                                      "            assert False, 'Exception "
+                                                                      "in testing read_raw'\n"
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_bitcol_read_write():\n'
+                                                                      '    """\n'
+                                                                      '    Test basic write/read with '
+                                                                      'bitcols\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    bdata = adata['bdata']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            fits.write_table(bdata, '
+                                                                      "extname='mytable', "
+                                                                      'write_bitcols=True)\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            compare_rec(bdata, d, '
+                                                                      '"table read/write")\n'
+                                                                      '\n'
+                                                                      '        # now test read_column\n'
+                                                                      '        with FITS(fname) as fits:\n'
+                                                                      '\n'
+                                                                      '            for f in '
+                                                                      'bdata.dtype.names:\n'
+                                                                      '                d = '
+                                                                      'fits[1].read_column(f)\n'
+                                                                      '                compare_array(\n'
+                                                                      '                    bdata[f], d, '
+                                                                      '"table 1 single field read \'%s\'" % '
+                                                                      'f\n'
+                                                                      '                )\n'
+                                                                      '\n'
+                                                                      '            # now list of columns\n'
+                                                                      "            for cols in [['b1vec', "
+                                                                      "'b1arr']]:\n"
+                                                                      '                d = '
+                                                                      'fits[1].read(columns=cols)\n'
+                                                                      '                for f in '
+                                                                      'd.dtype.names:\n'
+                                                                      '                    '
+                                                                      'compare_array(bdata[f][:], d[f], '
+                                                                      '"test column list %s" % f)\n'
+                                                                      '\n'
+                                                                      '                for rows in [[1, 3], '
+                                                                      '[3, 1]]:\n'
+                                                                      '                    d = '
+                                                                      'fits[1].read(columns=cols, '
+                                                                      'rows=rows)\n'
+                                                                      '                    for f in '
+                                                                      'd.dtype.names:\n'
+                                                                      '                        '
+                                                                      'compare_array(\n'
+                                                                      '                            '
+                                                                      'bdata[f][rows],\n'
+                                                                      '                            d[f],\n'
+                                                                      '                            "test '
+                                                                      'column list %s row subset" % f\n'
+                                                                      '                        )\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_bitcol_append():\n'
+                                                                      '    """\n'
+                                                                      '    Test creating a table with bitcol '
+                                                                      'support and appending new rows.\n'
+                                                                      '    """\n'
+                                                                      '    adata = make_data()\n'
+                                                                      "    bdata = adata['bdata']\n"
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            # initial write\n'
+                                                                      '            fits.write_table(bdata, '
+                                                                      "extname='mytable', "
+                                                                      'write_bitcols=True)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            # now append\n'
+                                                                      '            bdata2 = bdata.copy()\n'
+                                                                      '            fits[1].append(bdata2)\n'
+                                                                      '\n'
+                                                                      '            d = fits[1].read()\n'
+                                                                      '            assert d.size == '
+                                                                      'bdata.size*2\n'
+                                                                      '\n'
+                                                                      '            compare_rec(bdata, '
+                                                                      'd[0:bdata.size], "Comparing initial '
+                                                                      'write")\n'
+                                                                      '            compare_rec(bdata2, '
+                                                                      'd[bdata.size:], "Comparing appended '
+                                                                      'data")\n'
+                                                                      '\n'
+                                                                      '\n'
+                                                                      'def test_table_bitcol_insert():\n'
+                                                                      '    """\n'
+                                                                      '    Test creating a table with bitcol '
+                                                                      'support and appending new rows.\n'
+                                                                      '    """\n'
+                                                                      '\n'
+                                                                      '    with '
+                                                                      'tempfile.TemporaryDirectory() as '
+                                                                      'tmpdir:\n'
+                                                                      '        fname = os.path.join(tmpdir, '
+                                                                      "'test.fits')\n"
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '\n'
+                                                                      '            # initial write\n'
+                                                                      '            nrows = 3\n'
+                                                                      '            d = np.zeros(nrows, '
+                                                                      "dtype=[('ra', 'f8')])\n"
+                                                                      "            d['ra'] = range(d.size)\n"
+                                                                      '            fits.write(d)\n'
+                                                                      '\n'
+                                                                      "        with FITS(fname, 'rw') as "
+                                                                      'fits:\n'
+                                                                      '            bcol = np.array([True, '
+                                                                      'False, True])\n'
+                                                                      '\n'
+                                                                      '            # now append\n'
+                                                                      '            fits[-1].insert_column(\n'
+                                                                      "                'bscalar_inserted', "
+                                                                      'bcol, write_bitcols=True\n'
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '            d = fits[-1].read()\n'
+                                                                      '            assert d.size == nrows, '
+                                                                      "'read size equals'\n"
+                                                                      '            compare_array(bcol, '
+                                                                      'd[\'bscalar_inserted\'], "inserted '
+                                                                      'bitcol")\n'
+                                                                      '\n'
+                                                                      '            bvec = np.array(\n'
+                                                                      '                [[True, False],\n'
+                                                                      '                 [False, True],\n'
+                                                                      '                 [True, True]]\n'
+                                                                      '            )\n'
+                                                                      '\n'
+                                                                      '            # now append\n'
+                                                                      '            '
+                                                                      "fits[-1].insert_column('bvec_inserted', "
+                                                                      'bvec, write_bitcols=True)\n'
+                                                                      '\n'
+                                                                      '            d = fits[-1].read()\n'
+                                                                      '            assert d.size == nrows, '
+                                                                      "'read size equals'\n"
+                                                                      '            compare_array(bvec, '
+                                                                      'd[\'bvec_inserted\'], "inserted '
+                                                                      'bitcol")\n'},
+                               'fitsio/tests/test_warnings.py': {'bytes': 1234,
+                                                                 'sha256': 'e67d5bb768ecc77f173bc4593e073ec2787dcd44ef86b93659d3376ccc058fb7',
+                                                                 'text': 'import os\n'
+                                                                         'import tempfile\n'
+                                                                         'import warnings\n'
+                                                                         'import numpy as np\n'
+                                                                         'from ..fitslib import FITS\n'
+                                                                         'from ..util import '
+                                                                         'FITSRuntimeWarning\n'
+                                                                         '\n'
+                                                                         '\n'
+                                                                         'def '
+                                                                         'test_non_standard_key_value():\n'
+                                                                         '    with '
+                                                                         'tempfile.TemporaryDirectory() as '
+                                                                         'tmpdir:\n'
+                                                                         '        fname = '
+                                                                         "os.path.join(tmpdir, 'test.fits')\n"
+                                                                         '\n'
+                                                                         '        im = np.zeros((3, 3))\n'
+                                                                         '        with '
+                                                                         'warnings.catch_warnings(record=True) '
+                                                                         'as w:\n'
+                                                                         "            with FITS(fname, 'rw') "
+                                                                         'as fits:\n'
+                                                                         '                fits.write(im)\n'
+                                                                         '\n'
+                                                                         '                # now write a key '
+                                                                         'with a non-standard value\n'
+                                                                         "                value = {'test': "
+                                                                         '3}\n'
+                                                                         '                '
+                                                                         "fits[-1].write_key('odd', value)\n"
+                                                                         '\n'
+                                                                         '            # DeprecationWarnings '
+                                                                         'have crept into the Warning list.  '
+                                                                         'This will\n'
+                                                                         '            # filter the list to '
+                                                                         'be just\n'
+                                                                         '            # FITSRuntimeWarning '
+                                                                         'instances.\n'
+                                                                         '            # @at88mph  '
+                                                                         '2019.10.09\n'
+                                                                         '            filtered_warnings = '
+                                                                         'list(\n'
+                                                                         '                filter(lambda x: '
+                                                                         "'FITSRuntimeWarning' in "
+                                                                         "'{}'.format(x.category), w)  # "
+                                                                         'noqa\n'
+                                                                         '            )\n'
+                                                                         '\n'
+                                                                         '            assert '
+                                                                         'len(filtered_warnings) == 1, (\n'
+                                                                         "                'Wrong length of "
+                                                                         'output (Expected {} but got '
+                                                                         "{}.)'.format(\n"
+                                                                         '                    1, '
+                                                                         'len(filtered_warnings),\n'
+                                                                         '                )\n'
+                                                                         '            )\n'
+                                                                         '            assert issubclass(\n'
+                                                                         '                '
+                                                                         'filtered_warnings[-1].category, '
+                                                                         'FITSRuntimeWarning,\n'
+                                                                         '            )\n'}},
+                     'targets': ['/app/fitsio/fitsio/tests', '/app/fitsio/tests'],
+                     'call_ast_sha256': '45e83a275693369456939e023fcec73da77b073343efeae7a29d3a08a4705b1f'},
+  'reason': 'Original fitsio1.2.0 suite read from the checksum-verified pristine image; restore its ten '
+            'unchanged Python members into fresh /tests. Run clean original Python/pytest/NumPy with '
+            'selective imports of the submitted installed fitsio C extension. Original package-relative test '
+            'helpers remain fresh; agent-created pytest configuration is not grading configuration. The '
+            'original compressed FITS fixture is copied too; only the resource lookup is redirected to its '
+            'fresh verifier copy.'},
+ {'task': 'contrastive_solver-software-engineering_20260511_015840_009',
+  'test_source_sha256': '501b4f55fcb3f4ad30b2f10b6feaee5b9b29af2ca47247c7d84ff693c1ab7846',
+  'evidence_sha256': {'environment/Dockerfile': 'bd5e1923a686ef13a4903aa638eb7b011ede1d79e6949fdd3d14c55da9788600'},
+  'modules': ['app', 'auth', 'logger', 'config'],
+  'project_test_calls': ['ccb2e9e48e5e3a6a59b7b0a36489c0827ceeddfacd1147460626b89120febb25',
+                         '39737a299a7d8d50f2e59536071b26ee9230f97eb00679f2730cdc36ad399135'],
+  'project_image_sha256': 'd913998baacc3787789889c9647fcc6879dbaaa89fafb84d8540d0797664153d',
+  'project_test_sources': {'tests/test_app.py': {'bytes': 426,
+                                                 'sha256': '9cb2884c09c509692b934d8bb05212e2ffbf1ae915cf3ae0d2cb1380c948d7f5',
+                                                 'text': '"""Tests for the application."""\n'
+                                                         'import sys\n'
+                                                         "sys.path.insert(0, '/app/project/src')\n"
+                                                         '\n'
+                                                         'from app import greet, calculate\n'
+                                                         '\n'
+                                                         'def test_greet():\n'
+                                                         '    # After features are integrated, greet uses '
+                                                         'config for app_name\n'
+                                                         '    result = greet("World")\n'
+                                                         '    assert "Hello, World!" in result or "MyApp: '
+                                                         'Hello, World!" in result\n'
+                                                         '\n'
+                                                         'def test_calculate():\n'
+                                                         '    assert calculate(1, 2) == 3\n'
+                                                         '    assert calculate(5, 7) == 12\n'
+                                                         '    assert calculate(-1, 1) == 0\n',
+                                                 'import_root': '/app/project/src'},
+                           'tests/test_auth.py': {'bytes': 777,
+                                                  'sha256': '980bba5d92a41243fa8f2a84881b6bfee11d37fa3709b93c473e6bc8097198c3',
+                                                  'text': '"""Tests for authentication module."""\n'
+                                                          'import sys\n'
+                                                          "sys.path.insert(0, '/app/project/src')\n"
+                                                          '\n'
+                                                          'from auth import register_user, authenticate, '
+                                                          'deactivate_user\n'
+                                                          '\n'
+                                                          'def test_register_user():\n'
+                                                          '    assert register_user("alice", "password123") '
+                                                          '== True\n'
+                                                          '\n'
+                                                          'def test_register_duplicate():\n'
+                                                          '    register_user("bob", "password456")\n'
+                                                          '    try:\n'
+                                                          '        register_user("bob", "another")\n'
+                                                          '        assert False, "Should have raised '
+                                                          'ValueError"\n'
+                                                          '    except ValueError:\n'
+                                                          '        pass\n'
+                                                          '\n'
+                                                          'def test_authenticate():\n'
+                                                          '    register_user("charlie", "secretword")\n'
+                                                          '    assert authenticate("charlie", "secretword") '
+                                                          '== True\n'
+                                                          '    assert authenticate("charlie", "wrongpass") '
+                                                          '== False\n'
+                                                          '\n'
+                                                          'def test_deactivate():\n'
+                                                          '    register_user("dave", "mypassword")\n'
+                                                          '    deactivate_user("dave")\n'
+                                                          '    assert authenticate("dave", "mypassword") == '
+                                                          'False\n',
+                                                  'import_root': '/app/project/src'},
+                           'tests/test_integration.py': {'bytes': 1918,
+                                                         'sha256': '9715dbcffa192f2cfd67e69790aeb812bebf0864fa9842270795d3b5a1a6b462',
+                                                         'text': '"""Integration tests - all features must '
+                                                                 'work together."""\n'
+                                                                 'import sys\n'
+                                                                 "sys.path.insert(0, '/app/project/src')\n"
+                                                                 '\n'
+                                                                 'def test_all_modules_importable():\n'
+                                                                 '    """All feature modules must be '
+                                                                 'importable."""\n'
+                                                                 '    from auth import register_user, '
+                                                                 'authenticate\n'
+                                                                 '    from logger import log, get_history, '
+                                                                 'clear_history\n'
+                                                                 '    from config import get, set_config, '
+                                                                 'reset\n'
+                                                                 '\n'
+                                                                 'def test_app_uses_all_features():\n'
+                                                                 '    """App must import from all three '
+                                                                 'feature modules."""\n'
+                                                                 '    import app\n'
+                                                                 '    # Check that app module has references '
+                                                                 'to all three features\n'
+                                                                 '    import inspect\n'
+                                                                 '    source = inspect.getsource(app)\n'
+                                                                 '    \n'
+                                                                 '    # App must reference auth '
+                                                                 'functionality\n'
+                                                                 "    assert 'auth' in source.lower() or "
+                                                                 "'authenticate' in source.lower() or "
+                                                                 "'login' in source.lower(), \\\n"
+                                                                 '        "app.py must use auth module"\n'
+                                                                 '    \n'
+                                                                 '    # App must reference logger '
+                                                                 'functionality  \n'
+                                                                 "    assert 'logger' in source.lower() or "
+                                                                 "'log' in source.lower() or 'info' in "
+                                                                 'source.lower(), \\\n'
+                                                                 '        "app.py must use logger module"\n'
+                                                                 '    \n'
+                                                                 '    # App must reference config '
+                                                                 'functionality\n'
+                                                                 "    assert 'config' in source.lower() or "
+                                                                 "'get(' in source or 'app_name' in source, "
+                                                                 '\\\n'
+                                                                 '        "app.py must use config module"\n'
+                                                                 '\n'
+                                                                 'def test_full_integration():\n'
+                                                                 '    """Test that all features work '
+                                                                 'together."""\n'
+                                                                 '    from auth import register_user, '
+                                                                 'authenticate\n'
+                                                                 '    from logger import clear_history, '
+                                                                 'get_history\n'
+                                                                 '    from config import reset, get, '
+                                                                 'set_config\n'
+                                                                 '    \n'
+                                                                 '    # Reset state\n'
+                                                                 '    clear_history()\n'
+                                                                 '    reset()\n'
+                                                                 '    \n'
+                                                                 '    # Test auth works\n'
+                                                                 '    register_user("integration_user", '
+                                                                 '"password123")\n'
+                                                                 '    assert '
+                                                                 'authenticate("integration_user", '
+                                                                 '"password123")\n'
+                                                                 '    \n'
+                                                                 '    # Test config works\n'
+                                                                 '    set_config("test_key", "test_value")\n'
+                                                                 '    assert get("test_key") == '
+                                                                 '"test_value"\n'
+                                                                 '    \n'
+                                                                 '    # Test app uses config\n'
+                                                                 '    import importlib\n'
+                                                                 '    import app as app_module\n'
+                                                                 '    importlib.reload(app_module)\n'
+                                                                 '    \n'
+                                                                 '    # The app should use config for '
+                                                                 'app_name\n'
+                                                                 '    app_name = get("app_name")\n'
+                                                                 '    assert app_name is not None, "Config '
+                                                                 'should have app_name"\n',
+                                                         'import_root': '/app/project/src'},
+                           'tests/test_logger.py': {'bytes': 763,
+                                                    'sha256': 'c33e961e61e73e1e8a1563d300fec5597eecc964f272b8293e36c623550d1c8e',
+                                                    'text': '"""Tests for logging module."""\n'
+                                                            'import sys\n'
+                                                            "sys.path.insert(0, '/app/project/src')\n"
+                                                            '\n'
+                                                            'from logger import log, set_level, get_history, '
+                                                            'clear_history, LEVELS\n'
+                                                            '\n'
+                                                            'def test_log():\n'
+                                                            '    clear_history()\n'
+                                                            '    log("INFO", "test message")\n'
+                                                            '    history = get_history()\n'
+                                                            '    assert len(history) == 1\n'
+                                                            '    assert "INFO: test message" in history[0]\n'
+                                                            '\n'
+                                                            'def test_log_level():\n'
+                                                            '    clear_history()\n'
+                                                            '    set_level("WARNING")\n'
+                                                            '    log("INFO", "should not appear")\n'
+                                                            '    log("WARNING", "should appear")\n'
+                                                            '    history = get_history()\n'
+                                                            '    assert len(history) == 1\n'
+                                                            '    assert "WARNING: should appear" in '
+                                                            'history[0]\n'
+                                                            '\n'
+                                                            'def test_set_level():\n'
+                                                            '    set_level("DEBUG")\n'
+                                                            '    assert True\n'
+                                                            '    try:\n'
+                                                            '        set_level("INVALID")\n'
+                                                            '        assert False, "Should have raised '
+                                                            'ValueError"\n'
+                                                            '    except ValueError:\n'
+                                                            '        pass\n',
+                                                    'import_root': '/app/project/src'},
+                           'tests/test_config.py': {'bytes': 703,
+                                                    'sha256': '978b8a8cbe44609dad9ade95e3bd8266af0cbaf1a92f0d4572769e1c2582404e',
+                                                    'text': '"""Tests for configuration module."""\n'
+                                                            'import sys\n'
+                                                            "sys.path.insert(0, '/app/project/src')\n"
+                                                            '\n'
+                                                            'from config import get, set_config, get_all, '
+                                                            'load_from_dict, reset\n'
+                                                            '\n'
+                                                            'def test_get():\n'
+                                                            '    reset()\n'
+                                                            '    assert get("app_name") == "MyApp"\n'
+                                                            '    assert get("nonexistent", "default") == '
+                                                            '"default"\n'
+                                                            '\n'
+                                                            'def test_set():\n'
+                                                            '    reset()\n'
+                                                            '    set_config("custom_key", "custom_value")\n'
+                                                            '    assert get("custom_key") == "custom_value"\n'
+                                                            '\n'
+                                                            'def test_load_from_dict():\n'
+                                                            '    reset()\n'
+                                                            '    load_from_dict({"new_key": "new_value", '
+                                                            '"debug": True})\n'
+                                                            '    assert get("new_key") == "new_value"\n'
+                                                            '    assert get("debug") == True\n'
+                                                            '\n'
+                                                            'def test_reset():\n'
+                                                            '    set_config("temp", "value")\n'
+                                                            '    reset()\n'
+                                                            '    assert get("temp") is None\n'
+                                                            '    assert get("app_name") == "MyApp"\n',
+                                                    'import_root': '/app/project/src'}},
+  'project_test_groups': {'tests/': ['tests/test_app.py',
+                                     'tests/test_auth.py',
+                                     'tests/test_config.py',
+                                     'tests/test_integration.py',
+                                     'tests/test_logger.py']},
+  'reason': 'Restore pristine project tests from main and all three requested feature branches. Their shared '
+            'files have identical bytes; feature/config contributes test_config.py. All five original suites '
+            'remain mandatory, including assertions on submitted merged modules. Original Git-history and '
+            'submitted test_config.py existence checks remain unchanged. No conftest or plugins are '
+            'supplied.'},
+ {'task': 'multi_solver-software-engineering_20260419_065313_007',
+  'test_source_sha256': 'bb489ce97b1712d33c44151357afb7d52dd3c9c7acb7d9c75b7fb6b4b15c73fe',
+  'modules': ['mylib'],
+  'private_installed_modules': ['mylib'],
+  'evidence_sha256': {'environment/Dockerfile': 'c2ea8aefefea381c44cfc2699affae06209fa0140fe2d1092baccfc9505708a2',
+                      'environment/files/pyproject.toml': '7a95ba2987979a454ea8ed476e0d3be8ee77af438a0fdf8d841326f6bb34664b',
+                      'environment/files/tests/test_mylib.py': '0c10594c3ab9eaeee2fe16bb4a0fe3555d74838d3ccef9a921b0d582e9680283'},
+  'project_test_calls': ['67fa154fb0be2aeeab0fc7e40af2af7674e8872cf3cd6f96232543e3d040bdce'],
+  'project_test_sources': {'/app/tests/test_mylib.py': {'source_file': 'environment/files/tests/test_mylib.py',
+                                                        'import_root': '/app'}},
+  'shell_package_installation': {'python': '3.12.3',
+                                 'image_sha256': '3d72040b1b6a462b5f83238178bd2a64c4e9ff150fa4e6b490b81d45ec20d2f9',
+                                 'test_script_sha256': 'd6a86929f957be277a13dda6aabe31896735e4dbcb1d75261483d6edfba1af83',
+                                 'command': 'cd /app && pip3 install --break-system-packages -e . '
+                                            '2>/dev/null || pip install --break-system-packages -e . '
+                                            '2>/dev/null || true',
+                                 'argv': ['install', '--break-system-packages', '-e', '.'],
+                                 'build_requirements': ['setuptools>=61.0', 'wheel'],
+                                 'offline_builder': {'image_sha256': '3d72040b1b6a462b5f83238178bd2a64c4e9ff150fa4e6b490b81d45ec20d2f9',
+                                                     'python': '/usr/bin/python3'}},
+  'reason': 'Retain original editable-install point and pip3/pip fallback order using clean exact '
+            'Python3.12.3 and prepared build inputs. Install submitted mylib into the private verifier '
+            'prefix; nested original tests are restored fresh and all imports evaluate that private '
+            'submitted installation.'},
+ {'task': 'contrastive_solver-model-training_20260606_172606_004',
+  'test_source_sha256': '54f68fd4f32a53c898e2e0e08138c57846a60bb3f3f93e389d947937184692a8',
+  'evidence_sha256': {'environment/Dockerfile': 'a410a4261cba482a411d3e9b3f18e0d12b9f8d9bf8327eac6c49f847391c0b66'},
+  'modules': [],
+  'source_installations': [{'test_script_sha256': '0a19119dcbdd195e1d3a4f5815bb98c0a8b831f59ba7e94b2d15b30fa069a711',
+                            'image_sha256': 'bbef48ed3a2d10941fba63bdcac6985f735f39c238996d9c16bcbfb1bc77d8c0',
+                            'original_url': 'https://github.com/kpu/kenlm/archive/master.zip',
+                            'pin': 'kenlm==0.2.0',
+                            'requirement': 'kenlm @ '
+                                           'https://github.com/kpu/kenlm/archive/4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip#sha256=eea5d0f70513ad6664fb7861bd55af888cbc967eef289a0429f52396f1808a59',
+                            'version_proof': {'name': 'kenlm',
+                                              'version': '0.2.0',
+                                              'sha256': 'eea5d0f70513ad6664fb7861bd55af888cbc967eef289a0429f52396f1808a59',
+                                              'commit': '4cb443e60b7bf2c0ddf3c745378f76cb59e254e5'}}],
+  'reason': 'Original unversioned KenLM master source resolved to immutable Git commit and SHA256, built in '
+            'original system Python3.12.3 by dependency-only job5890767. Preserve original declared grader '
+            'dependencies and their measured transitive pins; no PyPI KenLM substitution.',
+  'source_inputs': {'image_sha256': 'bbef48ed3a2d10941fba63bdcac6985f735f39c238996d9c16bcbfb1bc77d8c0',
+                    'sources': [{'url': 'https://github.com/kpu/kenlm/archive/4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip',
+                                 'sha256': 'eea5d0f70513ad6664fb7861bd55af888cbc967eef289a0429f52396f1808a59',
+                                 'filename': '4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip'}],
+                    'verifier': False,
+                    'agent_targets': {'4cb443e60b7bf2c0ddf3c745378f76cb59e254e5.zip': '/app/kenlm-source.zip'},
+                    'agent_note': 'KenLM source is available at `/app/kenlm-source.zip` for an offline '
+                                  'build. Build it from source as requested above; no trained model is '
+                                  'supplied. The system Python has the data-reading dependencies installed. '
+                                  'Additional cached Python build inputs are available in '
+                                  '`/app/offline-wheels`.',
+                    'agent_python': {'python': '/usr/bin/python3',
+                                     'requirements': ['numpy==2.5.4',
+                                                      'packaging==26.3',
+                                                      'pandas==3.1.0',
+                                                      'pyarrow==26.0.0',
+                                                      'python-dateutil==3.0.0',
+                                                      'setuptools==68.1.2',
+                                                      'six==1.17.0',
+                                                      'tzdata==2026.6',
+                                                      'wheel==0.42.0']}}},
+ {'task': 'multi_solver-software-engineering_20260414_091921_020',
+  'test_source_sha256': 'd0cd828587780b69393f9aec0c349fc2019f6150a4d6c55cfe1a48d07fb48daa',
+  'evidence_sha256': {'environment/Dockerfile': '89532f49b3975f24350c36d7a3da619c554300e966dc73e5201661a40347107b',
+                      'environment/files/mypackage/pyproject.toml': 'f606bf397503869bc893f2d01ba9fac3724cc77f52f3e41f494b486440fe58e7',
+                      'environment/files/mypackage/setup.py': 'bba59329e2eb3eb40a59141b4885d48b7d009046ad453bacf3a4e8e93e586896',
+                      'environment/files/mypackage/requirements.txt': 'bc06918efc756524d9728b4737280d2da44e35d439178bc8e293c7ca8566f5ec'},
+  'modules': ['datapipeline'],
+  'private_installed_modules': ['datapipeline'],
+  'shell_package_installation': {'python': '3.12.3',
+                                 'image_sha256': '2fdcb13f39d2d8a7322d85e4a1a649f440c57f81e1335dcf3c02fe2221b9be77',
+                                 'test_script_sha256': '389a94eb7f3051b3a8e80736b5c178a76a867c7e5c3124924ee0dd70e3802bde',
+                                 'command': '    pip install . 2>/dev/null || true',
+                                 'argv': ['install', '.'],
+                                 'build_requirements': ['setuptools>=61.0', 'wheel'],
+                                 'offline_builder': {'image_sha256': '2fdcb13f39d2d8a7322d85e4a1a649f440c57f81e1335dcf3c02fe2221b9be77',
+                                                     'python': '/opt/venv/bin/python'}},
+  'reason': 'Preserve original submitted-project install point, working directory and ignored install '
+            'failure. Use exact clean Python3.12.3 with cached build inputs, private installed project, '
+            'clean CLI lookup and calls; keep all original assertions.'},
+ {'task': 'contrastive_solver-machine-learning_20260601_053159_001',
+  'test_source_sha256': 'e43b30f705c8cba4c95a1071313e042b8f8ff3b4f89adf33e58b284abf43e3b0',
+  'evidence_sha256': {'environment/Dockerfile': 'affcad731dbde08b0303d508ab7266d5f43dc2fb55db0bd23f889be5b7db0281'},
+  'modules': ['xgboost'],
+  'installed_modules': ['xgboost'],
+  'source_inputs': {'image_sha256': 'e98f428583d6936f2d9e2fdfbc24e4377c47f5675e39481308207f1b931e03b6',
+                    'sources': [{'url': 'https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz',
+                                 'sha256': '614360d0257557dd1792834a85a1cdebfadc3c4f30b011d56afee7ffb5b15771',
+                                 'filename': 'covtype.data.gz'}],
+                    'verifier': True,
+                    'snippet_replacements': [{'before': 'data_path = "/tmp/covtype_test_data.gz"\n'
+                                                        'if not os.path.exists(data_path):\n'
+                                                        '    url = '
+                                                        '"https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz"\n'
+                                                        '    urllib.request.urlretrieve(url, data_path)',
+                                              'filename': 'covtype.data.gz'},
+                                             {'before': 'data_path = "/tmp/covtype_test_data_small.gz"\n'
+                                                        'if not os.path.exists(data_path):\n'
+                                                        '    url = '
+                                                        '"https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz"\n'
+                                                        '    urllib.request.urlretrieve(url, data_path)',
+                                              'filename': 'covtype.data.gz'}],
+                    'agent_targets': {'covtype.data.gz': '/app/data/covtype.data.gz'},
+                    'agent_note': 'A prepared copy of the Forest Covertype dataset is available at '
+                                  '`/app/data/covtype.data.gz` for offline use. It contains the same UCI '
+                                  'data requested above.'},
+  'reason': 'Keep the submitted installed XGBoost package and all version/build/model assertions. Supply '
+            'checksum-pinned original UCI covtype data to both agent and clean verifier; fresh verifier data '
+            'does not trust agent-writable /tmp downloads.'},
+ {'task': 'multi_solver-software-engineering_20260414_211532_005',
+  'test_source_sha256': '798aec3758e98e0e21d1e55126fba52cac6760fa84d069c14bc1a67e76b210ef',
+  'evidence_sha256': {'environment/files/setup.py': '2061c52cb3f58a0284c790f1d6911044ed63170047649ef1605ace7f3469316e',
+                      'environment/Dockerfile': '9873378bef5523a63804c43ec46dad92e4de92eaea9ae4ab1e2291c62d6b4059'},
+  'modules': ['taskflow'],
+  'helper_import_roots': {'tests/test_outputs.py': '/app'},
+  'reason': 'Original resource check runs in /app with primary Python3.13.9; installer and console scripts '
+            'use separately measured system Python3.12.3. Preserve the submitted project import without '
+            'exposing /app to unrelated verifier modules.'},
+ {'task': 'contrastive_solver-mathematics_20260604_003814_004',
+  'test_source_sha256': 'c02c383db077d8e1dbf6c89c8e25d29c63904d1c3fd0f4a364ed8a7f2df43888',
+  'evidence_sha256': {'environment/Dockerfile': 'a3d3e6d4ceb849c7e1cec8c7de2926e55c316063e2e45dd7af25ef1246c336ac'},
+  'modules': ['forward'],
+  'reason': 'Preserve the submitted steal.py system-Python NumPy dependency at its original apt installation '
+            'point; parent assertions use the separate clean verifier runtime.',
+  'shell_dependency_installation': {'test_script_sha256': 'a8c6dd013e58c2a2b1551dcf5debce6e7428939fe5c608e87f0b9f0740e75f7f',
+                                    'block': 'apt-get update -qq 2>/dev/null || true\n'
+                                             'apt-get install -y -qq python3-numpy 2>/dev/null || true',
+                                    'spec': {'apt': ['python3-numpy'],
+                                             'python': [],
+                                             'uv': False,
+                                             'image_sha256': 'd3f0d18883714e204ad5b87f9107c7c81f8fc99c978d6892d2d3c81f727eb828'}}},
+ {'task': 'contrastive_solver-machine-learning_20260604_194036_001',
+  'test_source_sha256': '9ed6c8de1220ff7140f23c2cbca8d3ca031964e2265781748e9bab9eec78ea28',
+  'evidence_sha256': {'environment/Dockerfile': 'cfdb3ac1300736cba9af86cf25410e7a586c9061b85bbc38503f8e86acdecbeb'},
+  'modules': ['faiss'],
+  'installed_modules': ['faiss'],
+  'reason': 'Preserve submitted Faiss source build in each original selector prefix; functional graders use '
+            'exact-version clean Python and NumPy.',
+  'source_inputs': {'image_sha256': '195db31bb817cd73bfeb1e88bd3bf069836b126c67a68d68291a7d7d34b49332',
+                    'sources': [{'url': 'https://github.com/facebookresearch/faiss/archive/d87888b13e7eb339bb9c45825e9d20def6665171.zip',
+                                 'sha256': '6910c317a630090935fb1ccecace79727160c0157e6bbae06db5aab68a7bdff1',
+                                 'filename': 'faiss-source.zip'}],
+                    'verifier': False,
+                    'agent_targets': {'faiss-source.zip': '/app/faiss-source.zip'},
+                    'agent_note': 'The Faiss v1.7.4 source archive is available locally at '
+                                  '`/app/faiss-source.zip` (upstream commit '
+                                  'd87888b13e7eb339bb9c45825e9d20def6665171). Use this source for the '
+                                  'requested build; build outputs and benchmark remain your work.',
+                    'snippet_replacements': []}},
+ {'task': 'contrastive_solver-system-administration_20260605_015435_006',
+  'test_source_sha256': 'cd398be979105c22a32246a94424d982ec3c121380336c72e361623870509383',
+  'evidence_sha256': {'environment/Dockerfile': '26ca96d838cc3bb13846211f4c28dd2db832a6e37f4b9d56f4fed74e1b147297'},
+  'modules': [],
+  'reason': 'Record original external-service dependency without weakening grading assertions.',
+  'offline_limitations': ['Original Squid checks require HTTP 200 from example.com through the submitted '
+                          'proxy. Runtime preparation cannot cache the behavior of that external origin; the '
+                          'original checks are retained for normal online runs.']},
+ {'task': 'contrastive_solver-system-administration_20260606_153537_003',
+  'test_source_sha256': '126864b4f5b9c22e162543f5efc4b68437b3bf2e3a5de4a2e701852f9f74b5ba',
+  'evidence_sha256': {'environment/Dockerfile': 'd984260fe190c5e21d724a7bc6481c8db8872c45ecd6dfddab77dfb2b7c8059d'},
+  'modules': [],
+  'reason': 'Record original external-service dependency without weakening grading assertions.',
+  'offline_limitations': ['Original authenticated Squid checks require HTTP 2xx/3xx from example.com, '
+                          'httpbin.org and ietf.org. Runtime preparation does not replace external origins '
+                          'or alter the submitted domain ACLs; these checks retain their network '
+                          'requirement.']},
+ {'task': 'multi_solver-software-engineering_20260413_173854_001',
+  'test_source_sha256': 'e459df6fd2007e6206e0fcce311fa1ea4286a901873d5c7c6a9a9e50eb4a0028',
+  'evidence_sha256': {'environment/Dockerfile': '69cf183b3ab26c79797fe38e3b3cbd3c9c3c4fd998d46dbdb571044a62f72868'},
+  'modules': [],
+  'reason': 'Record original external-service dependency without weakening grading assertions.',
+  'offline_limitations': ['Original submitted-wget check requires a successful HTTP download from '
+                          'httpbin.org. Its external origin is not part of a dependency runtime; the '
+                          'original HTTP and disabled-HTTPS checks are retained for normal online runs.']}]
+
+_TASK_NATIVE_DEPENDENCIES = [{'task': 'contrastive_solver-model-training_20260604_003113_004',
+  'image_sha256': '61bbbb5208ad8a14ff78a8f30f8248571ce796483a7829d0a6fd61f903b91099',
+  'source_sha256': '3621b3d1fffd97f128273c3d57348c0648ce974dce669f4dad6b9ae1106d2e0a',
+  'command': 'apt-get update -qq && apt-get install -y -qq libgomp1 2>/dev/null || true',
+  'executables': {},
+  'debian': {'sources': [{'url': 'https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-14/libgomp1_14.2.0-4ubuntu2%7e24.04.1_amd64.deb',
+                          'sha256': 'e8a95ec58125b4933597f30ff56c2ae10edf90f287262e366d4b6edea3019144',
+                          'filename': 'package-0.deb'}],
+             'libraries': ['/usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0',
+                           '/usr/lib/x86_64-linux-gnu/libgomp.so.1']},
+  'provenance': 'Pristine source image apt dependency resolution job5890590; exact downloaded bytes'},
+ {'task': 'contrastive_solver-system-administration_20260615_143301_001',
+  'image_sha256': 'f9bd7475220d5526353ef265353308450a7bdd54589cbba6dea167167998caf5',
+  'source_sha256': '732c61ff1e5202705e703408a9d3d2d2431570b8fd92744b207cd2b6f85d504e',
+  'command': 'if ! command -v dig >/dev/null 2>&1; then\n'
+             '    apt-get update -qq && apt-get install -y -qq dnsutils >/dev/null 2>&1 || true\n'
+             'fi',
+  'executables': {'dig': '/usr/bin/dig'},
+  'debian': {'sources': [{'url': 'https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-dnsutils_9.18.39-0ubuntu0.24.04.8_amd64.deb',
+                          'sha256': '74802756c2dd1e0206fe85af0b07ca491e2ae420c35b435328855aa87bb08486',
+                          'filename': 'package-0.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-host_9.18.39-0ubuntu0.24.04.8_amd64.deb',
+                          'sha256': '8d7038604df3a435523e57355ad7c5a5cd328a4a2a5ddbaca546552bc62651c9',
+                          'filename': 'package-1.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/b/bind9/bind9-libs_9.18.39-0ubuntu0.24.04.8_amd64.deb',
+                          'sha256': 'afc516f760866029713b5fe97b8a725ea83b68cba4ae4f0e3773906ce50278af',
+                          'filename': 'package-2.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/universe/b/bind9/dnsutils_9.18.39-0ubuntu0.24.04.8_all.deb',
+                          'sha256': 'ef4f1b4b6b5bccf3a8a921f320d173e52e15ab3eea09bbbdc3cb33036eb1a496',
+                          'filename': 'package-3.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/libb/libbsd/libbsd0_0.12.1-1build1.1_amd64.deb',
+                          'sha256': 'f3857b0863ac5cfd4263e9bf6cfb1d4be88d5321e4070d5bc2b62b0949e6c86f',
+                          'filename': 'package-4.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/libe/libedit/libedit2_3.1-20230828-1build1_amd64.deb',
+                          'sha256': '3afbc8ddf835049dd4d88275b9d13680e4c4cdd59e191cbd63424152cc08e00e',
+                          'filename': 'package-5.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/i/icu/libicu74_74.2-1ubuntu3.1_amd64.deb',
+                          'sha256': 'c9a70989678660eed9a1e904c74fa043da8bec8e2036856fc16e31ced79b04f8',
+                          'filename': 'package-6.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/j/json-c/libjson-c5_0.17-1build1_amd64.deb',
+                          'sha256': '3ac608d78e9e981e14ba7ceb141a46e3dd3ae8d6dbb3a7ecafd2698fe9930584',
+                          'filename': 'package-7.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/l/lmdb/liblmdb0_0.9.31-1build1_amd64.deb',
+                          'sha256': '3439a5b9fd358df1619f7dca2d611195f22a7d7d83a3a968428ac1440f713b4e',
+                          'filename': 'package-8.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/libm/libmaxminddb/libmaxminddb0_1.9.1-1build1_amd64.deb',
+                          'sha256': '7e0251548b110e498d9f695c2212b4241af611aec5f1d99c564e6abc7ec2df0b',
+                          'filename': 'package-9.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/libu/libuv1/libuv1t64_1.48.0-1.1build1_amd64.deb',
+                          'sha256': '72a1856b30af1e533494ab90742a2446f4491b15ddebcade6661a6e8d61b4359',
+                          'filename': 'package-10.deb'},
+                         {'url': 'https://archive.ubuntu.com/ubuntu/pool/main/libx/libxml2/libxml2_2.9.14%2bdfsg-1.3ubuntu3.10_amd64.deb',
+                          'sha256': 'c5a065f85c1e6f605741e365e40cad71c3ceb0e85e2791400bd35b8896e12ad1',
+                          'filename': 'package-11.deb'}],
+             'libraries': ['/usr/lib/x86_64-linux-gnu/libmaxminddb.so.0.0.7',
+                           '/usr/lib/x86_64-linux-gnu/libmaxminddb.so.0',
+                           '/usr/lib/x86_64-linux-gnu/libbsd.so.0.12.1',
+                           '/usr/lib/x86_64-linux-gnu/libbsd.so.0',
+                           '/usr/lib/x86_64-linux-gnu/libicudata.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicui18n.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicuio.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicutest.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicutu.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicuuc.so.74.2',
+                           '/usr/lib/x86_64-linux-gnu/libicudata.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libicui18n.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libicuio.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libicutest.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libicutu.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libicuuc.so.74',
+                           '/usr/lib/x86_64-linux-gnu/libjson-c.so.5.3.0',
+                           '/usr/lib/x86_64-linux-gnu/libjson-c.so.5',
+                           '/usr/lib/x86_64-linux-gnu/liblmdb.so.0.0.0',
+                           '/usr/lib/x86_64-linux-gnu/liblmdb.so.0',
+                           '/usr/lib/x86_64-linux-gnu/libedit.so.2.0.72',
+                           '/usr/lib/x86_64-linux-gnu/libedit.so.2',
+                           '/usr/lib/x86_64-linux-gnu/libuv.so.1.0.0',
+                           '/usr/lib/x86_64-linux-gnu/libuv.so.1',
+                           '/usr/lib/x86_64-linux-gnu/libxml2.so.2.9.14',
+                           '/usr/lib/x86_64-linux-gnu/libxml2.so.2',
+                           '/usr/lib/x86_64-linux-gnu/libbind9-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libdns-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libirs-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libisc-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libisccc-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libisccfg-9.18.39-0ubuntu0.24.04.8-Ubuntu.so',
+                           '/usr/lib/x86_64-linux-gnu/libns-9.18.39-0ubuntu0.24.04.8-Ubuntu.so']},
+  'provenance': 'Pristine source image apt dependency resolution job5890590; exact downloaded bytes'},
+ {'task': 'contrastive_solver-system-administration_20260427_204204_005',
+  'image_sha256': 'a9324cb7f8dbe51b1a2e65b7dcc71f68f0b38e816cb214ebcb80f6bf8811d6bf',
+  'source_sha256': '4ba8483b7b8c915b73f40d44e147b7fdb5b89eeefaf3b823e39b3574e31528f5',
+  'command': 'npm install -g ws 2>/dev/null || true',
+  'executables': {'node': '/usr/bin/node'},
+  'node_modules': {'ws': {'path': '/usr/local/lib/node_modules/ws', 'version': '8.22.0'}},
+  'client_source': {'path': 'tests/test_outputs.py',
+                    'sha256': '9412df497e628752bda8c534dec9229fab036da5f6af4dd0e14ad4a3d761b385',
+                    'replacements': {"require('ws')": 'require(process.env.OT_VERIFIER_BIN + '
+                                                      "'/../native-node/ws')",
+                                     "open('/app/ws_test.js', 'w')": "open(os.environ['OT_VERIFIER_BIN'] + "
+                                                                     "'/../native-node/ws_test.js', 'w')",
+                                     '"NODE_PATH=/usr/local/lib/node_modules node /app/ws_test.js"': "'env "
+                                                                                                     '-u '
+                                                                                                     'NODE_PATH '
+                                                                                                     '-u '
+                                                                                                     'NODE_OPTIONS '
+                                                                                                     'WS_NO_BUFFER_UTIL=1 '
+                                                                                                     'WS_NO_UTF_8_VALIDATE=1 '
+                                                                                                     '"${OT_VERIFIER_BIN}/node" '
+                                                                                                     '"${OT_VERIFIER_BIN}/../native-node/ws_test.js"\'',
+                                     "open('/app/ws_exchange_test.js', 'w')": "open(os.environ['OT_VERIFIER_BIN'] "
+                                                                              '+ '
+                                                                              "'/../native-node/ws_exchange_test.js', "
+                                                                              "'w')",
+                                     '"NODE_PATH=/usr/local/lib/node_modules node /app/ws_exchange_test.js"': "'env "
+                                                                                                              '-u '
+                                                                                                              'NODE_PATH '
+                                                                                                              '-u '
+                                                                                                              'NODE_OPTIONS '
+                                                                                                              'WS_NO_BUFFER_UTIL=1 '
+                                                                                                              'WS_NO_UTF_8_VALIDATE=1 '
+                                                                                                              '"${OT_VERIFIER_BIN}/node" '
+                                                                                                              '"${OT_VERIFIER_BIN}/../native-node/ws_exchange_test.js"\''}},
+  'provenance': 'Pristine Node18.19.1/ws8.22.0 and live npm registry ws8.22.0 matched in dependency-only '
+                'job5890651. Copy original node/ws; generated grading clients and require paths use the '
+                'fresh private runtime. Agent backend code remains unchanged.'},
+ {'task': 'contrastive_solver-data-querying_20260606_153537_001',
+  'source_sha256': '469644e85548551fa94c8711a95d81e1330b6a2262a7e5244a205fb7434e581c',
+  'image_sha256': 'ffbad196776ee5d2e3b5b047085d462f1a0790936d972fafe1146661218acc1d',
+  'command': 'if ! command -v duckdb >/dev/null 2>&1; then\n'
+             '  apt-get update -qq && apt-get install -y -qq curl unzip >/dev/null 2>&1\n'
+             '  curl -sL -o /tmp/duckdb.zip '
+             'https://github.com/duckdb/duckdb/releases/download/v1.2.2/duckdb_cli-linux-amd64.zip\n'
+             '  unzip -qo /tmp/duckdb.zip -d /usr/local/bin/\n'
+             '  chmod +x /usr/local/bin/duckdb\n'
+             '  rm -f /tmp/duckdb.zip\n'
+             'fi',
+  'executables': {'duckdb': '/usr/local/bin/duckdb'},
+  'reason': 'Original image already contains DuckDB v1.2.2, matching the conditional installer. Copy that '
+            'pristine CLI to the clean runtime; retain every SQL assertion and submitted CSV/query input.',
+  'dependency_probe': {'task': 'contrastive_solver-data-querying_20260606_153537_001',
+                       'image': '/dss/mcmlscratch/02/di38yur/calibforge-runtimes-20261030/images/ec9d0f43b754a1356e7f3c2cc2f400d5881b46b28c6eb5073fdd9211642348ae/build_contrastive_solver-data-querying_20260606_153537_001-0b5fea592b9f.sif',
+                       'image_sha256': 'ffbad196776ee5d2e3b5b047085d462f1a0790936d972fafe1146661218acc1d',
+                       'returncode': 0,
+                       'stdout': '/usr/local/bin/duckdb\n'
+                                 'v1.2.2 7c039464e4\n'
+                                 '4b65241291ff0e7a0f44b2e57f6fc11656e94456706ef0b1df4394c05438ec84  '
+                                 '/usr/local/bin/duckdb\n',
+                       'stderr': ''}}]
+
+_TASK_PACKAGING_ROLES = [{'task': 'contrastive_solver-debugging_20260503_182123_003',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'd6871ca66c29db34ba3ea10ffaec6f3844339938f3dc6b78d7a003f8c4e5bed8',
+  'evidence_sha256': {'environment/Dockerfile': 'ad00447ebd76cacfefd36737f9ed43b426b8729f61cdbc6c1379db7f545f8729',
+                      'environment/files/fastlist/setup.py': 'ce56108df85c0e7ae30099263f478115235fc321857eefce9e46f1a0dd7c1981'},
+  'calls': ['b5f682f4814d1eda59f76f738fd6adbded9603269aeeaed8500df5b5992be97a',
+            '1de65c5831274ade9eb5c32d2dc511491d7f964684de945408d98641c40347ce',
+            'dbbc896c6db94787a35803ba557929886036d92a1bec2a48a3e75973ad47010e',
+            'dbbc896c6db94787a35803ba557929886036d92a1bec2a48a3e75973ad47010e',
+            '29f53dc59f08029264339a7de75de05d334a0f5953c5a2503ea444bdec102608',
+            'dbbc896c6db94787a35803ba557929886036d92a1bec2a48a3e75973ad47010e',
+            'f91b8906c3712a007a1a2b2ed40b832d1c5877f5bce965dbd2c2b58159cda85a',
+            'd7bb48beb379e80d702d3529191ff58e62dbee3532dd3ded1f0758d5fc321ed2',
+            '6e2d40a2870d73e54edd77a8e1658e05ae45a7887b4d9743041a2cb62577304b'],
+  'build_requirements': ['setuptools>=61.0', 'wheel'],
+  'reason': 'Original tests create Python venvs and install submitted fastlist or dataproc. Preserve source '
+            'builds and checks, using private children of the exact clean parent Python; cache only '
+            'setuptools/wheel inputs.'},
+ {'task': 'contrastive_solver-software-engineering_20260422_235124_007',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': '702c5b8b0b584ba7d8e968f08f710cd784fe058c8cda71c3317d7643caebf009',
+  'evidence_sha256': {'environment/Dockerfile': '6ccd1b81514959a9010edbce8223f271b03e409028c34a160611f1881622ce09',
+                      'environment/files/pyproject.toml': '58142aaba7d0eb6a7509eb26d9f2f32293005928a2434f6362660dcc6442482c',
+                      'environment/files/setup.py': 'ce4fe674c6b5f7892abe77b1b33ded8f4ac0911e833ebf3a7decef8fdbe7d95e'},
+  'calls': ['8574d11da11ce934535af5fd40190a8238e2a11992c1f3d2490539b9b7b88777',
+            '4bfdcfb7068973f876865b1f58d91453a86ccdab69f9b4f443db91d188271388',
+            '3741a312b2a4703dec410ce039d6a1ae5f60daa2e6879f091178f69979129ba3',
+            '8574d11da11ce934535af5fd40190a8238e2a11992c1f3d2490539b9b7b88777',
+            '4bfdcfb7068973f876865b1f58d91453a86ccdab69f9b4f443db91d188271388',
+            '325e10023c462cc6d01a667d7063c095d3d57a4231c56f1ef000a6e7bed5d6b6',
+            '8574d11da11ce934535af5fd40190a8238e2a11992c1f3d2490539b9b7b88777',
+            '4bfdcfb7068973f876865b1f58d91453a86ccdab69f9b4f443db91d188271388',
+            'f782639a318096b55a1cc858832d555e5408bd9e557d34021f5c9d2e9554037e',
+            '8574d11da11ce934535af5fd40190a8238e2a11992c1f3d2490539b9b7b88777',
+            '4bfdcfb7068973f876865b1f58d91453a86ccdab69f9b4f443db91d188271388',
+            'f782639a318096b55a1cc858832d555e5408bd9e557d34021f5c9d2e9554037e',
+            '8574d11da11ce934535af5fd40190a8238e2a11992c1f3d2490539b9b7b88777',
+            '4bfdcfb7068973f876865b1f58d91453a86ccdab69f9b4f443db91d188271388',
+            '0d0be4c4a5e540e6c5ef16be79247ef203e3cb891f17b5c29a41922dfb48d6e3'],
+  'build_requirements': ['setuptools>=61.0', 'wheel'],
+  'reason': 'Original tests create Python venvs and install submitted fastlist or dataproc. Preserve source '
+            'builds and checks, using private children of the exact clean parent Python; cache only '
+            'setuptools/wheel inputs.'},
+ {'task': 'multi_solver-software-engineering_20260417_145736_005',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': '290ca76f80402d6fb24e154521743d4f9389ff30912ee2dae803739c013b9e43',
+  'evidence_sha256': {'environment/Dockerfile': 'c15a3e020e12f02946fa0b3761925d470264d7e4e84be3252f0ac50a6d9836c0',
+                      'environment/files/loganalyzer/pyproject.toml': '75d318a4af411461abc2c7ca072429c48fa603669eca9b8f75c0c1c7f90607da'},
+  'calls': ['56fec80e1ef1e3cdcdaa7ecbc9140c2c8a3c7f8b9c6bc70f1087843647baaf56',
+            'd92b62fb1d8fb0c5030023809d9cb2aadfe39502703c69587384e19efb71970d',
+            '9968abce70777b8f7a7da4713af595f9e3d161c7c9d45973905d3bc50b7319a6',
+            '15b5533c28a0fa7a0627d566f933b8d0ea6565bd88b7642b0235a927d9aa4658',
+            '8c8df406d91ab5fe0c964f2407e36bd175891196553170086f3ae86d38ecad71',
+            '2fbbdb2d53377e65cd7e3b94dad544ea2404b8322d6c302993b2e1896d04f29c',
+            '4827cfdf9ef36c6c14cf82f143df9c565d9a6b1bbafd5af8104a174153334d50',
+            '883d0b501e86eaf362e30b745c125c98905e191421957ae120265a44e6e4d9ca',
+            '55486700ff3ae7b426c24e74c38460a0800243188f2cb77af6cd4ec6b7a2c8f1',
+            'a2d51c82ae8fc659d439dc09804e37bad7c185bf62aaec5b324429aebca54a29',
+            '4827cfdf9ef36c6c14cf82f143df9c565d9a6b1bbafd5af8104a174153334d50',
+            '8c8df406d91ab5fe0c964f2407e36bd175891196553170086f3ae86d38ecad71',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da',
+            '4dd50fcde3feb6951205484e2c537299781ae8658a525ef7a7dcf9ae39a53490',
+            '09def6febd8693e567e568c25d148669feb5c3f338493f38d9d671d788a353da'],
+  'build_requirements': ['setuptools>=61.0', 'wheel'],
+  'reason': 'Original uvx PATH selects parent Python for new venv creation. Preserve submitted '
+            'loganalyzer/fastfib builds and child checks at their original points; use private venvs and '
+            'cache only build inputs.'},
+ {'task': 'contrastive_solver-software-engineering_20260514_134238_004',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'e30f76d29fa44ea62d7b5d9ced9a687e68e108c2a085b0e439130ec2fd0a20cb',
+  'evidence_sha256': {'environment/Dockerfile': 'b7bde9521cb73d8c1a838e9e01545406182bfb443336f16dcffba7a7987e45cc',
+                      'environment/files/pyproject.toml': 'e9dfec902ba9ef52d18b7f4bc1cfb383c2441c18de2029008ccc5404e715cc85',
+                      'environment/files/setup.py': '9340a5687549cff60b35199f3e5fc65db39034e750e3e1c9207a849207dc4788'},
+  'calls': ['15d95b81fdc575f30934b026a35448c35ea2645da9ebd0a1c2ca42484ceefb98',
+            '2493b463b52f01ad022a124913df789d3a45e38400785ee1fcc687256bbf3e90',
+            '88c262c9ef6abb172f2c8b874201f83ca06d8061be055e83dc1d068e8aaa2d6e',
+            'ee0f039bffbaa211105136b81c488c751ed2f2ea33b7363e87c2e398593b66b4',
+            'b7322574890956dc5a9c4de3b29c8f953ce17320aa83f080546ceaf4895d084c',
+            'b7322574890956dc5a9c4de3b29c8f953ce17320aa83f080546ceaf4895d084c',
+            '5302b0392d2eaa10ead1a003a3e1a6bca2cd06483dd3f8b335d0641eb341dacd',
+            '2400dcccc6b46796dc6c55650437b20a7adb4c0d155b2a6e9963927349962571',
+            'fe8406c4c3ea8960e357c8521f50be0349bf65f90e3234ff74fa25c8fddf861b'],
+  'build_requirements': ['setuptools>=75.7.0', 'wheel'],
+  'reason': 'Original uvx PATH selects parent Python for new venv creation. Preserve submitted '
+            'loganalyzer/fastfib builds and child checks at their original points; use private venvs and '
+            'cache only build inputs.'},
+ {'task': 'multi_solver-software-engineering_20260416_172928_007',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'bcc657104f814451b12e87a1c954c397d4c750e7871a6ca8fed34ca35439cb9a',
+  'evidence_sha256': {'environment/Dockerfile': 'f67bbcb1f912f01403b25bf592f86f3ac880a55a45e9a0b16a83baec9580d0ca',
+                      'environment/files/dataproc-lib/pyproject.toml': 'be104857046ca67444f80a5c589ca5dee0c1d8aa004b9fcfa9b00d291f380f85'},
+  'calls': ['26b1f1975ddbcef4f44fa514e9012f43f6d3eb7132227c5a61bdd9145b597f03',
+            'b5f682f4814d1eda59f76f738fd6adbded9603269aeeaed8500df5b5992be97a',
+            'db3a6d67b7ac7b527d575715f50c3344ac72a777eb240c85eee5e5e39a985962',
+            'b5f682f4814d1eda59f76f738fd6adbded9603269aeeaed8500df5b5992be97a',
+            'e282eb968ed013273f72a17914735450549e6bbdbbd1b62ba2b2d7832677843c',
+            'ec9f0e662854dddc856c5b0e8e5b2d3a741e251c3ba8135ce8b15fd6bb9447c6',
+            '35632e2b699e5259f39a2accd80c2dc361dab3746ba38be4e2a34d6d4816bfd5'],
+  'build_requirements': ['setuptools>=61.0.0', 'wheel', 'build'],
+  'clean_tools': {'unzip': '/usr/bin/unzip'},
+  'reason': 'Original tests install submitted dataproc in private child venvs, then build a wheel and '
+            'inspect it with unzip. Cache only build inputs and pristine unzip; preserve original '
+            'install/build points and archive listing.'},
+ {'task': 'multi_solver-software-engineering_20260414_211453_024',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'd9566e04c06dbd288f6513372cc01b2bd84a7ed031d73bc9eb09a9366b70f766',
+  'evidence_sha256': {'environment/Dockerfile': '32fe6e8969c586304d16c8cb1935c747b40050d1a16a1802fc9f278d491e6bc4',
+                      'environment/files/datacli/pyproject.toml': 'cb45989a3ab5c9f51397f976270f7a5bb6948fd57acb19426afabbb1e078b092',
+                      'environment/files/datacli/requirements-dev.txt': 'ce8f67efe5c32d826112229df77883cdceb05e5ac6a98739cb671ed99a003765',
+                      'environment/files/datacli/requirements.txt': '072a865c0ea20b52127ac7e5f06bac5a6ec0f50938e691d262d0d0c19986e4f3',
+                      'environment/files/datacli/setup.py': '2efa65203015abde29f313f5ac231773e198afb68b30b9d9a9c97c0877e90fd4'},
+  'calls': ['b439284f732c31fe6951eff61f59d1cd77c73ecc565d09bc9263f04cba8d28c9'],
+  'build_requirements': ['setuptools>=69.0',
+                         'wheel',
+                         'pip',
+                         'click>=8.0.0',
+                         'rich>=13.0.0',
+                         'pyyaml>=6.0',
+                         'pytest>=7.0.0',
+                         'pytest-cov>=4.0.0',
+                         'black>=23.0.0',
+                         'mypy>=1.0.0'],
+  'reason': 'Fresh child venv installs submitted datacli at the original point; cache declared build, core '
+            'and dev inputs. Bare submitted CLIs resolve only through that child venv; original assertions '
+            'remain unchanged.'},
+ {'task': 'multi_solver-software-engineering_20260413_173854_020',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'bb0bcc079ddb6d2c126f46b705642f2fbcf3c2b2cbaf3c43dad1160951f2d15c',
+  'evidence_sha256': {'environment/Dockerfile': 'f06decefc9be6f5d13e737ebe8bf6c9265d498e271197b768295efda8f3c7b24',
+                      'environment/files/myproject/pyproject.toml': '32cd20f7ed7ca7d80360592d65b5b09eb67e2dc60795ea26ba982280fb0235df',
+                      'environment/files/myproject/setup.py': 'f3d12a80c84a3aab6b9def2024158883fdfedc90fcf99aaf0d2acebb82faf2d4'},
+  'calls': ['44f2122654c08ea48b08e064760aa8ac47f9face5b5c833c06a0bc02707a3af6',
+            'b1ec78c374e01e14d9d69fe13e2f7b990524df69a9eb7fe032280dbe078fd19f',
+            'd268428305eb708b947043641c67e23d83a6b36fed34e2672300ee54d5e5fdfa',
+            '5b130828ffb971f7ac7c0c2df715450606ada6d6ed38aa38954467480dacb427',
+            '8fb81da294eb9f3e8292665fd445548f2b5d619b62d28af5da8c9da69dbc6da4',
+            '584eb56d24c283c0925dd9005976a4576b96afe75cbb2474d70ccd956bec575d',
+            '9a0bc488dc4925b77113cddce3680e67eba87a379b50d7da9edd8df10f6067ff'],
+  'build_requirements': ['setuptools>=69.0', 'wheel', 'pip', 'requests>=2.28.0'],
+  'fresh_venv_guards': ['/tmp/test_venv'],
+  'local_http_fixture': {'command': 'datafetch', 'url': 'https://httpbin.org/get'},
+  'reason': 'Build and install the submitted datafetch project at the original check points in a fresh '
+            'private venv. Cache declared setuptools/wheel/pip/requests inputs. Replace only the external '
+            'example API URL with a local HTTP JSON endpoint; still execute the submitted CLI HTTP request '
+            'and preserve return-code, JSON and url-field assertions. The task concerns package '
+            'installation, not remote service identity or TLS.'},
+ {'task': 'contrastive_solver-software-engineering_20260509_205636_020',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'cd903870d184ab3c16640d1e9399b70cd14102ffb1ef0ab2adf7f6c2ea75c147',
+  'evidence_sha256': {'environment/Dockerfile': 'a633765cb2003f8936d0ae656b6d9d3c20287febe6bcfacf71089e3c888b2de3',
+                      'environment/files/pyproject.toml': '3728ec1742dfd0b5d1e0c59cfde5ed5159bd43cba848c28d1854cb7b19c65c53',
+                      'environment/files/setup.py': '41f3b3b2c52f806a054f7e6fee8930ec70a6834e34abc486303332c91646b00d'},
+  'calls': ['6817fe062dc9f58ccf0bdf09d29a615ebfbf04570c55acd38816eaa06725f290',
+            '34238242bb769a7752999a091e8428b5e2e16dd08d5efe4151a9a7ab226f0036',
+            '2db718fa0bcd65aec95ea8f70699bd6f19a19b99767ab312ff28593e82325ddb',
+            '951f6522bb562e09c0d2d63e7be37be1f73684866dd8d6af11c17dfbb79dd484',
+            '2e74489155b18b5633bf8f2be131beea617130a1c612cddc1fc753e888fb749b',
+            '0f09448688a657563b3bddf8d52f19a8b72b8ff0fd6d204f82a28fdf8ee6b321',
+            'ce3fd50bc1fdee0e37f1b3d7a6c1c1b0f067bd304dc99a6ea645abf825786c18',
+            'ac78b8cdca453d831536d7427bef51dcf04e71aecad79cdd5ef5d3bdd6d08a2c',
+            'e983021cfca81521ce68451211a1e6f47c6cac58d6a238b00b1939a4dadc1ffe'],
+  'python': '3.12.3',
+  'primary_commands': ['python', 'pip', 'filestats', 'fs-analyze'],
+  'build_requirements': ['setuptools>=61.0', 'wheel', 'typing-extensions>=4.0.0'],
+  'offline_builder': {'image_sha256': '105618c2f5a05274c20c7791e01b902c1cf927f1217c2a1abf61870cbd7545d4',
+                      'python': '/usr/bin/python3.12'},
+  'reason': 'Original uvx selects image Python3.12.3, pip26.2.1 and build1.6.1. Keep those exact primary '
+            'tools and all original build/uninstall/install/CLI checks in the private verifier environment. '
+            'Cache declared backend/dependency inputs. Isolated build uses the prepared uv installer to '
+            'avoid agent-side distro ensurepip wheels; build backend and submitted wheel remain evaluated at '
+            'the original points.'},
+ {'task': 'multi_solver-software-engineering_20260414_091921_020',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': 'd0cd828587780b69393f9aec0c349fc2019f6150a4d6c55cfe1a48d07fb48daa',
+  'evidence_sha256': {'environment/Dockerfile': '89532f49b3975f24350c36d7a3da619c554300e966dc73e5201661a40347107b',
+                      'environment/files/mypackage/pyproject.toml': 'f606bf397503869bc893f2d01ba9fac3724cc77f52f3e41f494b486440fe58e7',
+                      'environment/files/mypackage/setup.py': 'bba59329e2eb3eb40a59141b4885d48b7d009046ad453bacf3a4e8e93e586896',
+                      'environment/files/mypackage/requirements.txt': 'bc06918efc756524d9728b4737280d2da44e35d439178bc8e293c7ca8566f5ec'},
+  'python': '3.12.3',
+  'original_uvx': False,
+  'primary_commands': ['python',
+                       'pip',
+                       'datapipeline',
+                       'datapipeline-process',
+                       'datapipeline-validate',
+                       'datapipeline-transform'],
+  'build_requirements': ['setuptools>=61.0', 'wheel'],
+  'offline_builder': {'image_sha256': '2fdcb13f39d2d8a7322d85e4a1a649f440c57f81e1335dcf3c02fe2221b9be77',
+                      'python': '/opt/venv/bin/python'},
+  'calls': ['6ecbb1f956b2ab21116c7241908e57d049e4d79eb96f40b8ac1e29a5f8aa6f28',
+            '0a7052a56a786663428beaeaeda9927df7ec521aac430dfe687594156789170a',
+            '08c5d2fd848620b6f79a2546af06f2014fb77385b10fed5b7def94ce546c815f',
+            '8e330f03b60186591de720c088a13bfd8e4edfdf6653c2ff6d3b4efdd2118daa',
+            '23039fbebff32f8ad0f9337fcb126b216ea28709ff930fe78db133ddf1881e58',
+            'c2baa294250bc4c31dc53764153dd0e738b320d765c2b43237d81166b668426e',
+            'b5a6e92afda3990cf5347283b31dbf48ed9c8d5e85a1f3e1d83ea43f8d757aeb',
+            '34c311684b97ee149a2db915130481b14c874895bda7be57ff4807987c70d99b',
+            '41a11cc7c95726962cd2c4af6248b6164edac53de24dc594d62206b48b6fb15e'],
+  'reason': 'Preserve original submitted-project install point, working directory and ignored install '
+            'failure. Use exact clean Python3.12.3 with cached build inputs, private installed project, '
+            'clean CLI lookup and calls; keep all original assertions.'},
+ {'task': 'multi_solver-software-engineering_20260414_211532_005',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': '798aec3758e98e0e21d1e55126fba52cac6760fa84d069c14bc1a67e76b210ef',
+  'evidence_sha256': {'environment/Dockerfile': '9873378bef5523a63804c43ec46dad92e4de92eaea9ae4ab1e2291c62d6b4059',
+                      'environment/files/setup.py': '2061c52cb3f58a0284c790f1d6911044ed63170047649ef1605ace7f3469316e'},
+  'calls': ['bed37f6c3fb2e17333758f7432b24324729a7316b9d330daca31a9014fb98ae2',
+            'dfe0dd40c92a953b73c90014c1a15f4a71905c752875edabb2b4fd14dadb8276',
+            'b72801103423e9fc47f53ef1d90576eef4ac99793b09c07e8ecc0645d699ba84',
+            '2c8e1999afc0e8405ea59d95dee9fb145948d2530a55a4fae0d5c1ffa1a04bb8',
+            'a5e8a4f824224720e851f3e35af2d218fc463cc50874ed030c50647f43aed78e',
+            '8f4d636dbe6bdbf5fad4b33ab7f4b7e02326bc69928c9e876fdb96f876a5d7f0',
+            '014dc8d3c935c5e9d337d007a371f918167381d42fd8bf1598d9bd285f1abb56',
+            'cc70657b89eaba08d89c08088360dbae69ccaca6bf6bc35f77da05d6987f5c07',
+            'dfe0dd40c92a953b73c90014c1a15f4a71905c752875edabb2b4fd14dadb8276'],
+  'primary_python_calls': ['cc70657b89eaba08d89c08088360dbae69ccaca6bf6bc35f77da05d6987f5c07'],
+  'python': '3.13.9',
+  'original_uvx': True,
+  'primary_commands': ['pip', 'taskflow', 'tf'],
+  'auxiliary_installer': 'package_installer',
+  'installer_python': '3.12.3',
+  'build_requirements': ['setuptools', 'wheel', 'python-dateutil>=2.8.0'],
+  'offline_builder': {'image_sha256': 'a2d2ab076c1709155816a8598d34e7c6907c0884e66a8eb65a43bc693d617c8b',
+                      'python': '/usr/bin/python3'}},
+ {'task': 'multi_solver-software-engineering_20260416_020953_020',
+  'source_file': 'tests/test_outputs.py',
+  'source_sha256': '605276cdce94eb1374ae0b6b13d4b9c34a0fbef9660e8876a2a6f2896f122880',
+  'evidence_sha256': {'environment/Dockerfile': '848f8499a4bdc4206a6d3f3a3db6623e38c32e92f97f0222e51ad62d03fff49d',
+                      'environment/files/acme-auth-plugin/pyproject.toml': 'cb5c759fcdd954bab75333554b157c331d16e1c4b99b078c1ccaeaa0b4b2cc7d',
+                      'environment/files/acme-core/pyproject.toml': '1bb613c8f4960db5494bbd9aedcb165567ab2b54a28b37362f29262cacb0b639',
+                      'environment/files/acme-db-plugin/pyproject.toml': 'f6e40428ebcec6fd95fb5fb8e7e48533b99c537def649aa476e64406c6bdac1a'},
+  'calls': ['d37aa7cde934521767f77d4a0cc6f123005b16d2c5df4d79f393c70275c1a864',
+            '4f44d7d846e65d7f7118288fa9bc62700ef4b1d87fd2a197c48a172ebd86d3a7'],
+  'shell_call': 'd37aa7cde934521767f77d4a0cc6f123005b16d2c5df4d79f393c70275c1a864',
+  'temporary_script_call': '4f44d7d846e65d7f7118288fa9bc62700ef4b1d87fd2a197c48a172ebd86d3a7',
+  'shell_commands': {'pip uninstall -y acme-core acme-auth-plugin acme-db-plugin 2>/dev/null || true': {'argv': ['pip',
+                                                                                                                 'uninstall',
+                                                                                                                 '-y',
+                                                                                                                 'acme-core',
+                                                                                                                 'acme-auth-plugin',
+                                                                                                                 'acme-db-plugin'],
+                                                                                                        'ignore_failure': True},
+                     'pip install -e /app/plugins/acme-core': {'argv': ['pip',
+                                                                        'install',
+                                                                        '-e',
+                                                                        '/app/plugins/acme-core'],
+                                                               'ignore_failure': False},
+                     'pip install -e /app/plugins/acme-auth-plugin': {'argv': ['pip',
+                                                                               'install',
+                                                                               '-e',
+                                                                               '/app/plugins/acme-auth-plugin'],
+                                                                      'ignore_failure': False},
+                     'pip install -e /app/plugins/acme-db-plugin': {'argv': ['pip',
+                                                                             'install',
+                                                                             '-e',
+                                                                             '/app/plugins/acme-db-plugin'],
+                                                                    'ignore_failure': False}},
+  'grading_scripts': ['\n'
+                      'import acme\n'
+                      '\n'
+                      '# Verify acme is a PEP 420 namespace package (__file__ is None)\n'
+                      'assert acme.__file__ is None, "acme should be a namespace package with '
+                      '__file__=None"\n'
+                      'assert hasattr(acme, \'__path__\'), "acme should have __path__"\n'
+                      '\n'
+                      '# Import all subpackages\n'
+                      'from acme.core import Engine\n'
+                      'from acme.utils import format_message, validate_config\n'
+                      'from acme.plugins.auth import Authenticator\n'
+                      'from acme.plugins.db import Database\n'
+                      '\n'
+                      '# Verify acme.plugins is also a namespace package\n'
+                      'import acme.plugins\n'
+                      'assert acme.plugins.__file__ is None, "acme.plugins should be a namespace package '
+                      'with __file__=None"\n'
+                      '\n'
+                      '# Verify functionality\n'
+                      'engine = Engine("production")\n'
+                      'assert engine.name == "production"\n'
+                      'assert not engine.is_running\n'
+                      'engine.start()\n'
+                      'assert engine.is_running\n'
+                      'engine.stop()\n'
+                      'assert not engine.is_running\n'
+                      '\n'
+                      'auth = Authenticator("test-secret")\n'
+                      'hashed = auth.hash_password("password123")\n'
+                      'assert len(hashed) == 64\n'
+                      'token = auth.create_session("user123")\n'
+                      'assert auth.validate_session(token) == "user123"\n'
+                      'auth.end_session(token)\n'
+                      'assert auth.validate_session(token) is None\n'
+                      '\n'
+                      'db = Database("testdb")\n'
+                      'assert db.name == "testdb"\n'
+                      'assert not db.is_connected\n'
+                      'db.connect()\n'
+                      'assert db.is_connected\n'
+                      'db.create_table("users")\n'
+                      'db.insert("users", {"id": 1, "name": "Alice"})\n'
+                      'db.insert("users", {"id": 2, "name": "Bob"})\n'
+                      'assert len(db.select("users")) == 2\n'
+                      'deleted = db.delete("users", lambda r: r["name"] == "Bob")\n'
+                      'assert deleted == 1\n'
+                      'db.disconnect()\n'
+                      'assert not db.is_connected\n'
+                      '\n'
+                      'msg = format_message("test")\n'
+                      'assert msg == "[ACME] test"\n'
+                      '\n'
+                      'assert validate_config({"name": "test", "version": "1.0"})\n'
+                      '\n'
+                      'print("All namespace package tests passed!")\n'],
+  'python': '3.13.9',
+  'original_uvx': True,
+  'primary_commands': ['pip'],
+  'build_requirements': ['setuptools>=68.0', 'wheel']}]
+
+_TASK_SERVICE_ROLES = [{'task': 'contrastive_solver-security_20260507_172207_001',
+  'test_script_sha256': 'fe79b81ae3512874cf98dde49ac295d7b35b2b01b8e87dd76d419a5f73ab91ea',
+  'line': 'cd /app && python3 app.py &',
+  'role': 'Start the service under test in its original task environment; HTTP/assertion grading stays in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260508_180627_004',
+  'test_script_sha256': '5ed26bf6233ba6a1205933dfd1140989a5c4274a701015083ab27e899024a866',
+  'line': 'python3 /app/internal_service.py &',
+  'role': 'Start the service under test in its original task environment; HTTP/assertion grading stays in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260511_015840_001',
+  'test_script_sha256': '3c362d5e60bef571946d899089ec94841aa5cc270a3ceb31d94b2893fda19639',
+  'line': 'cd /app && python3 /app/app.py &',
+  'role': 'Start the service under test in its original task environment; HTTP/assertion grading stays in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260514_012509_003',
+  'test_script_sha256': '3d0a8da614dbd5e092c492691c025734b84a54cc0f6f036124a3d648e29ce69a',
+  'line': 'python /app/app.py &',
+  'role': 'Start the service under test in its original task environment; HTTP/assertion grading stays in '
+          'the clean verifier.'},
+ {'task': 'multi_solver-security_20260419_182351_001',
+  'test_script_sha256': 'b54182307ae1b68ee3303d7ff500dbac3a0108d1296208d9aed6937c95caebcf',
+  'line': 'cd /app && /opt/venv/bin/python3 app.py &',
+  'role': 'Start the service under test in its original task environment; HTTP/assertion grading stays in '
+          'the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260508_180627_004',
+  'test_script_sha256': '5ed26bf6233ba6a1205933dfd1140989a5c4274a701015083ab27e899024a866',
+  'line': 'cd /app && python3 -m pdf_service.app &',
+  'role': 'Start the PDF service under test in the original task environment; HTTP assertions use the clean '
+          'verifier.'},
+ {'task': 'contrastive_solver-security_20260511_150433_001',
+  'test_script_sha256': '41291b282f2a2f1a84b85aea11ab7c72f4b6dde6ba4aa903dfba607a8dffd05d',
+  'line': 'cd /app && source /app/venv/bin/activate && python /app/app.py &',
+  'virtualenv': '/app/venv',
+  'role': 'Start the task Flask service in its original virtualenv using explicit environment variables, '
+          'without executing activate; HTTP assertions use the clean verifier.'},
+ {'task': 'contrastive_solver-security_20260604_193356_001',
+  'test_script_sha256': 'cee8cd274e282397d91c37a0c1a9b66cf8e8a49e154defb817c6f1932cc31af9',
+  'line': '/usr/bin/python3 /app/flag_server.py &',
+  'role': 'Start the task flag server with its original interpreter; evaluate its HTTP behavior from the '
+          'clean verifier.'}]
+
+
+
 if __name__ == "__main__":
     from data.utils.cli import dispatch
-    dispatch({'prepare-pilot': prepare_pilot_cli, 'prepare-runtime': runtime_cli})
+    dispatch({'prepare-pilot': prepare_pilot_cli, 'prepare-runtime': runtime_cli, 'build-evidence': build_evidence_cli})
     main()

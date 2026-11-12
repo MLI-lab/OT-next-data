@@ -43,8 +43,9 @@ function datasets() { return state.dataset === 'all' ? state.index.map(d => stat
 /* ---------- counting ---------- */
 function analyse(sets) {
   const N = sets.reduce((a, d) => a + d.tasks.length, 0);
-  const steps = sets[0].steps.map(s => ({ id: s.id, name: s.name, short: s.short, checks: [], entering: 0, kept: 0, removed: 0, rules: {}, buckets: {}, warn: {}, rep: {} }));
-  const survivors = [], failedBy = steps.map(() => []), warnedBy = steps.map(() => []), repairedBy = steps.map(() => []);
+  const steps = sets[0].steps.map(s => ({ id: s.id, name: s.name, short: s.short, checks: [], entering: 0, kept: 0, removed: 0, rules: {}, buckets: {}, warn: {}, warnAll: {}, overlap: {}, rep: {},
+    leak: { flagged: 0, failed: 0, warned: 0, fixed: 0, falsePositive: 0, notFixable: 0, open: 0, checks: {} } }));
+  const survivors = [], failedBy = steps.map(() => []);
   for (const d of sets) {
     const pos = Object.fromEntries(d.checks.map((c, i) => [c, i]));
     for (const t of d.tasks) {
@@ -55,19 +56,35 @@ function analyse(sets) {
         checks.forEach(c => { if (!st.checks.includes(c)) st.checks.push(c); });
         if (!alive) return;
         st.entering++;
+        const warnedAll = checks.filter(c => t.c[pos[c]] === 'w');
+        warnedAll.forEach(c => { st.warnAll[c] = (st.warnAll[c] || 0) + 1; });
+        // Leak repair loop (pipeline stage 4): tasks a leak check flagged (fail or warning) go to the repair agent;
+        // those with a stored leak repair applied come back and are checked again.
+        const leakFlagged = checks.filter(c => LEAK_CHECKS.includes(c) && 'fw'.includes(t.c[pos[c]]));
+        const leakRepaired = (t.rp || []).map(i => d.checks[i]).filter(c => LEAK_CHECKS.includes(c) && checks.includes(c));
+        // Outcome per task, from the stored repair function's decisions (lk): fixed or false positive when every
+        // flagged leak check got that decision, not fixable when any check is not fixable, else no decision yet.
+        const outcomes = Object.entries(t.lk || {}).filter(([i]) => LEAK_CHECKS.includes(d.checks[i])).map(([, o]) => o);
+        if (leakFlagged.length || leakRepaired.length || outcomes.length) {
+          const L = st.leak;
+          L.flagged++;
+          leakFlagged.some(c => t.c[pos[c]] === 'f') ? L.failed++ : leakFlagged.length ? L.warned++ : null;
+          if (outcomes.includes('n')) L.notFixable++;
+          else if (outcomes.length && outcomes.every(o => o === 'x' || o === 'p')) outcomes.includes('x') ? L.fixed++ : L.falsePositive++;
+          else L.open++;
+        }
+        [...new Set([...leakFlagged, ...leakRepaired])].forEach(c => { st.leak.checks[c] = (st.leak.checks[c] || 0) + 1; });
         const failed = checks.filter(c => t.c[pos[c]] === 'f');
         failed.forEach(c => { const r = st.rules[c] ||= { fail: 0, only: 0 }; r.fail++; if (failed.length === 1) r.only++; });
         if (failed.length) { alive = false; st.removed++; failedBy[si].push(failed); }
         else {
           st.kept++;
-          const warned = checks.filter(c => t.c[pos[c]] === 'w');
-          warned.forEach(c => { st.warn[c] = (st.warn[c] || 0) + 1; });
-          // Repaired: an automatic repair was applied and the check then passed. Each kept task counts once:
-          // as repaired if any repair applied, else under its warning.
+          // Every warning and every applied repair counts under its own check, so a task with two warnings appears
+          // in both streams (overlap counts which tasks share a stream with another check).
+          const warned = warnedAll;
+          warned.forEach(c => { st.warn[c] = (st.warn[c] || 0) + 1; if (warned.length > 1) st.overlap[c] = (st.overlap[c] || 0) + 1; });
           const repaired = (t.rp || []).map(i => d.checks[i]).filter(c => checks.includes(c));
           repaired.forEach(c => { st.rep[c] = (st.rep[c] || 0) + 1; });
-          if (repaired.length) repairedBy[si].push(repaired);
-          else if (warned.length) warnedBy[si].push(warned);
         }
       });
       if (alive) survivors.push({ d, t });
@@ -75,8 +92,8 @@ function analyse(sets) {
   }
   steps.forEach((st, si) => {
     st.buckets = sequential(failedBy[si], st.rules);
-    st.warnBuckets = sequential(warnedBy[si], Object.fromEntries(Object.entries(st.warn).map(([c, n]) => [c, { fail: n }])));
-    st.repBuckets = sequential(repairedBy[si], Object.fromEntries(Object.entries(st.rep).map(([c, n]) => [c, { fail: n }])));
+    st.warnBuckets = byCount(st.warn);
+    st.repBuckets = byCount(st.rep);
   });
   const judges = [];
   for (const d of sets) for (const j of d.judges) if (!judges.find(x => x.id === j.id)) judges.push({ ...j, criteria: [] });
@@ -99,21 +116,15 @@ function analyse(sets) {
     }
     j.buckets = sequential(flaggedBy.map(x => x.list), Object.fromEntries(Object.entries(j.crit).map(([c, n]) => [c, { fail: n }])));
   }
-  const passk = { target: { solved: 0, unsolved: 0, inconclusive: {}, none: 0 }, teacher: { solved: 0, unsolved: 0, inconclusive: {}, none: 0 } };
-  for (const { t } of survivors) {
-    const tg = t.k?.target;
-    if (!tg) { passk.target.none++; continue; }
-    if (tg.o === 'inconclusive') { passk.target.inconclusive[tg.c || 'other'] = (passk.target.inconclusive[tg.c || 'other'] || 0) + 1; continue; }
-    passk.target[tg.o]++;
-    if (tg.o !== 'unsolved') continue;
-    const th = t.k?.teacher;
-    if (!th) passk.teacher.none++;
-    else if (th.o === 'inconclusive') passk.teacher.inconclusive[th.c || 'other'] = (passk.teacher.inconclusive[th.c || 'other'] || 0) + 1;
-    else passk.teacher[th.o]++;
-  }
-  return { N, steps, survivors: survivors.length, judges, passk };
+  const evaluation = summarizeEvaluation(sets);
+  return { N, steps, survivors: survivors.length, judges,
+    passk: {target: evaluation.target, teacher: evaluation.teacher}, evaluation };
+
 }
 const sum = o => Object.values(o).reduce((a, b) => a + b, 0);
+const byCount = o => Object.fromEntries(Object.entries(o).sort((a, b) => b[1] - a[1]));
+// The checks whose flagged tasks go to the leak repair agent (validation/leak_repair, pipeline stage 4).
+const LEAK_CHECKS = ['no-cheat-dir', 'dockerfile-references', 'agent_editable_test', 'repository_history', 'reference_leaks', 'verifier_tamper'];
 /* DCLM-style split: filters applied one after another, largest first; each task counts at its first failing filter,
    so the streams add up to the removed total. Hover shows each filter's full count, overlaps included. */
 function sequential(lists, totals) {
@@ -124,6 +135,64 @@ function sequential(lists, totals) {
 }
 
 /* ---------- overview ---------- */
+function repairOutcomesByCheck(sets, enteringOnly = false) {
+  const rows = new Map();
+  for (const d of sets) for (const check of LEAK_CHECKS) {
+    const i = d.checks.indexOf(check);
+    if (i < 0) continue;
+    const row = rows.get(check) || { check, fixed: 0, falsePositive: 0, notFixable: 0, pending: 0, inconclusive: 0 };
+    rows.set(check, row);
+    for (const t of d.tasks) {
+      if (enteringOnly && d.steps.filter(s => s.id < 3).some(s => s.groups.flatMap(g => g.checks).some(c => t.c[d.checks.indexOf(c)] === 'f'))) continue;
+      const decision = t.lk?.[String(i)], status = t.c[i];
+      if (decision === 'x') row.fixed++;
+      else if (decision === 'p') row.falsePositive++;
+      else if (decision === 'n') row.notFixable++;
+      else if (status === 'm') row.inconclusive++;
+      else if (decision || status === 'f' || status === 'w') row.pending++;
+    }
+  }
+  return [...rows.values()].filter(r => r.fixed + r.falsePositive + r.notFixable + r.pending + r.inconclusive);
+}
+
+function repairOutcomesHTML(sets) {
+  const rows = repairOutcomesByCheck(sets);
+  if (!rows.length) return '';
+  return `<section aria-label="Repair outcomes by check"><h2>Repair outcomes by check</h2>
+    <p class="sub">All tasks, including those filtered out by earlier checks. A task can appear under several checks. False positive is the repair session’s classification; no task files were changed for that decision.</p>
+    <div style="overflow-x:auto"><table><thead><tr><th>Check</th><th>Fixed</th><th>False positive</th><th>Not fixable</th><th>No decision</th><th>Inconclusive check</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${esc(r.check)}</td>${['fixed', 'falsePositive', 'notFixable', 'pending', 'inconclusive'].map(k => `<td class="n">${fmt(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+}
+
+async function openRepairSessions() {
+  openDrawer('<h2>Leak repair sessions</h2><p>Loading session records…</p>');
+  try {
+    const sections = await Promise.all(datasets().map(async d => {
+      if (!d.repair_sessions_file) return `<h3>${esc(d.name)}</h3><p>No session records available.</p>`;
+      const response = await fetch(d.repair_sessions_file);
+      if (response.ok === false) throw new Error(`Could not load ${d.name} repair sessions`);
+      const data = await response.json();
+      return `<h3>${esc(d.name)}</h3>` + LEAK_CHECKS.map(check => {
+        const s = data.checks[check];
+        if (!s) return `<details><summary>${esc(check)} — no recorded session</summary><p>No repair model or function recorded.</p></details>`;
+        const totals = s.outcomes ? ['fixed', 'false_positive', 'not_fixable'].map(k => `${k.replaceAll('_', ' ')}: ${fmt(s.outcomes[k] || 0)}`).join(', ') : 'No validated decisions';
+        const f = s.function;
+        const attempts = (s.attempts || []).map(a => `<p><strong>New attempt:</strong> ${esc(a.model)} · ${esc(a.status)} · ${fmt(a.tasks)} tasks<br>Run: <code>${esc(a.run)}</code></p>`).join('');
+        const source = f ? `<details><summary>View saved repair function: ${esc(f.name)}</summary>
+          <p>${esc(f.path)}<br>SHA-256: <code>${esc(f.sha256)}</code></p>
+          <p><a download="${esc(f.name)}" href="data:text/plain;charset=utf-8,${encodeURIComponent(f.source)}">Download function</a></p>
+          <pre style="white-space:pre;overflow:auto;max-height:60vh"><code>${esc(f.source)}</code></pre></details>` : '<p><strong>No accepted repair function.</strong></p>';
+        return `<section><h4>${esc(check)}</h4><p><strong>Model:</strong> ${esc(s.model_label)} <code>${esc(s.model)}</code><br>
+          <strong>Session:</strong> ${esc(s.date)} · ${esc(s.status)}<br><strong>Tasks:</strong> ${fmt(s.tasks)}<br>${esc(totals)}</p>
+          <p>${esc(s.note)}</p>${attempts}${source}</section>`;
+      }).join('');
+    }));
+    openDrawer('<h2>Leak repair sessions</h2><p>Models, session outcomes and saved functions for each check. Session totals can differ from the dashboard’s version-matched task results.</p>' + sections.join(''));
+  } catch (error) {
+    openDrawer(`<h2>Leak repair sessions</h2><p>${esc(error.message)}</p>`);
+  }
+}
+
 function overview() {
   const sets = datasets(); const A = analyse(sets);
   const label = state.dataset === 'all' ? 'All datasources' : `Datasource: ${state.dataset}`;
@@ -178,21 +247,24 @@ function overview() {
   // Streams leaving a bar: stacked from y0, each straight to the right into a small bar (gray for removed tasks, the
   // stage colour for warnings, which keep their tasks); the upper streams end further right (from xFar down to xNear).
   // A label pushed away from its stream by its neighbours gets a thin leader line.
-  const drops = (x0, y0, items, xNear, xFar, route, color, kind = null) => {
-    const warn = !!kind, note = kind === 'repair' ? 'repaired' : 'warning (kept)';
+  const drops = (x0, y0, items, xNear, xFar, route, color, kind = null, info = {}, presentation = {}) => {
+    const distribution = kind === 'distribution';
+    const warn = !!kind, noteOf = b => kind === 'repair' ? 'repaired' : LEAK_CHECKS.includes(b) ? 'warning → repair loop' : 'warning (kept)';
     let y = y0, prevX = 0;
     const bottom = y0 + items.reduce((t, it) => t + it[2], 0);
     items.forEach(([b, n, h], i) => {
       const bx = items.length > 1 ? xFar - (xFar - xNear) * i / (items.length - 1) : xNear, mid = y + h / 2;
       // Warning labels stay inside the kept stream, clear of its lower edge and of the removed streams' labels.
+      const note = distribution ? '' : noteOf(b);
+      const endColor = presentation[b]?.color || (warn ? color : 'var(--out)');
       let lx = bx + nodeW + 6, ly = place(lx, (b.length + (warn ? 30 : 14)) * CH, warn ? Math.min(mid + 4, bottom - 5) : mid + 4);
       let leader = '';
       if (Math.abs(ly - 4 - mid) > 3) { boxes.pop(); lx += 14; ly = place(lx, (b.length + (warn ? 30 : 14)) * CH, ly); leader = `<path class="leader" d="M${bx + nodeW + 1},${mid} L${lx - 3},${ly - 4}"/>`; }
-      svg += warn ? band(x0, y, h, bx, y, h, color, color, 'warnband') : band(x0, y, h, bx, y, h, color, 'var(--out)', 'out');
-      const t = warn ? `<b>${esc(b)}</b>${meaning(b)}<br><span class="muted">${kind === 'repair' ? 'Repaired automatically, then passed: these tasks are kept.' : 'Warning: these tasks are kept.'}</span>` : `<b>${esc(b)}</b>${meaning(b)}`;
-      svg += `<g class="node${warn ? ' warn' : ''}" tabindex="0" data-route="${route}"${warn ? ` data-filter="${kind === 'repair' ? 'repaired' : 'warned'}"` : ''}${route.startsWith('compare') ? ` data-crit="${esc(b)}"` : ''} ${tip(t)}>
-        <rect x="${bx}" y="${y}" width="${nodeW}" height="${Math.max(h, 1)}" rx="1" fill="${warn ? color : 'var(--out)'}"/>${leader}
-        <text x="${lx}" y="${ly}">${esc(b)} <tspan class="num">${fmt(n)} · ${pct(n, A.N)}${warn ? ` · ${note}` : ''}</tspan></text></g>`;
+      svg += distribution ? band(x0, y, h, bx, y, h, color, endColor, 'out') : warn ? band(x0, y, h, bx, y, h, color, color, 'warnband') : band(x0, y, h, bx, y, h, color, 'var(--out)', 'out');
+      const t = distribution ? presentation[b].tooltip : warn ? `<b>${esc(b)}</b>${meaning(b)}<br><span class="muted">${kind === 'repair' ? 'Repaired automatically, then passed: these tasks are kept.' : LEAK_CHECKS.includes(b) ? 'Warning: these tasks are kept and go to the leak repair loop.' : 'Warning: these tasks are kept.'}${info[b] ? `<br>${info[b]}` : ''}</span>` : `<b>${esc(b)}</b>${meaning(b)}`;
+      svg += `<g class="node${warn ? ' warn' : ''}" tabindex="0" data-route="${route}"${warn && !distribution ? ` data-filter="${kind === 'repair' ? 'repaired' : 'warned'}"` : ''}${route.startsWith('compare') ? ` data-crit="${esc(b)}"` : ''} ${tip(t)}>
+        <rect x="${bx}" y="${y}" width="${nodeW}" height="${Math.max(h, 1)}" rx="1" fill="${endColor}"/>${leader}
+        <text x="${lx}" y="${ly}">${esc(b)} <tspan class="num">${fmt(n)} · ${pct(n, A.N)}${note && warn ? ` · ${note}` : ''}</tspan></text></g>`;
       // White gap above each warning stream after the first, drawn on top so it trims the stream and its end bar alike.
       if (warn && i) svg += `<path class="split" d="M${x0},${y} H${prevX + nodeW}"/>`;
       prevX = bx; y += h;
@@ -233,44 +305,58 @@ function overview() {
     const items = Object.entries(j.buckets).map(([c, n], q) => [c, n, hs[q + 1]]);
     return Math.max(y + SV, drops(laneX + nodeW, y + kept, items, laneX + 90, outX, jroute(i), STEP_COLOR[4]), labelFloor);
   };
-  // The pass@k lane opens upwards: solved stays level, the rest rises to the teacher and to gray bars above.
-  const passkPlan = P => {
-    const g = 30, [a, b, c] = fit(passkParts, SV);
-    const [ti, tu, ts] = fit([{ n: sum(th.inconclusive), rem: true }, { n: th.unsolved, rem: true }, { n: th.solved }, { n: th.none }], b);
-    const ty = P + a - g, iy = ty - g - a, sy = P + a + b - ts, uy = sy - g - tu, iy2 = (tu ? uy : sy) - g - ti;
-    return { a, b, c, ti, tu, ts, ty, iy, sy, uy, iy2, minY: Math.min(P, a ? iy : P, b ? ty : P, tu ? uy : P, ti ? iy2 : P) };
-  };
+  // Both models evaluate the full cohort; each has its own success-count palette.
   const passkLane = P => {
-    svg += title(laneX + nodeW, P - 10, STEP_COLOR[5], '5 Target model pass@4', 'end');
-    svg += bar(laneX, P, SV, STEP_COLOR[5], 'passk',
-      `<b>Target model pass@4</b><br>${fmt(tg.solved)} solved · ${fmt(tg.unsolved)} unsolved · ${fmt(sum(tg.inconclusive))} inconclusive` + (tg.none ? `<br>${fmt(tg.none)} not run yet` : ''),
-      ran ? count(laneX, P, ran) : `<text class="lane-note" x="${laneX + nodeW + 6}" y="${P + SV / 2 + 4}">not run yet</text>`);
-    if (!ran) return;
-    const L = passkPlan(P), x0 = laneX + nodeW, solvedAll = tg.solved + th.solved;
-    svg += band(x0, P + L.a + L.b, L.c, endX, P + L.a + L.b, L.c, STEP_COLOR[5]);
-    svg += band(x0, P + L.a, L.b, outX, L.ty, L.b, STEP_COLOR[5], STEP_COLOR[6]);
-    svg += bar(outX, L.ty, L.b, STEP_COLOR[6], 'passk',
-      `<b>Teacher pass@4</b> on the ${fmt(tg.unsolved)} tasks the target model never solved<br>${fmt(th.solved)} solved · ${fmt(th.unsolved)} unsolved · ${fmt(sum(th.inconclusive))} inconclusive` + (th.none ? `<br>${fmt(th.none)} not run yet` : ''),
-      named(outX, L.ty, L.b, '6 Teacher', tg.unsolved));
-    if (L.a) {
-      svg += band(x0, P, L.a, outX, L.iy, L.a, STEP_COLOR[5], 'var(--out)', 'out');
-      svg += bar(outX, L.iy, L.a, 'var(--out)', 'passk', causeTip(tg.inconclusive, 'target model'), named(outX, L.iy, L.a, 'Inconclusive', sum(tg.inconclusive)));
+    const E = A.evaluation, stageGap = 380;
+    const teacherX = laneX + stageGap, calibrationX = teacherX + stageGap, finalX = calibrationX + 360;
+    W = Math.max(W, finalX + 35);
+    // Same full-height stage streams and overlaid warning/repair branches as stages 1–3.
+    svg += band(laneX + nodeW, P, SV, teacherX, P, SV, STEP_COLOR[5], STEP_COLOR[6]);
+    svg += band(teacherX + nodeW, P, SV, calibrationX, P, SV, STEP_COLOR[6], 'var(--s7)');
+    const keptHeight = E.resources.evaluated ? SV * (E.resources.evaluated - E.resources.unavailable) / E.resources.evaluated : 0;
+    svg += band(calibrationX + nodeW, P, keptHeight, finalX, P, keptHeight, 'var(--s7)');
+    const branches = (x, parts, route, color, describePart, totalHeight = SV) => {
+      parts = parts.filter(part => part.n);
+      const heights = fit(parts, totalHeight);
+      const items = parts.map((part, i) => [part.label, part.n, heights[i]]);
+      const presentation = Object.fromEntries(parts.map(part => [part.label, {color: part.color, tooltip: describePart(part)}]));
+      // Reuse the exact renderer and endpoint offsets of the warning/repair streams.
+      drops(x + nodeW, P, items, x + WN, x + WF, route, color, 'distribution', {}, presentation);
+    };
+    for (const [role, x, label, model, color] of [
+      ['target', laneX, '5 Target model pass@4', 'Qwen3.5-35B-A3B', STEP_COLOR[5]],
+      ['teacher', teacherX, '6 Strong model pass@4', 'GLM-5.3-Flash', STEP_COLOR[6]]]) {
+      const r = E[role];
+      svg += title(x, P - 32, color, label);
+      svg += `<text class="model-caption" x="${x}" y="${P - 14}">${esc(model)} · ${fmt(r.evaluated)} tasks</text>`;
+      svg += bar(x, P, SV, color, 'passk', `${esc(model)}: ${fmt(r.evaluated)} evaluated tasks`);
+      const parts = r.hist.map((n, i) => ({n, label: `${i}/4 successes`, color: EVAL_COLORS[role][i]}));
+      parts.push({n: sum(r.inconclusive), label: 'Inconclusive', color: '#dfbd79'});
+      if (r.none) parts.push({n: r.none, label: 'Not run', color: 'var(--out)'});
+      branches(x, parts, 'passk', color, part => `<b>${esc(model)}: ${esc(part.label)}</b><br>${fmt(part.n)} tasks. Counts use one selected four-attempt batch per task.<br>${fmt(r.ever)} tasks solved in any recorded batch.`);
     }
-    svg += band(outX + nodeW, L.ty + L.b - L.ts, L.ts, endX, L.sy, L.ts, STEP_COLOR[6], STEP_COLOR[5]);
-    svg += bar(endX, L.sy, L.ts + L.c, STEP_COLOR[5], 'passk', `<b>${fmt(solvedAll)} solved</b><br>${fmt(tg.solved)} by the target model, ${fmt(th.solved)} more by the teacher`,
-      named(endX, L.sy, L.ts + L.c, 'Solved', solvedAll));
-    if (L.tu) {
-      svg += band(outX + nodeW, L.ty + L.ti, L.tu, endX, L.uy, L.tu, STEP_COLOR[6], 'var(--out)', 'out');
-      svg += bar(endX, L.uy, L.tu, 'var(--out)', 'passk', `<b>${fmt(th.unsolved)}</b> tasks: 0/4 for both models`, named(endX, L.uy, L.tu, 'Unsolved by both', th.unsolved));
-    }
-    if (L.ti) {
-      svg += band(outX + nodeW, L.ty, L.ti, endX, L.iy2, L.ti, STEP_COLOR[6], 'var(--out)', 'out');
-      svg += bar(endX, L.iy2, L.ti, 'var(--out)', 'passk', causeTip(th.inconclusive, 'teacher'), named(endX, L.iy2, L.ti, 'Teacher inconclusive', sum(th.inconclusive)));
+    const r = E.resources;
+    svg += title(calibrationX, P - 32, 'var(--s7)', '7 Resource calibration');
+    svg += `<text class="model-caption" x="${calibrationX}" y="${P - 14}">${fmt(r.evaluated)} tasks</text>`;
+    svg += bar(calibrationX, P, SV, 'var(--s7)', 'calibration', 'Resource calibration policy and results');
+    branches(calibrationX, [
+      {n: r.changed, label: 'Resources recalibrated', color: 'var(--s7)'},
+      {n: r.unchanged, label: 'Same known values', color: '#b5d7cc'}
+    ], 'calibration', 'var(--s7)', part => `<b>${esc(part.label)}: ${fmt(part.n)} tasks</b><br>Click for the sizing policy, reductions and repeat-batch statistics.`, keptHeight);
+    if (r.unavailable) {
+      const h = SV - keptHeight, x = calibrationX + 100, y = P + SV + 24;
+      const visibleHeight = Math.max(h, 3);
+      // A visible, connected drop with its label beside the endpoint, like nop/nproc.
+      svg += band(calibrationX + nodeW, P + keptHeight, Math.max(h, 1), x, y, visibleHeight, 'var(--s7)', 'var(--out)', 'out');
+      svg += `<path d="M${calibrationX + nodeW},${P + keptHeight} C${calibrationX + 54},${P + keptHeight} ${calibrationX + 54},${y} ${x},${y}" fill="none" stroke="var(--out)" stroke-width="1"/>`;
+      svg += bar(x, y, visibleHeight, 'var(--out)', 'calibration',
+        `<b>No reliable estimate: ${fmt(r.unavailable)} tasks</b><br>Excluded from resource recalibration; original task resources are retained. Branch has a minimum display thickness for visibility.`,
+        named(x, y, visibleHeight, 'No reliable estimate', r.unavailable));
     }
   };
   // After step 3 the stream runs level past the step-3 labels, then splits evenly: pass@k a bit higher, the first
   // judge a bit lower. Further judges stack below.
-  const gap = 72, P = 60 - (ran ? passkPlan(0).minY : 0), top = P + (SV + gap) / 2, J1 = P + SV + gap;
+  const gap = 72, P = 70, top = P + (SV + gap) / 2, J1 = P + SV + gap;
   passkLane(P);
   svg += `<text class="upstream" transform="translate(${xs[0] - 12},${top + UV / 2}) rotate(-90)" text-anchor="middle">Upstream tasks</text>`;
   let floor = top + UV;
@@ -280,21 +366,61 @@ function overview() {
     const x = xs[i], c = STEP_COLOR[i + 1];
     svg += `<text class="stage" x="${x}" y="${top - 12}" style="fill:${c}">${esc(`${s.id} ${s.short}`)} <tspan class="num">${fmt(s.entering)} · ${pct(s.entering, A.N)}</tspan></text>`;
     const rules = Object.entries(s.rules).sort((a, b) => b[1].fail - a[1].fail);
+    const warnAll = Object.entries(s.warnAll).sort((a, b) => b[1] - a[1]);
     const tipRules = `<b>${esc(s.name)}</b><br>${fmt(s.entering)} tasks, ${fmt(s.removed)} removed` + (rules.length ? `<table>` +
-      rules.map(([n, r]) => `<tr><td>${esc(n)}</td><td class="n">${fmt(r.fail)}</td></tr>`).join('') + `</table>` : '');
+      rules.map(([n, r]) => `<tr><td>${esc(n)}</td><td class="n">${fmt(r.fail)}</td></tr>`).join('') + `</table>` : '') +
+      (warnAll.length ? `Warnings (all ${fmt(s.entering)} tasks, removed ones included)<table>` +
+        warnAll.map(([n, c]) => `<tr><td>${esc(n)}</td><td class="n">${fmt(c)}</td></tr>`).join('') + `</table>` : '');
     if (i + 1 < A.steps.length) svg += band(x + nodeW, top, keptV[i], xs[i + 1], top, keptV[i], c, STEP_COLOR[i + 2]);
     svg += bar(x, top, enterV[i], c, `step-${s.id}`, tipRules);
     // Kept part of the bar, top to bottom: no note, repaired, warning; then the removed tasks.
-    const part = o => Object.entries(o).map(([b, n]) => [b, n, n * k]), height = l => l.reduce((a, w) => a + w[2], 0);
-    const warns = part(s.warnBuckets), reps = part(s.repBuckets), wh = height(warns), rh = height(reps);
+    // Each warning check gets its own stream at its full count (at least 3 px, so small ones stay visible); tasks
+    // with several warnings sit in several streams, so the streams are scaled down if they would overfill the bar.
+    const MINH = 3, height = l => l.reduce((a, w) => a + w[2], 0);
+    const part = o => Object.entries(o).map(([b, n]) => [b, n, Math.max(n * k, MINH)]);
+    let warns = part(s.warnBuckets), reps = part(s.repBuckets);
+    const room = keptV[i] * 0.9, need = height(warns) + height(reps);
+    if (need > room) { const f = room / need; warns = warns.map(([b, n, h]) => [b, n, Math.max(h * f, 1)]); reps = reps.map(([b, n, h]) => [b, n, Math.max(h * f, 1)]); }
+    const wh = height(warns), rh = height(reps);
+    const warnInfo = Object.fromEntries(Object.entries(s.overlap).map(([b, n]) =>
+      [b, `${fmt(n)} of these ${fmt(s.warn[b])} tasks also have another warning in this step.`]));
     const gap = yy => { svg += `<path class="split" d="M${x + nodeW},${yy} H${x + WN + nodeW}"/>`; };
     if (reps.length) drops(x + nodeW, top + keptV[i] - wh - rh, reps, x + WN, x + WF, `step-${s.id}`, c, 'repair');
-    if (warns.length) drops(x + nodeW, top + keptV[i] - wh, warns, x + WN, x + WF, `step-${s.id}`, c, 'warn');
+    if (warns.length) drops(x + nodeW, top + keptV[i] - wh, warns, x + WN, x + WF, `step-${s.id}`, c, 'warn', warnInfo);
     if (reps.length && warns.length) gap(top + keptV[i] - wh);
     if ((warns.length || reps.length) && s.removed) gap(top + keptV[i]);
     if (s.removed) floor = Math.max(floor, drops(x + nodeW, top + keptV[i], stepDrops[i], x + 45, x + 115, `step-${s.id}`, c));
   });
   floor = Math.max(floor, labelFloor);
+  // Leak repair loop (stage 4): flagged tasks leave the bottom of the leakage bar to the repair agent and come back
+  // up into the same bar, where they are checked again. Drawn as arrows, not to scale.
+  const li = A.steps.findIndex(s => s.id === 3);
+  let loopBottom = 0;
+  if (li >= 0 && A.steps[li].leak.flagged) {
+    const s = A.steps[li], x = xs[li], c = STEP_COLOR[li + 1], L = s.leak;
+    const yb = top + enterV[li] + 3, ny = floor + 46, nw = 190, nh = 40, nx = x + nodeW / 2 - nw / 2;
+    defs += `<marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:${c}"/></marker>`;
+    const down = `M${x + 1},${yb} C${x - 40},${yb + 18} ${nx + 18},${ny - 26} ${nx + 18},${ny - 3}`;
+    const up = `M${nx + nw - 18},${ny - 1} C${nx + nw - 18},${ny - 26} ${x + nodeW + 40},${yb + 18} ${x + nodeW - 1},${yb + 2}`;
+    const outs = [['fixed', L.fixed, 'validated repair applied, the check passes'], ['false positive', L.falsePositive, 'the check passes'],
+                  ['not fixable', L.notFixable, 'the finding stays'], ['no decision yet', L.open, 'no stored repair function covers it yet']];
+    const loopTip = `<b>Leak repair loop</b><br>For each leak check, a repair agent gets every task the ` +
+      `check flagged, reads tasks and their evidence, and writes one repair function for the whole datasource. The ` +
+      `function decides per task: fixed (it rewrites the task's files), false positive, or not fixable. With a tool the ` +
+      `agent runs the function on all tasks and runs the pipeline's checks in containers on the fixed ones, to see that ` +
+      `the finding is gone and nothing else breaks. The stored function is applied in this and later runs, and fixed ` +
+      `tasks go through all checks again.` +
+      `<table>${outs.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}</table>`;
+    svg += `<g class="node loop" tabindex="0" role="button" aria-label="View leak repair models and functions" data-repair-sessions ${tip(loopTip)}>
+      <path class="loop-arrow" d="${down}" style="stroke:${c}" marker-end="url(#loop-arrow)"/>
+      <path class="loop-arrow" d="${up}" style="stroke:${c}" marker-end="url(#loop-arrow)"/>
+      <rect x="${nx}" y="${ny}" width="${nw}" height="${nh}" rx="4" style="stroke:${c}"/>
+      <text x="${nx + nw / 2}" y="${ny + 16}" text-anchor="middle"><tspan class="title">Leak repair loop</tspan></text>
+      <text x="${nx + nw / 2}" y="${ny + 31}" text-anchor="middle" class="num">repair function per check</text>
+      <text class="num" x="${nx - 4}" y="${ny - 10}" text-anchor="end">↓ ${fmt(L.failed)} fails, ${fmt(L.warned)} warnings</text>
+      ${repairOutcomesByCheck(sets, true).map((row, i) => `<text x="${nx + nw + 12}" y="${ny - 12 + i * 56}" class="title">${esc(row.check)}</text><text class="num" x="${nx + nw + 12}" y="${ny + 3 + i * 56}">↑ fixed ${fmt(row.fixed)}, false positive ${fmt(row.falsePositive)}</text><text class="num" x="${nx + nw + 12}" y="${ny + 18 + i * 56}">not fixable ${fmt(row.notFixable)}${row.pending ? ` · pending ${fmt(row.pending)}` : ''}${row.inconclusive ? ` · inconclusive ${fmt(row.inconclusive)}` : ''}</text>`).join('')}</g>`;
+    loopBottom = Math.max(ny + nh + 8, ny + repairOutcomesByCheck(sets, true).length * 56 + 8);
+  }
   const x3 = xs[xs.length - 1] + nodeW;
   svg = band(x3, top, SV, laneX, P, SV, STEP_COLOR[3], STEP_COLOR[5], '', split) + svg;
   let jy = J1;
@@ -303,11 +429,16 @@ function overview() {
     floor = Math.max(floor, judgeLane(j, i, jy));
     jy = floor + 44;
   });
-  const svgH = floor + 30;
+  const svgH = Math.max(floor, loopBottom) + 30;
   $('#view').innerHTML = `<h1>${esc(label)}</h1>
     <p class="sub">Hover over a check to see what it does. Click a bar to see its tasks.</p>
-    <div class="flow"><svg viewBox="0 0 ${W} ${svgH}" width="100%" role="img" aria-label="Pipeline flow"><defs>${defs}</defs>${svg}</svg></div>`;
+    <div class="flow"><svg viewBox="0 0 ${W} ${svgH}" width="100%" role="img" aria-label="Pipeline flow"><defs>${defs}</defs>${svg}</svg></div>
+    `;
   bindTips(tips);
+  $('#view').querySelectorAll('[data-repair-sessions]').forEach(el => {
+    el.addEventListener('click', openRepairSessions);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRepairSessions(); } });
+  });
   $('#view').querySelectorAll('[data-route]').forEach(el => {
     const go = () => { state.stepFilter = el.dataset.filter || null; state.compareCrit = el.dataset.crit || null; location.hash = `#${state.dataset}-${el.dataset.route}`; };
     el.addEventListener('click', go); el.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
@@ -331,8 +462,19 @@ function bindTips(tips) {
 
 /* ---------- detail pages ---------- */
 function rowsFor(filter) { return datasets().flatMap(d => d.tasks.map(t => ({ d, t }))).filter(filter); }
-function pageShell(title, sub, controls, body) {
-  $('#view').innerHTML = `<p><a href="#${state.dataset}">← Overview</a></p><h1>${title}</h1><p class="sub">${sub}</p>
+// What a pipeline step does, its input and output: the main README's text for that step (site_data.stage_docs).
+function stageDoc(numbers) {
+  const docs = Object.values(state.data)[0]?.stage_docs || {};
+  const inline = t => window.marked?.parseInline && window.DOMPurify ? DOMPurify.sanitize(marked.parseInline(t)) : esc(t);
+  const parts = numbers.map(n => docs[n]).filter(Boolean).map((d, i) => `<section class="stage-doc">` +
+    (numbers.length > 1 ? `<h2>${numbers[i]} ${esc(d.title)}</h2>` : '') +
+    d.description.split('\n\n').map(p => `<p>${inline(p)}</p>`).join('') +
+    `<dl>${[['input', 'Input'], ['output', 'Output'], ['rubric', 'Rubric'], ['default model', 'Default model']]
+      .filter(([k]) => d[k]).map(([k, label]) => `<dt>${label}</dt><dd>${inline(d[k])}</dd>`).join('')}</dl></section>`);
+  return parts.length ? `<div class="stage-docs">${parts.join('')}</div>` : '';
+}
+function pageShell(title, sub, controls, body, docs = []) {
+  $('#view').innerHTML = `<p><a href="#${state.dataset}">← Overview</a></p><h1>${title}</h1>${stageDoc(docs)}<p class="sub">${sub}</p>
     <div class="toolbar">${controls}<input type="search" id="q" placeholder="Search task ID"></div><div id="table">${body}</div>`;
 }
 function paged(rows, render, pageSize = 150) {
@@ -364,7 +506,7 @@ function stepPage(id) {
   pageShell(`${id} ${esc(step.name)}`,
     `${st.removed ? `${fmt(st.removed)} of ${fmt(st.entering)} tasks fail a check here.` : `All ${fmt(st.entering)} tasks pass.`}${patchNote} Click a colored square to see why.`,
     `<label>Show <select id="filter"><option value="removed">removed here</option><option value="entering"${st.removed ? '' : ' selected'}>all tasks in this step</option><option value="warned">kept with a warning</option><option value="repaired">repaired</option><option value="all">all tasks</option></select></label>
-     <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell w"></span> warning <span class="cell m"></span> no result <span class="cell a"></span> not applicable</span>`, '');
+     <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell w"></span> warning <span class="cell m"></span> no result <span class="cell a"></span> not applicable</span>`, '', [id]);
   const head = `<thead><tr><th>Task</th>${checks.map(c => `<th class="rot" data-desc="${esc(c)}"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
   const render = rows => `<table class="grid">${head}<tbody>${rows.map(({ d, t }) => `<tr>${taskCell(d, t)}${checks.map(c => {
     const s = statusOf(d, t, c);
@@ -437,7 +579,7 @@ function judgePage(index) {
   pageShell(`4 LLM judge: ${esc(j.name)}`,
     `${fmt(j.flagged)} of ${fmt(j.reviewed)} tasks fail at least one criterion. One square per review; click a red one to read why.${A.judges.length > 1 ? ` <a href="#${state.dataset}-compare">Compare the judges</a>.` : ''}`,
     `<label>Show <select id="filter"><option value="flagged">flagged</option><option value="all">all</option></select></label>
-     <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell m"></span> no verdict</span>`, '');
+     <span><span class="cell p"></span> pass <span class="cell f"></span> fail <span class="cell m"></span> no verdict</span>`, '', [4]);
   const head = `<thead><tr><th>Task</th>${crit.map(c => `<th class="rot" data-desc="${esc(c)}"><div>${esc(c)}</div></th>`).join('')}</tr></thead>`;
   const render = rows => `<table class="grid">${head}<tbody>${rows.map(({ d, t }) => `<tr>${taskCell(d, t)}${crit.map(c => {
     const v = t.j?.[c]?.[j.id] || '';
@@ -520,7 +662,7 @@ function comparePage(first = 0) {
   const start = state.compareCrit || '';
   state.compareCrit = null;
   const opt = (v, label, on) => `<option value="${esc(v)}"${on ? ' selected' : ''}>${esc(label)}</option>`;
-  $('#view').innerHTML = `${back}<h1>4 LLM judge${J.length > 1 ? 's compared' : `: ${esc(J[0].name)}`}</h1><p class="sub" id="cmp-sub"></p>
+  $('#view').innerHTML = `${back}<h1>4 LLM judge${J.length > 1 ? 's compared' : `: ${esc(J[0].name)}`}</h1>${stageDoc([4])}<p class="sub" id="cmp-sub"></p>
     <div class="toolbar"${J.length > 1 ? '' : ' hidden'}><select id="judges">${J.length === 1 ? opt('0', J[0].name, true) : ''}${J.length > 2 ? opt('all', 'All judges', true) : ''}${pairs.map(([i, k]) => opt(`${i},${k}`, `${J[i].name} vs ${J[k].name}`, J.length === 2)).join('')}</select></div>
     <div id="venns"></div>
     <div class="toolbar crit-pick"><label>Criterion <select id="crit">${opt('', 'Overall (any criterion)', !start)}${crits.map(c => opt(c, c, c === start)).join('')}</select></label></div>
@@ -693,38 +835,7 @@ function vennN(judges, by, sel, group, small) {
     <figcaption><a href="javascript:void 0" data-mask="0">${n === 1 ? `${esc(judges[0].name)} passes` : 'No judge fails'}: ${fmt(count(0))}</a></figcaption></figure>`;
 }
 
-function passkPage() {
-  pageShell('5–6 Pass@4: target model and teacher',
-    'Click a row to see the attempts and resources.',
-    `<label>Show <select id="filter"><option value="all">all</option><option value="solved">solved</option><option value="unsolved">unsolved by both</option><option value="inconclusive">inconclusive</option></select></label>`, '');
-  const chip = p => p ? `<span class="chip ${p.o}">${esc(p.o)}${p.o !== 'inconclusive' ? ` ${p.s}/${p.v}` : ''}</span>` + (p.c ? ` <span class="muted">${esc(CAUSES[p.c] || p.c)}</span>` : '') : `<span class="chip none">–</span>`;
-  const render = rows => `<table class="grid"><thead><tr><th>Task</th><th>Target model</th><th>Teacher</th><th>vCPU</th><th>Memory</th><th>Disk</th><th></th></tr></thead><tbody>` +
-    rows.map(({ d, t }) => `<tr>${taskCell(d, t)}<td>${chip(t.k?.target)}</td><td>${chip(t.k?.teacher)}</td>
-      <td>${t.r?.cpus ?? ''}</td><td>${t.r ? (t.r.memory_mb / 1024).toFixed(0) + ' GiB' : ''}</td><td>${t.r ? (t.r.storage_mb / 1024).toFixed(0) + ' GiB' : ''}</td>
-      <td><button class="link" data-ds="${esc(d.name)}" data-task="${esc(t.id)}">attempts</button></td></tr>`).join('') + '</tbody></table>';
-  const solved = t => t.k?.target?.o === 'solved' || t.k?.teacher?.o === 'solved';
-  const filters = { all: r => r.t.k, solved: r => solved(r.t), unsolved: r => r.t.k?.target?.o === 'unsolved' && r.t.k?.teacher?.o === 'unsolved',
-                    inconclusive: r => r.t.k?.target?.o === 'inconclusive' || r.t.k?.teacher?.o === 'inconclusive' };
-  const apply = () => paged(rowsFor(filters[$('#filter').value]), render);
-  $('#filter').addEventListener('change', apply); apply();
-  $('#table').addEventListener('click', async e => {
-    const b = e.target.closest('button[data-task]'); if (!b) return;
-    const p = (await details(b.dataset.ds))[b.dataset.task]?.passk || {};
-    const section = (role, name) => {
-      const x = p[role]; if (!x) return `<h3>${name}</h3><p class="muted">not run</p>`;
-      return `<h3>${name}: ${esc(x.model || '')}</h3>` + (x.reason ? `<p class="status" style="color:var(--missing)">${esc(x.reason)}</p>` : '') +
-        `<table><tr><th>#</th><th>Reward</th><th>Error</th><th>vCPU / mem / disk</th><th>Peak mem</th><th>Peak disk</th><th>Agent</th><th>Verifier</th></tr>` +
-        x.attempts.map((a, i) => `<tr><td>${i + 1}</td><td>${a.reward ?? '–'}</td><td>${esc(a.error || '')}</td>
-          <td>${a.allocation ? `${a.allocation.cpus} / ${a.allocation.memory_mb / 1024} / ${a.allocation.storage_mb / 1024} GiB` : ''}</td>
-          <td>${a.memory_mb != null ? Math.round(a.memory_mb) + ' MB' : ''}</td><td>${a.disk_mb != null ? Math.round(a.disk_mb) + ' MB' : ''}</td>
-          <td>${a.agent_sec != null ? Math.round(a.agent_sec) + ' s' : ''}</td><td>${a.verifier_sec != null ? Math.round(a.verifier_sec) + ' s' : ''}</td></tr>`).join('') + '</table>' +
-        `<p class="muted">${x.rounds.length} calibration round${x.rounds.length === 1 ? '' : 's'}: ${x.rounds.map(r => `${r.allocation.cpus} vCPU / ${r.allocation.memory_mb / 1024} GiB / ${r.allocation.storage_mb / 1024} GiB → ${esc(r.decision)}${r.reason ? ' (' + esc(r.reason) + ')' : ''}`).join('; ')}</p>`;
-    };
-    const req = p.resources?.requirements;
-    openDrawer(`<div class="muted">${esc(b.dataset.task)}</div>` + section('target', 'Target model') + section('teacher', 'Teacher') +
-      (req ? `<h3>Final requirement</h3><p>${req.cpus} vCPU · ${req.memory_mb / 1024} GiB memory · ${req.storage_mb / 1024} GiB disk <span class="muted">(task.toml: ${p.resources.upstream?.cpus ?? '–'} vCPU · ${(p.resources.upstream?.memory_mb ?? 0) / 1024} GiB · ${(p.resources.upstream?.storage_mb ?? 0) / 1024} GiB)</span></p>` : ''));
-  });
-}
+function passkPage() { renderPasskExplorer(); }
 
 document.addEventListener('mousemove', e => {
   const th = e.target.closest?.('th[data-desc]'), el = $('#tip');
@@ -796,7 +907,7 @@ function closeDrawer() { $('#drawer').hidden = true; }
 function route() {
   closeDrawer(); closeTask();
   // Hash names are plain (artifact viewers pass only #name): #<dataset>[-step-N|-judge-N|-passk|-compare[-N]|-overlap].
-  const m = location.hash.replace(/^#/, '').match(/^(.*?)(?:-(step|judge|passk|compare|overlap)(?:-(\d+))?)?$/);
+  const m = location.hash.replace(/^#/, '').match(/^(.*?)(?:-(step|judge|passk|calibration|compare|overlap)(?:-(\d+))?)?$/);
   const [, ds = 'all', kind, arg] = m || [];
   state.dataset = ds === 'all' || state.data[ds] ? ds : 'all';
   $('#dataset').value = state.dataset;
@@ -804,6 +915,7 @@ function route() {
   if (kind === 'step') stepPage(+arg);
   else if (kind === 'judge') judgePage(+arg);
   else if (kind === 'passk') passkPage();
+  else if (kind === 'calibration') calibrationPage();
   else if (kind === 'compare') comparePage(+(arg || 0));
   else if (kind === 'overlap') overlapPage();
   else overview();

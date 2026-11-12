@@ -212,7 +212,8 @@ def maybe_submit(args, numbers):
         payload['cpus'] = allocated_cpu_count(cluster, partition, args.cpus)
     allocation.update(cpus=payload['cpus'], cluster=cluster.name)
     request = folder / 'request.json'
-    save(request, {'args': payload, 'stages': numbers})
+    # Stage 4 runs in its own job after this one (validation/leak_repair/stage4.py).
+    save(request, {'args': payload, 'stages': [n for n in numbers if n != 4]})
     from validation.contract import code_archive, implementation, read
     frozen = code_archive(args.contract) if getattr(args, 'contract', None) else None
     if frozen is not None and frozen.is_file():
@@ -259,4 +260,10 @@ def maybe_submit(args, numbers):
             raise RuntimeError(f'Slurm rejected submission: {exc.output.strip()}') from exc
     save(folder / 'submission.json', result)
     print(f"{result['status']}: {folder / 'submission.json'}", flush=True)
+    if 4 in numbers:
+        from validation.leak_repair.stage4 import submit as submit_stage4
+        if not getattr(args, 'contract', None):
+            raise ValueError('stage 4 needs the run\'s contract (--contract)')
+        submit_stage4(args, args.contract, folder, results=folder / 'report' / 'results.parquet',
+                      after=result.get('job_id'))
     return 0

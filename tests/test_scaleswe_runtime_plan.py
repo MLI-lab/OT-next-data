@@ -47,13 +47,17 @@ def test_original_marker_environment_and_plugin_closure():
     assert not any(name.startswith('setup_files/') for name in updated)
 
 
-@pytest.mark.parametrize('change', ['missing', 'incompatible', 'direct', 'duplicate', 'url', 'extras'])
+@pytest.mark.parametrize('change', ['missing', 'direct', 'duplicate', 'url', 'extras', 'vcs-unknown', 'vcs-version'])
 def test_declines_unreproducible_dependencies(change):
     files, observation, measured = observed()
     if change == 'missing':
         measured['packages'] = [p for p in measured['packages'] if p['name'] != 'pluggy']
-    elif change == 'incompatible':
-        measured['packages'][1]['version'] = '0.1'
+    elif change == 'vcs-unknown':
+        measured['packages'][1]['direct_url'] = {'url': 'https://github.com/example/pluggy.git',
+            'vcs_info': {'vcs': 'git', 'commit_id': 'f' * 40}}
+    elif change == 'vcs-version':
+        measured['packages'][1].update(name='snapshottest', version='0.6.0', direct_url=SNAPSHOTTEST)
+        measured['packages'][0]['requires'] = ['snapshottest']
     elif change == 'direct':
         measured['packages'][1]['direct_url'] = {'url': 'file:///unknown.whl'}
     elif change == 'duplicate':
@@ -65,6 +69,79 @@ def test_declines_unreproducible_dependencies(change):
     observation['stdout'] = json.dumps(measured)
     with pytest.raises(ValueError):
         plan(files, observation)
+
+
+SNAPSHOTTEST = {'url': 'https://github.com/syrusakbary/snapshottest.git',
+                'vcs_info': {'vcs': 'git', 'commit_id': '54117098bd756c0fa6936f3bafab4bf85c58e943',
+                             'requested_revision': '54117098bd756c0fa6936f3bafab4bf85c58e943'}}
+
+
+def test_inconsistent_original_versions_are_installed_as_observed():
+    files, observation, measured = observed()
+    measured['packages'][1]['version'] = '0.1'  # pytest requires pluggy>=1.5
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    assert 'pluggy==0.1' in result['spec']['requirements']
+    assert result['spec']['install_no_deps'] is True
+    assert result['unsatisfied_original_requirements'] == [
+        dict(distribution='pytest', requirement='pluggy>=1.5', installed='pluggy==0.1')]
+
+
+def test_shadowed_copy_of_non_grading_distribution_keeps_first_on_sys_path():
+    files, observation, measured = observed()
+    measured['packages'].append({**measured['packages'][5], 'version': '8.0',
+        'location': '/opt/conda/lib/python3.10/site-packages/unrelated-8.0-py3.10.egg'})
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    assert result['shadowed_distributions'] == {'unrelated': [
+        dict(version='8.0', location='/opt/conda/lib/python3.10/site-packages/unrelated-8.0-py3.10.egg')]}
+    assert not any(r.startswith('unrelated') for r in result['spec']['requirements'])
+    measured['packages'][-1]['plugins'] = [dict(name='unrelated', value='unrelated.plugin')]
+    observation['stdout'] = json.dumps(measured)
+    with pytest.raises(ValueError, match='Ambiguous installed distribution: unrelated'):
+        plan(files, observation)
+
+
+def test_vendored_copy_later_on_sys_path_does_not_block_grading_dependency():
+    files, observation, measured = observed()
+    vendor = '/opt/conda/lib/python3.10/site-packages/setuptools/_vendor'
+    measured['packages'].append({**measured['packages'][1], 'version': '1.5.0', 'location': vendor})
+    measured['sys_path'].append(vendor)
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    assert 'pluggy==1.6.0' in result['spec']['requirements']
+    assert result['shadowed_distributions'] == {'pluggy': [dict(version='1.5.0', location=vendor)]}
+    measured['sys_path'].insert(1, measured['sys_path'].pop())  # vendored copy now first on sys.path
+    observation['stdout'] = json.dumps(measured)
+    with pytest.raises(ValueError, match='Ambiguous installed distribution: pluggy'):
+        plan(files, observation)
+
+
+def test_nameless_distribution_is_ignored_unless_it_registers_plugins():
+    files, observation, measured = observed()
+    measured['packages'].append(dict(name=None, version=None, requires=[], extras=[], plugins=[],
+        location='/opt/conda/lib/python3.10/site-packages', direct_url=None))
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    assert result['nameless_distributions'] == [dict(version=None, location='/opt/conda/lib/python3.10/site-packages')]
+    measured['packages'][-1]['plugins'] = [dict(name='x', value='x.plugin')]
+    observation['stdout'] = json.dumps(measured)
+    with pytest.raises(ValueError, match='Nameless'):
+        plan(files, observation)
+
+
+def test_vcs_grading_distribution_uses_pinned_commit_archive():
+    files, observation, measured = observed()
+    measured['packages'].append(dict(name='snapshottest', version='0.5.0', requires=[], extras=[],
+        plugins=[dict(name='snapshottest', value='snapshottest.pytest')],
+        location='/opt/conda/lib/python3.10/site-packages', direct_url=SNAPSHOTTEST))
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    assert ('snapshottest @ https://github.com/syrusakbary/snapshottest/archive/'
+            '54117098bd756c0fa6936f3bafab4bf85c58e943.tar.gz#sha256='
+            'ae8bf43e05b263dea25b5fa4612bda7ed84aad54a890237d85832dbcd833ff97') in result['spec']['requirements']
+    updated = prepared_verifier_files(files, result['spec'], None, observation=observation)
+    assert b'snapshottest' in updated['tests/ot_plugin_allowlist.py']
 
 
 def test_task_image_and_payload_must_match():
@@ -252,3 +329,52 @@ def test_noneditable_project_plugin_still_tests_submitted_code():
     assert 'project' in result['project_distributions']
     assert not any(pin.startswith('project==') for pin in result['spec']['requirements'])
     assert any(plugin['value'] == 'project.plugin' for plugin in result['plugins'])
+
+
+def test_nameless_editable_project_plugin_keeps_original_metadata():
+    files, observation, measured = observed()
+    plugin = dict(name=None, version=None, requires=[], plugins=[dict(name='duration', value='project.plugin')],
+                  location='/opt/conda/lib/python3.10/site-packages',
+                  metadata_path='/opt/conda/lib/python3.10/site-packages/project.dist-info',
+                  plugin_origins={'project.plugin': '/workspace/project/src/project/plugin.py'})
+    measured['packages'].append(plugin)
+    observation['stdout'] = json.dumps(measured)
+    result = plan(files, observation)
+    entry = next(p for p in result['plugins'] if p['name'] == 'duration')
+    assert entry['distribution'] is None
+    assert entry['metadata_path'] == plugin['metadata_path']
+    assert all('duration' not in req for req in result['spec']['requirements'])
+    plugin['plugin_origins']['project.plugin'] = '/outside/plugin.py'
+    observation['stdout'] = json.dumps(measured)
+    with pytest.raises(ValueError, match='Nameless'):
+        plan(files, observation)
+
+
+def test_legacy_matplotlib_reuses_image_bytes_with_exact_interpreter():
+    files, observation, measured = observed()
+    measured['packages'][0]['requires'].append('matplotlib>=3')
+    measured['packages'].append(dict(name='matplotlib',version='3.2.2',requires=[],plugins=[],
+        location='/opt/conda/lib/python3.10/site-packages',direct_url=None))
+    observation['stdout']=json.dumps(measured)
+    result=plan(files,observation,interpreter='standalone')
+    assert result['spec']['image_python']['packages']=={'matplotlib==3.2.2':['matplotlib','mpl_toolkits','pylab']}
+    assert result['spec']['python']==measured['python']
+    assert 'matplotlib==3.2.2' in result['spec']['requirements']
+
+
+def test_nameless_plugin_loader_preserves_empty_metadata(tmp_path):
+    import pluggy
+    from data.scaleswe.runtime import plugin_loader_module
+    info = tmp_path / 'original.dist-info'
+    info.mkdir()
+    (info / 'METADATA').write_text('')
+    original = pluggy.PluginManager.load_setuptools_entrypoints
+    try:
+        exec(plugin_loader_module([dict(name='original-nameless', value='math', distribution=None,
+                                       metadata_path=str(info))]), {})
+        manager = pluggy.PluginManager('pytest')
+        assert manager.load_setuptools_entrypoints('pytest11') == 1
+        assert manager.get_plugin('original-nameless').__name__ == 'math'
+        assert manager.list_plugin_distinfo()[0][1].project_name is None
+    finally:
+        pluggy.PluginManager.load_setuptools_entrypoints = original

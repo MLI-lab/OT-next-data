@@ -1,0 +1,21 @@
+The tasks in {tasks_dir} failed the repository_history check.
+The check looks for Git commits and files that the agent can access but that are not part of the task's starting history.
+This includes newer commits on other branches, tags or in the stash, as well as commits and files left
+in the repository after deletion. These may contain solutions, tests or later versions of the project,
+allowing the agent to find the answer instead of solving the task.
+
+The implementation of repository_history is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, each repository and what was found in it.
+
+The agent's environment is the image built from `environment/Dockerfile`, after `setup_files/setup.sh` (if present)
+has run. The agent can read every file in it, including every Git repository.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: the extra history contains part of the solution, the tests, or later versions of the files the
+  agent has to change. To decide, look at what the extra commits and files contain and compare them with the
+  reference solution in `solution/` and the tests in `tests/`;
+- `false_positive`: the task is about the history itself, e.g. the agent is asked to find, undo or restore an
+  earlier change; or the extra history has nothing to do with what the task asks;
+- `not_fixable`: the agent needs the history to solve the task, but the same history also contains the answer, so
+  the answer cannot be removed without removing what the agent needs.

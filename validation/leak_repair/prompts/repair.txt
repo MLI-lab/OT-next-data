@@ -1,0 +1,46 @@
+{check_section}
+
+Write your verdict (`true_positive`, `false_positive` or `not_fixable`) for each task you read to `{work_dir}/classification.jsonl`, one line per task: `{{"task": ..., "verdict": ..., "reason": ...}}`.
+Write a task's verdict only after reading that task, and give a reason that says what you found in it.
+
+Then write a function in `{repair_module}` that is as general as possible, so that it also works for the other
+tasks flagged by this check that you have not read in full. Its signature is `repair_{check_id}(files, evidence)`:
+- `files` is one task, as a dictionary from each file's path in the task to its content as bytes, e.g.
+  `{{"tests/test.sh": b"#!/bin/bash\nbash /app/run_tests.sh\n", "environment/Dockerfile": b"FROM ubuntu:24.04\n..."}}`.
+  To change a file, decode its content, edit it and store it again; to add or delete a file, add or delete its key;
+- `evidence` is the content of that task's `{evidence_dir}/<task>.json`, loaded as a dictionary.
+
+The function returns `(classification, files)`. The classification is `{{"decision": ..., "reason": ...}}`, with the
+decision `fixed` (for a true positive), `false_positive` or `not_fixable`. Only for `fixed` does it also return the files, as the complete
+repaired task in the same form, so that it no longer has the problem the check found; otherwise `files` is `None`
+and the task stays as it is. If the function does not recognise a task, it returns `None`.
+
+To test your repair function, call the tool `{check_command}`. It applies `repair_{check_id}` to every flagged task in `{tasks_dir}` and reports any errors.
+
+If `repair_{check_id}` runs successfully, the tool checks whether the repaired tasks now pass the check that originally flagged them and whether they still pass the regression checks. All tasks `repair_{check_id}` marks as `fixed` should now pass the check, and no repaired task should fail a regression check it previously passed. The regression checks, and where each one is implemented, are listed in `{regression_checks}`.
+
+The tool prints a summary showing:
+- How many repaired tasks now pass the check and which still fail.
+- Which tasks newly fail any regression checks.
+- Which tasks your function does not recognise.
+- Which tasks your function classifies as `false_positive` or `not_fixable` but you have not yet reviewed. Read these tasks fully, record your own verdict in `{work_dir}/classification.jsonl` and compare it with what your function decided.
+- Which tasks your function classifies differently from your verdict in `{work_dir}/classification.jsonl` (from the verdicts written before this run of the tool).
+- Which repaired tasks change test files other than `tests/test.sh` but have no verdict in
+  `{work_dir}/classification.jsonl` yet, and how each file changed (moved, modified, only imports modified, removed).
+  Review each change: if it does not go against the rules below, add your verdict with the reason; otherwise adjust
+  `repair_{check_id}`.
+
+Do not stop until the tool's summary ends with `Nothing left to do.` A task you cannot fix without going against
+the rules below is `not_fixable`.
+
+Rules:
+- Do not force a fix. A task that could only pass by changing what it tests is `not_fixable`.
+- Do not change how the verifier runs, i.e. do not switch a task between `shared` and `separate`.
+- Do not edit the tasks yourself; all changes must come from your function.
+- When your function decides `false_positive` or `not_fixable`, it must base that on what the task contains (for
+  example, what the extra history holds compared with `solution/` and `tests/`), not only on words in the instruction.
+- Your function should never change or restore the files the agent is asked to create or change. For example,
+  `git checkout <commit> -- .` before the tests run would also undo the agent's fix.
+- Your function must not change what the tests check. It may move a test file without changing it, and it may
+  change `tests/test.sh` as long as the same tests still run. If it has to change any other test file, say why in
+  your verdict's `reason` in `{work_dir}/classification.jsonl`.

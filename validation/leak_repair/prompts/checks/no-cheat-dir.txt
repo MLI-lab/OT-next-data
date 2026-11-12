@@ -1,0 +1,18 @@
+The tasks in {tasks_dir} failed the no-cheat-dir check.
+The check flags tasks that contain a top-level `cheat/` folder, which may hold a solution or other shortcuts for the
+task. Our automatic repair deletes this folder when nothing else in the task uses it. In all of these tasks, another
+file of the task refers to `cheat/`, so the folder was kept.
+
+The implementation of no-cheat-dir is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, the files that refer to `cheat/`.
+
+The agent's environment is the image built from `environment/Dockerfile`, after `setup_files/setup.sh` (if present)
+has run. The agent can read every file in it.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: the `cheat/` folder reveals part or all of the solution, or a shortcut to pass the tests, and a
+  file that refers to it puts it where the agent can read it (e.g. the Dockerfile copies it into the image);
+- `false_positive`: the folder reveals nothing about the solution, or the agent cannot reach it (e.g. only the
+  reference solution or the tests use it);
+- `not_fixable`: the task only works with the folder, and the folder reveals part of the solution.

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from data.calibforge.runtime_workflow import RuntimeWorkflow, encode, decode
+from data.calibforge.patch import RuntimeWorkflow, encode, decode
 from data.utils.verifier_runtime import runtime_spec
 from harbor_patches.verifier_bundle import FORMAT, spec_id
 from validation.contract import files_digest

@@ -14,7 +14,7 @@ COMMANDS = {
     'mimo': ['build-full', 'prepare-pilot'],
     'facet': ['build-source', 'prepare-pilot'],
     'seta': ['download'], 'calibforge': ['prepare-pilot'],
-    'tmax': ['prepare-pilot'], 'termigen': ['prepare-pilot'],
+    'termigen': ['prepare-pilot'],
 }
 
 

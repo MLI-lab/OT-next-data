@@ -98,7 +98,8 @@ def verdict(evidence, hits, reward, baseline_rewards):
         return dict(status='incomplete', reason=f'reward {reward} differs from the no-op runs', tools=[])
     tools = sorted(set(hits))
     if tools:
-        return dict(status='flagged', reason='grading ran tools the agent could have replaced', tools=tools)
+        return dict(status='flagged', reason='grading ran tools the agent could have replaced: ' + ', '.join(tools),
+                    tools=tools)
     return dict(status='passed', reason='grading ran none of the wrapped tools', tools=[])
 
 

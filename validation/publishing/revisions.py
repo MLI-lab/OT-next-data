@@ -92,18 +92,42 @@ def write(tables, record, run_file, out, reports, contract, history, cards=None,
         payloads = [*kept, *archived]
         previous = history.load(folder)
         validated = {r['path']: r['content_sha256'] for r in payloads}
-        observed = results.observations(reports, validated, folder, contract.get('arguments', {}))
-        # Evidence from another input revision is not evidence for these bytes.
-        observed = [r for r in observed if validated.get(r['task_id']) == r['content_sha256']]
-        # The published task carries the automatic path and pip repairs of this run.
+        # Rows stage by stage: after a stage whose leak repairs changed a task, its row moves to the repaired version.
+        arguments = contract.get('arguments', {})
+        observed = []
+        for stage in sorted(reports, key=int):
+            observed = results.merge(observed, results.observations({stage: reports[stage]}, validated, folder, arguments))
+            observed = results.repair_rows(observed, reports[stage].get('leak_repairs') or {})
+        # Tasks as the run left them: the recorded leak repairs replayed on the validated originals.
         from validation.automatic_repairs import archive_files, plan, replace_in_archive
+        from validation.contract import files_digest
+        from validation.leak_repair.tool import repaired_loader
         binaries = {r['path']: r['task_binary'] for r in payloads}
-        plans = plan(reports, lambda tasks: {t: archive_files(binaries[t]) for t in tasks if t in binaries})
+        originals = lambda tasks: {t: archive_files(binaries[t]) for t in tasks if t in binaries}
+        load = repaired_loader(originals, reports, (contract.get('dataset') or {}).get('source'))
+        repaired = sorted({t for report in reports.values() for t, r in (report.get('leak_repairs') or {}).items()
+                           if r['to'] != r['from'] and t in binaries})
+        repaired_files = load(repaired) if repaired else {}
+        current = {**validated, **{t: files_digest(f.items()) for t, f in repaired_files.items()}}
+        # Evidence from another input revision is not evidence for these bytes.
+        observed = [r for r in observed if current.get(r['task_id']) == r['content_sha256']]
+        # The published task carries this run's leak repairs and its automatic path and pip repairs.
+        plans = plan(reports, load)
         results.repair_rows(observed, plans)
         payloads = [dict(r, task_binary=replace_in_archive(r['task_binary'], plans[r['path']]['files']),
                          content_sha256=plans[r['path']]['to'])
-                    if r['path'] in plans and r['content_sha256'] == plans[r['path']]['from'] else r
+                    if r['path'] in plans and current.get(r['path']) == plans[r['path']]['from'] else
+                    dict(r, task_binary=replace_in_archive(r['task_binary'], repaired_files[r['path']]),
+                         content_sha256=current[r['path']])
+                    if r['path'] in repaired_files else r
                     for r in payloads]
+        # Apply settled calibration settings to the actual published task packages.
+        from validation.metrics.apply_resources import apply_task
+        matched = {(r['task_id'], r['content_sha256']): i for i, r in enumerate(observed)}
+        for i, task in enumerate(payloads):
+            index = matched.get((task['path'], task['content_sha256']))
+            if index is not None:
+                payloads[i], observed[index] = apply_task(task, observed[index])
         incoming = {(r['task_id'], r['content_sha256']): r for r in observed}
         for task in payloads:
             key = task['path'], task['content_sha256']

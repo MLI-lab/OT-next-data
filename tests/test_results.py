@@ -101,6 +101,20 @@ def test_environment_failures_are_not_hidden_by_another_environment_pass():
     assert row['declared_workdir'] == 'fail'
 
 
+def test_mixed_nop_baseline_overrides_shuffled_pass_and_blocks_tamper():
+    item = {'task': 't', 'status': 'failed', 'normal_baseline_status': 'completed',
+            'rewards': [0, 1, 0], 'listing_order': {'status': 'clean'},
+            'verifier_tamper': {'status': 'incomplete', 'reason': 'reward 1.0 differs from the no-op runs'}}
+    row, = results.observations({3: {'items': [item]}}, {'t': 'hash'})
+    assert row['nop'] == row['nop_determinism'] == 'fail'
+    assert row['verifier_tamper'] == 'blocked'
+    assert results.details(row)['nop_determinism']['normal_rewards'] == [0, 1, 0]
+    item['rewards'] = [0, None, 0]
+    row, = results.observations({3: {'items': [item]}}, {'t': 'hash'})
+    assert row['nop_determinism'] == 'pass'
+    assert row['verifier_tamper'] == 'execution_error'
+
+
 def test_missing_selected_check_overwrites_old_pass(tmp_path):
     path = tmp_path / 'results.parquet'
     results.export_report(path, {'checks': ['check-nproc.sh'], 'tasks': [

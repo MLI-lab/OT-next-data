@@ -23,7 +23,7 @@ import threading
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from validation.task_inputs.selection import discover_tasks
 from validation.rules.static import dockerfile_references, dockerfile_sanity, nproc
-from validation.rules.static.dockerfile_references import dockerfile_without_comments
+from validation.rules.static.dockerfile_references import dockerfile_references_text, dockerfile_without_comments, verifier_tests
 from validation.rules.static.dockerfile_sanity import dockerfile_sanity_text
 from validation.rules.static.nproc import CALIBFORGE_REVIEWED_NPROC, calibforge_nproc_text, nproc_check_text
 from validation.rules.static.pip_pinning import check as pip_pinning
@@ -194,7 +194,7 @@ ADAPTATIONS['check-task-toml-schema.py'] = (
 def adapted_check_copy(task, scratch, name, profile):
     transforms = {'check-test-file-references.sh': reference_check_text,
                   'check-pip-pinning.sh': pip_check_text,
-                  'check-dockerfile-references.sh': dockerfile_without_comments,
+                  'check-dockerfile-references.sh': dockerfile_references_text,
                   'check-dockerfile-sanity.sh': dockerfile_sanity_text}
     if profile == 'training':
         transforms['check-nproc.sh'] = nproc_check_text
@@ -222,6 +222,8 @@ def adapted_check_copy(task, scratch, name, profile):
                                                dockerfile.read_bytes() if dockerfile.is_file() else b'')
                 text = calibforge_nproc_text(text, task, relative)
                 text = nproc_check_text(text, dockerfile=relative == 'environment/Dockerfile')
+            elif name == 'check-dockerfile-references.sh' and relative not in ('instruction.md', 'task.toml'):
+                text = dockerfile_references_text(text, verifier_tests(task))
             elif relative not in ('instruction.md', 'task.toml'):
                 text = transforms[name](text)
                 if name == 'check-test-file-references.sh' and relative.startswith('tests/') and relative.endswith('.py'):
@@ -271,6 +273,13 @@ def rebuild_summary(out):
 
 def finding(output, target, name, limit=1000):
     """The check's own finding lines, with scratch paths shown as the task name."""
+    # Our local rules print {"status", "details"} JSON; their own reason is the finding.
+    try:
+        details = json.loads(output).get('details')
+    except (ValueError, AttributeError):
+        details = None
+    if isinstance(details, dict) and isinstance(details.get('reason'), str) and details['reason'].strip():
+        output = details['reason']
     text = output.replace(str(target) + '/', '').replace(str(target) + ': ', '').replace(str(target), '.')
     # The row already names the task: drop "<task>: " and "<task>/" prefixes.
     text = re.sub(rf'(?<![\w.-]){re.escape(name)}(?::\s*|/)', '', text)
@@ -401,6 +410,9 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                             stream.seek(0)
                         if profile == 'training' and name == 'check-pip-pinning.sh' and rc == 1:
                             status = 'warning'
+                        # Training data runs on x86-64 hosts; a pinned amd64 platform is recorded, not fatal.
+                        if profile == 'training' and name == 'check-dockerfile-platform.sh' and rc == 1:
+                            status = 'warning'
                         if name in LOCAL_WARNINGS and rc == 1:
                             status = 'warning'
                         if name in LOCAL_CHECKS and name != 'check-task-toml-schema.py' and rc not in (0, 1, None):
@@ -427,7 +439,8 @@ def run_checks(tasks, out, profile='training', timeout=300, upstream=None, exclu
                                                   phase='checker', classification_version=1)
                     if status != 'passed':
                         print(f'{task.name}: {name}: {status} (see {log})', flush=True)
-                tags = {'check-pip-pinning.sh': 'unpinned-dependency', **LOCAL_WARNINGS}
+                tags = {'check-pip-pinning.sh': 'unpinned-dependency', 'check-dockerfile-platform.sh': 'pinned-platform',
+                        **LOCAL_WARNINGS}
                 entry['warnings'] = [{'tag': tags.get(c['check'], 'relative-instruction-path'), 'check': c['check'], 'log': c.get('log')} for c in entry['checks'] if c['status'] == 'warning']
                 statuses = {c['status'] for c in entry['checks']}
                 entry['status'] = ('failed' if statuses & {'failed', 'error'} else

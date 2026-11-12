@@ -73,7 +73,7 @@ def test_source_drift_requires_review(reviewed, change):
 
 
 def test_runtime_history_ignores_generated_setup(reviewed):
-    from data.calibforge.runtime_history import comparable
+    from data.calibforge.patch import comparable
     updates, _ = repairs.restore_entrypoint_startup(TASK, reviewed)
     assert comparable("setup_files/setup.sh", updates["setup_files/setup.sh"]) is None
     assert comparable("setup_files/setup.sh", b"#!/bin/bash\n") == b"#!/bin/bash\n"

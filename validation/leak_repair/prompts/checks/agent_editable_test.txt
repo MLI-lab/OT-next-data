@@ -1,0 +1,31 @@
+The tasks in {tasks_dir} failed the agent_editable_test check.
+The check flags tasks where the verifier runs tests or scripts that the agent could have modified, without first
+restoring the original versions.
+This could allow the agent to manipulate the tests to pass without solving the task.
+
+The implementation of agent_editable_test is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, the files that made it fail the check.
+
+How the verifier runs: The [verifier].environment_mode setting in task.toml determines whether
+the verifier runs in the same container as the agent (shared, the default) or in a separate container (separate).
+In `separate` mode, tests run in a fresh container built from `tests/Dockerfile`, which receives only the paths
+listed in `artifacts` in `task.toml` from the agent's container.
+In `shared` mode, tests run in the agent's container. After the agent stops, the harness uploads `tests/`,
+then runs `tests/setup.sh` if present and `tests/test.sh`.
+Replacing container programs such as `bash`, `sh` or coreutils is a known limitation we do not need to address.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: the verifier runs a test, check or reference file from outside `/tests` that the agent could
+  edit, so the agent could tamper with it to pass without actually solving the task. For example:
+  - `tests/test.sh` runs `bash /app/run_tests.sh` from the image (fix: put the original into `tests/` and run
+    `/tests/run_tests.sh`);
+  - `tests/test.sh` runs the project's own test files, e.g. `pytest /app/tests/test_api.py` (fix: restore them from
+    the starting commit first, e.g. `git -C /app checkout <commit> -- tests/`);
+  - the output is compared with an oracle the image builds, e.g. `/app/oracle_bin` (fix: build it in
+    `tests/test.sh` from sources in `/tests`);
+- `false_positive`: the check is wrong for this task. For example, the file the verifier runs is the program the
+  agent was asked to write or fix, which is exactly what should be tested; or `tests/test.sh` restores the file
+  before running it in a way the check does not recognise;
+- `not_fixable`: the problem is real, but fixing it would need a change to how the verifier itself is run (the
+  infrastructure), not just to the task's files.

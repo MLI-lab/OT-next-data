@@ -84,7 +84,8 @@ def load(directory, tasks, manifest, checks, profile, expected=None, accept_prev
         'check-test-file-references.sh': ('without_urls', 'reference_check_text', 'adapted_check_copy'),
         'check-pip-pinning.sh': ('pip_check_text', 'adapted_check_copy'),
         'check-nproc.sh': ('nproc_check_text', 'calibforge_nproc_text', 'adapted_check_copy'),
-        'check-dockerfile-references.sh': ('dockerfile_without_comments', 'adapted_check_copy'),
+        'check-dockerfile-references.sh': ('dockerfile_without_comments', 'dockerfile_references_text',
+                                           'verifier_tests', 'adapted_check_copy'),
         'check-dockerfile-sanity.sh': ('dockerfile_without_comments', 'dockerfile_sanity_text', 'adapted_check_copy'),
     }
     for check, helpers in dependencies.items():

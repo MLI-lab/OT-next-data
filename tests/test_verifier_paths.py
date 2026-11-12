@@ -887,3 +887,90 @@ def test_tool():
     assert excluded['/tmp/test-clone-daemon'] == 'verifier_generated'
     assert excluded['/app/csv2json'] == 'build_product_of_provided_source'
     assert excluded['/app/results.json'] is None
+
+
+
+def shell_inventory(tmp_path, source):
+    path = task(tmp_path, '')
+    (path / 'tests/test.sh').write_text(source)
+    return rule.inventory(path)
+
+
+def test_bash_nul_in_heredoc_matches_delivered_source(tmp_path):
+    result = shell_inventory(tmp_path, "#!/bin/bash\npython3 <<'PY'\nopen('/app/or\x00acle')\nPY\n")
+    assert not result['errors']
+    assert '/app/oracle' in [p['path'] for p in result['paths']]
+
+
+def test_nul_in_standalone_python_remains_invalid(tmp_path):
+    path = task(tmp_path, "open('/app/or\x00acle')")
+    assert rule.inventory(path)['errors']
+
+
+def test_shell_wrapper_named_python_is_not_python_source(tmp_path):
+    result = shell_inventory(tmp_path, """#!/bin/bash
+cat > "$TMP/bin/python3" <<'EOF'
+#!/bin/bash
+printf 'python3'
+exec /usr/bin/python3 "$@"
+EOF
+python3 <<'PY'
+open('/app/real_dependency')
+PY
+""")
+    assert not result['errors']
+    assert '/app/real_dependency' in [p['path'] for p in result['paths']]
+
+
+def test_unreferenced_function_does_not_poison_active_verifier(tmp_path):
+    result = shell_inventory(tmp_path, """#!/bin/bash
+unused() {
+python3 <<'PY'
+ unexpected indent
+PY
+}
+active() {
+python3 <<'PY'
+open('/app/active_dependency')
+PY
+}
+if active; then
+    echo 1
+fi
+""")
+    assert not result['errors']
+    assert '/app/active_dependency' in [p['path'] for p in result['paths']]
+
+
+def test_called_malformed_function_stays_incomplete(tmp_path):
+    result = shell_inventory(tmp_path, """#!/bin/bash
+active() {
+python3 <<'PY'
+ unexpected indent
+PY
+}
+if active; then
+    echo 1
+fi
+""")
+    assert result['errors']
+
+
+def test_dynamic_function_dispatch_does_not_hide_errors(tmp_path):
+    result = shell_inventory(tmp_path, """#!/bin/bash
+active() {
+python3 <<'PY'
+ unexpected indent
+PY
+}
+if "$HANDLER"; then
+    echo 1
+fi
+""")
+    assert result['errors']
+
+
+def test_tab_stripping_python_heredoc(tmp_path):
+    result = shell_inventory(tmp_path, "#!/bin/bash\nif python3 <<-'PY'\n\topen('/app/oracle')\n\tPY\nthen\ntrue\nfi\n")
+    assert not result['errors']
+    assert '/app/oracle' in [p['path'] for p in result['paths']]

@@ -245,15 +245,15 @@ Example `details`: `docker-compose.yaml mounts host path /var/run/docker.sock`
 <a id="dockerfile-platform"></a>
 
 <details>
-<summary><code>dockerfile-platform</code> (TB unchanged) · Platform settings in Dockerfiles.</summary>
+<summary><code>dockerfile-platform</code> (TB, warning instead of fail) · Platform settings in Dockerfiles.</summary>
 
-Rejects `FROM --platform=...` in agent or verifier Dockerfiles so tasks are not explicitly tied to one CPU architecture.
+Flags `FROM --platform=...` in agent or verifier Dockerfiles, which ties a task to one CPU architecture. Upstream Terminal-Bench check, changed only to give a warning (`pinned-platform`) instead of a failure: our clusters are all x86-64, the architecture TMax v1.1 tasks pin, so these tasks run fine here. The warning marks tasks to check before running them on other CPUs.
 
 
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `dockerfile-platform`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
+Column `dockerfile-platform`. Status `pass` or `warning`. No repair. `details`: for a warning, the check's finding.
 Example `details`: `Dockerfile:1: FROM --platform=linux/amd64 python:3.11`
 
 </details>
@@ -287,12 +287,17 @@ Column `instruction-suffix`. Status `pass` or `fail`. `repaired`: yes. No `detai
 
 Rejects a top-level `cheat/` directory in the task package.
 
+We extended it with an automatic repair that deletes the folder in the validation copy, unless another task file
+refers to it (`instruction.md` is not searched). In that case the folder stays, the task fails as before, and the
+referencing lines are recorded as the reason.
+
 
 <details>
 <summary>Entry in <code>results.parquet</code></summary>
 
-Column `no-cheat-dir`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
-Example `details`: `Dockerfile:9: COPY solution/ /app/solution/`
+Column `no-cheat-dir`. Status `pass` or `fail`. `repaired`: yes. `details`: for a repair, `removed cheat/ (N files)`;
+for a failure, the check's finding.
+Example `details`: `cheat: cheat directory is not allowed`
 
 </details>
 
@@ -343,7 +348,11 @@ Checks that the Dockerfile does not include the solution script or verifier test
 files in the agent’s image.
 
 **Our modification:** We ignore full-line Dockerfile comments. Executable references
-and heredoc contents remain checked.
+and heredoc contents remain checked. Upstream matches `tests/test_*.py` as a regular expression, which misses the
+usual names such as `tests/test_outputs.py`. We additionally flag a reference to `test_<name>.py` under any path
+when a file of that name is one of the task's verifier tests in `tests/`, e.g. `COPY files/test_basic.py
+/tests/test_basic.py`. The project's own test files, such as a repository's `tests/test_api.py`, are not flagged
+unless the task's tests contain a file of the same name. Everything the upstream check flags stays flagged.
 
 Implementation: [check adaptations](static/dockerfile_references.py).
 
@@ -352,7 +361,7 @@ Implementation: [check adaptations](static/dockerfile_references.py).
 <summary>Entry in <code>results.parquet</code></summary>
 
 Column `dockerfile-references`. Status `pass` or `fail`. No repair. `details`: for a failure, the check's finding.
-Example `details`: `Dockerfile:6: COPY data/input.csv, but environment/data/input.csv does not exist`
+Example `details`: `environment/Dockerfile: contains reference to tests/test.sh (Dockerfiles must not COPY solution or test files)`
 
 </details>
 
@@ -538,8 +547,10 @@ Each executed file outside `/tests` is checked against the agent's starting envi
 which comes from the task folder minus `tests/`. A file that wasn't there at agent start was
 made by the agent and is not flagged. A file that was there is flagged unless `setup.sh` or
 `test.sh` restores or recreates it before running it, for example by copying it from
-`/tests`, by `git checkout`, by a patch or checksum, or by a fresh build. System paths are
-skipped. Imports of provided modules, and tests or oracles that nothing provides, are
+`/tests`, by `git checkout`, by a patch or checksum, or by a fresh build. A `git checkout` in a
+loop counts too: over a literal list (`for f in a.py b.py`), or over the files matching the
+patterns of a `case` block (`case "$path" in test_*.py|conftest.py) git checkout ... -- "$path"`).
+System paths are skipped. Imports of provided modules, and tests or oracles that nothing provides, are
 reported separately rather than flagged.
 
 A limitation is that a task is also flagged when the verifier directly executes a file the
@@ -977,8 +988,10 @@ are already accessible to the agent, either as ordinary files or in Git history.
    counts once, regardless of how many copies exist. No matches passes only
    after a complete scan.
 
-Only whole-file exact copies are detected. Deleted files and reference changes
-outside the starting workspace are excluded. Missing evidence, tools or failed
+Only whole-file exact copies are detected. Deleted files, empty files (an empty
+file reveals nothing and matches every empty file, e.g. `/etc/machine-id`) and reference changes
+outside the starting workspace are excluded. A reference that only deletes files or writes empty
+files is not applicable. Missing evidence, tools or failed
 scans leave the check incomplete. Tasks without a reference solution are not
 applicable.
 </details>

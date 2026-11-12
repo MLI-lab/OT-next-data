@@ -94,11 +94,22 @@ def environment_config(args):
     return config
 
 
+def platform_only_compose(path):
+    """True for a compose file that only pins the main service to linux/amd64 (no sidecars,
+    ports, volumes or other settings). The amd64 SIF already runs on that platform."""
+    import yaml
+    try:
+        data = yaml.safe_load(path.read_text())
+    except (OSError, yaml.YAMLError):
+        return False
+    return data == {'services': {'main': {'platform': 'linux/amd64'}}}
+
+
 def check_runtime_task(task, backend):
     if backend != 'apptainer':
         return
     data = tomllib.loads((task / 'task.toml').read_text())
-    if any((task / 'environment').glob('*compose*.y*ml')):
+    if any(not platform_only_compose(path) for path in (task / 'environment').glob('*compose*.y*ml')):
         raise ValueError('Apptainer bridge does not implement Compose sidecars; use a supported backend')
     environments = [data.get('environment', {}), data.get('verifier', {}).get('environment', {})]
     if any(env.get('gpus', 0) or env.get('tpu') for env in environments):

@@ -273,7 +273,9 @@ def analyze_task(task):
     missing = [r['script'] for r in records if r['status'] == 'missing']
     return dict(status='failed' if missing else 'passed',
                 scripts=records, missing_scripts=missing,
-                reason=('Required script functionality has no verifier execution or call evidence: ' + ', '.join(missing)) if missing else '',
+                reason=('Required script functionality has no verifier execution or call evidence: ' +
+                        '; '.join(f"{r['script']} (instruction: {r['instruction'][:200]!r})" for r in records if r['status'] == 'missing'))
+                       if missing else '',
                 unresolved=sorted(set(problems)),
                 import_call_graph=graph.edges,
                 conservative_pass=any(r['status'] == 'unknown' for r in records),

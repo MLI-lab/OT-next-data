@@ -7,7 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data.calibforge.runtime_workflow import RuntimeWorkflow
+from data.calibforge.patch import RuntimeWorkflow
 from data.utils.verifier_runtime import runtime_spec
 from harbor_patches.verifier_bundle import FORMAT, spec_id
 from validation.contract import files_digest
@@ -165,7 +165,7 @@ def test_reviewed_instruction_reuse_preserves_current_input(tmp_path, prepared_i
 
 
 def test_reviewed_verifier_merge_keeps_guard_and_runtime_changes():
-    from data.calibforge.runtime_history import preserve_reviewed_verifier
+    from data.calibforge.patch import preserve_reviewed_verifier
     from data.calibforge.repairs import assert_required_verifier_module
     name = 'contrastive_solver-data-processing_20260604_003814_003'
     raw = '"""Verifier.\n\nDescription.\n"""\nimport pandas\ndef test_answer():\n    assert answer == 42\n'

@@ -86,8 +86,8 @@ def test_calibrated_passk_workflow_and_resume(tmp_path, monkeypatch):
     assert [r['allocation']['memory_mb'] for r in by['a']['calibration']['rounds']] == [8192, 16384]
     assert by['a']['passk'].items() >= {'outcome': 'solved', 'successes': 1, 'valid_attempts': 4}.items()
     assert by['a']['calibration']['final_allocation'] == {'cpus': 2, 'memory_mb': 16384, 'storage_mb': 20480}
-    # Requirements from the one solved attempt: ceil(9500 MB)+1 = 11 GiB; disk floor 10 GiB; 2 vCPU.
-    assert by['a']['calibration']['requirements'].items() >= {'cpus': 2, 'memory_mb': 11 * 1024, 'storage_mb': 10 * 1024}.items()
+    # Requirements from the one solved attempt: ceil(9500 MB)+1 = 11 GiB; disk peak + 2 GiB = 3 GiB; ceil(4 CPU-seconds/10 seconds) = 1 vCPU.
+    assert by['a']['calibration']['requirements'].items() >= {'cpus': 1, 'memory_mb': 11 * 1024, 'storage_mb': 3 * 1024}.items()
     # b: only the failed attempt reran, at the same allocation; one round.
     assert len(by['b']['calibration']['rounds']) == 1 and by['b']['passk']['outcome'] == 'unsolved'
     assert by['b']['calibration']['earlier_attempts'] == 1

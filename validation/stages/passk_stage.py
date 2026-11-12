@@ -190,7 +190,7 @@ class Calibration:
                    'solved' if passk['solved'] else 'unsolved')
         return {'outcome': outcome, 'reason': state.get('reason'), 'passk': passk,
                 'final_allocation': state['allocation'], 'upstream': state['upstream'], 'capped': state.get('capped', False),
-                'requirements': cal.requirements(measured, state['allocation'], state['upstream'], self.policy),
+                'requirements': cal.requirements(measured, state['allocation'], state['upstream'], self.policy, rounds=rounds, k=self.k),
                 'rounds': [{k: v for k, v in r.items() if k != 'attempts'} | {'attempts': len(r['attempts'])}
                            for r in rounds],
                 'final_attempts': [{k: a.get(k) for k in ('trial', 'reward', 'exception_type', 'phases', 'tool_mean_sec',

@@ -26,7 +26,8 @@ def suffix(instruction, config):
     return (text + '\n\n' + sentence + '\n').encode()
 
 
-def normalize_archive(blob, transform=None, repair=None):
+def normalize_archive(blob, transform=None, repair=None, remove_cheat=None):
+    """remove_cheat: callback that receives the no-cheat-dir repair record; None leaves cheat/ alone."""
     output = io.BytesIO()
     with tarfile.open(fileobj=io.BytesIO(blob), mode='r:*') as source:
         members = source.getmembers()
@@ -37,6 +38,13 @@ def normalize_archive(blob, transform=None, repair=None):
         files = {str(PurePosixPath(m.name)): source.extractfile(m).read() for m in members if m.isfile()}
         normalized = transform(files['instruction.md'], files['task.toml']) if transform else suffix(files['instruction.md'], files['task.toml'])
         files['instruction.md'] = normalized
+        if remove_cheat:
+            from validation.rules.static import no_cheat_dir
+            present = any(str(PurePosixPath(m.name)) == 'cheat' for m in members if m.isdir())
+            files, record = no_cheat_dir.repair_files(files, present)
+            remove_cheat(record)
+            if record['status'] == 'applied':
+                members = [m for m in members if not (str(PurePosixPath(m.name)) + '/').startswith(no_cheat_dir.PREFIX)]
         if repair:
             files = repair(files)
         # Preserve compression for packaged-input tasks: expanding a task into
@@ -93,6 +101,7 @@ def prepare(args, destination, instructions=True):
     """
     from validation.contract import inventory, digest
     from validation.rules.dynamic.environment import repair as repository_repair
+    from validation.rules.static import no_cheat_dir
     original = args.tasks.resolve()
     records, files = inventory(original, args.limit, args.task_id_range)
     ids = {r['task_id'] for r in records}
@@ -101,6 +110,12 @@ def prepare(args, destination, instructions=True):
     changes = {}
     repository_fix = getattr(args, 'fix_repository_leaks', True)
     repairs = {}
+    cheats = {}
+    def cheat(task_id, record):
+        if record['status'] != 'absent':
+            cheats[task_id] = record
+        if record['status'] == 'applied':
+            changes.setdefault(task_id, set()).add(no_cheat_dir.LABEL)
     def repair(task_id, files):
         if not repository_fix:
             return files
@@ -112,7 +127,7 @@ def prepare(args, destination, instructions=True):
         """Hash of the task with every automatic fix except path edits: the copy a
         separate discovery run inspected."""
         from validation.contract import files_digest
-        files = dict(files)
+        files = no_cheat_dir.repair_files(dict(files))[0]
         if instructions and getattr(args, 'fix_instruction_suffix', True):
             files['instruction.md'] = suffix(files['instruction.md'], files['task.toml'])
         if repository_fix:
@@ -155,7 +170,8 @@ def prepare(args, destination, instructions=True):
                                                            for m in archive.getmembers() if m.isfile()})
                             row['task_binary'] = normalize_archive(
                                 row['task_binary'], lambda instruction, config: transform(row['path'], instruction, config),
-                                lambda files: repair(row['path'], files))
+                                lambda files: repair(row['path'], files),
+                                lambda record: cheat(row['path'], record))
                         if rows:
                             table = pa.Table.from_pylist(rows, schema=schema)
                             if writer is None:
@@ -177,6 +193,12 @@ def prepare(args, destination, instructions=True):
                     prepared(task.name, {p.relative_to(task).as_posix(): p.read_bytes() for p in task.rglob('*') if p.is_file()})
                 target = destination / task.name
                 shutil.copytree(task, target)
+                if (target / 'cheat').is_dir():
+                    present = {p.relative_to(target).as_posix(): p.read_bytes() for p in target.rglob('*') if p.is_file()}
+                    record = no_cheat_dir.repair_files(present, True)[1]
+                    cheat(task.name, record)
+                    if record['status'] == 'applied':
+                        shutil.rmtree(target / 'cheat')
                 (target / 'instruction.md').write_bytes(transform(task.name, (task / 'instruction.md').read_bytes(), (task / 'task.toml').read_bytes()))
                 names = ('environment/Dockerfile', repository_repair.SETUP, repository_repair.TASK_SETUP)
                 current = {n: (target / n).read_bytes() for n in names if (target / n).is_file()}
@@ -206,6 +228,11 @@ def prepare(args, destination, instructions=True):
         meta['normalization']['instruction_paths'] = paths.report
         from validation.automatic_repairs import path_details, record_details
         record_details(meta, 'task-absolute-path', path_details(paths.report))
+        record_details(meta, no_cheat_dir.RULE, {t: r['details'] for t, r in cheats.items() if r['status'] == 'applied'})
+        meta['normalization']['cheat_dir_removal'] = {
+            'description': no_cheat_dir.__doc__.strip().replace('\n', ' '),
+            'applied': sorted(t for t, r in cheats.items() if r['status'] == 'applied'),
+            'not_applied': {t: r['reason'] for t, r in sorted(cheats.items()) if r['status'] != 'applied'}}
         if paths.report['evidence_reports']:
             meta['normalization']['operation'] = 'automatic-instruction-normalization-v1'
         if not getattr(args, 'fix_instruction_suffix', True):

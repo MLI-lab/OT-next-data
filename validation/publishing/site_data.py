@@ -4,7 +4,7 @@ Usage: python -m validation.publishing.site_data --dataset NAME=RESULTS.parquet 
            [--tasks NAME=TASKS.parquet ...] [--judge-usage NAME=USAGE.json ...]
 
 <name>.json holds what the diagram and the tables need: every task's status per check (one letter), the checks
-whose automatic repair was applied (rp), wall seconds of the checks that run containers (tm, order in `timed`), the judge
+whose automatic repair was applied (rp), the leak repair decisions per leak check (lk), wall seconds of the checks that run containers (tm, order in `timed`), the judge
 verdicts per criterion and judge, and pass@k of both models. <name>-details.json holds the explanations shown when a
 red cell is opened: check details of fails and warnings, judge explanations of failed criteria, and the pass@k
 attempts. index.json lists the datasources. Step membership of each check follows the main README.
@@ -35,6 +35,18 @@ STEPS = [
                                                'repository_timestamps', 'reference_leaks']),
                 ('Verifier tampering', ['agent_editable_test', 'verifier_tamper'])]},
 ]
+from validation.automatic_repairs import LEAK_RULES
+
+
+def leak_outcome(record):
+    """x fixed (validated and applied), p false positive, n not fixable, u anything else (not recognised, the
+    function failed, or fixed but not validated): validation.leak_repair.tool.leak_plans writes these details."""
+    text = record.get('details') or ''
+    if text.startswith('fixed:') and record.get('applied'):
+        return 'x'
+    return 'p' if text.startswith('false positive') else 'n' if text.startswith('not fixable') else 'u'
+
+
 CODE = {'pass': 'p', 'fail': 'f', 'warning': 'w', 'not_applicable': 'a', 'not_requested': 'r', 'blocked': 'b'}
 # Checks without a one-line summary in the rules README.
 FALLBACK = {'verifier_paths': 'Absolute paths the verifier needs that are missing and not named in the instruction.',
@@ -108,6 +120,27 @@ def write_task_files(name, ids, sources, out):
     return chunk
 
 
+def stage_docs(readme=ROOT / 'README.md'):
+    """Description, input, output (and default model) of each pipeline step, from the main README's
+    '### N. Title' sections, so the website says what the README says. Relative links point to GitHub."""
+    import re
+    text = readme.read_text()
+    docs = {}
+    for number, title, body in re.findall(r'^### (\d+)\. ([^\n]+)\n(.*?)(?=^### |^## )', text, re.M | re.S):
+        body = re.sub(r'<details>.*?</details>', '', body, flags=re.S)
+        body = re.sub(r'\]\((?!https?://|#)([^)]+)\)', lambda m: f']({REPO}/blob/main/{m.group(1)})', body)
+        fields, description = {}, []
+        for block in [b.strip() for b in body.strip().split('\n\n') if b.strip()]:
+            for line in re.split(r'\n(?=\*\*[A-Z][^*]+:\*\*)', block):
+                m = re.match(r'\*\*([A-Z][^*]+):\*\*\s*(.*)', line, re.S)
+                if m:
+                    fields[m.group(1).lower()] = ' '.join(m.group(2).split())
+                elif not fields:
+                    description.append(' '.join(line.split()))
+        docs[number] = {'title': title.strip(), 'description': '\n\n'.join(description), **fields}
+    return docs
+
+
 MODEL_NAMES = {'Qwen/Qwen3.8-27B': 'Qwen3.8-27B', 'zai-org/GLM-5.3-Flash': 'GLM-5.3-Flash'}
 
 
@@ -155,6 +188,11 @@ def build(name, path):
         repaired = [i for i, c in enumerate(present) if (repairs.get(c) or {}).get('applied')]
         if repaired:
             task['rp'] = repaired  # indices into checks: an automatic repair was applied before the check ran
+        # Leak repair loop (stage 4): what the dataset's stored repair function decided for each flagged leak check.
+        leak = {str(i): leak_outcome(repairs[c]) for i, c in enumerate(present)
+                if c in LEAK_RULES and isinstance(repairs.get(c), dict) and repairs[c].get('details')}
+        if leak:
+            task['lk'] = leak
         times = [wall(r, c) for c in timed]
         if any(x is not None for x in times):
             task['tm'] = times  # wall seconds per check in `timed`
@@ -207,6 +245,11 @@ def build(name, path):
             if resources.get('requirements'):
                 task['r'] = {k: resources['requirements'].get(k) for k in ('cpus', 'memory_mb', 'storage_mb')}
                 texts.setdefault('passk', {})['resources'] = resources
+        if isinstance(r.get('resources_recommended'), dict):
+            from validation.publishing.site_evaluation import evaluation
+            fields, evidence = evaluation(r)
+            task.update(fields)
+            texts.update(evidence)
         tasks.append(task)
         if texts:
             details[r['task_id']] = texts
@@ -215,7 +258,8 @@ def build(name, path):
     meaning = descriptions()
     data = {'name': name, 'checks': present, 'timed': timed, 'steps': steps, 'criteria': criteria,
             'descriptions': {k: meaning[k] for k in [*present, *criteria] if k in meaning},
-            'judges': [{'id': j, 'name': MODEL_NAMES.get(j, j.split('/')[-1])} for j in judges], 'tasks': tasks}
+            'judges': [{'id': j, 'name': MODEL_NAMES.get(j, j.split('/')[-1])} for j in judges],
+            'stage_docs': stage_docs(), 'tasks': tasks}
     return data, details
 
 

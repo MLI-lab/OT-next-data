@@ -18,6 +18,7 @@ import argparse
 import ast
 import json
 from pathlib import Path, PurePosixPath
+import fnmatch
 import re
 import shlex
 
@@ -71,7 +72,10 @@ def norm(path, cwd):
 
 
 def covers(restored, target):
-    """A restored path covers the target if it is the target or an ancestor."""
+    """A restored path covers the target if it is the target or an ancestor. A restored path with shell
+    wildcards (from a `case` pattern of a restore loop) covers the files it matches."""
+    if any(c in restored for c in '*?['):
+        return fnmatch.fnmatchcase(target, restored)
     return target == restored or target.startswith(restored.rstrip('/') + '/')
 
 
@@ -101,6 +105,10 @@ class Shell:
         self.vars = {}  # simple VAR=literal assignments
         self.ran_vars = set()  # variables holding output of something the verifier ran
         self.fresh = set()  # files the verifier itself writes (redirections, Python open(..., 'w'))
+        # Restore loops, e.g. `git ls-tree ... | while read -r path; do case "$path" in test_*.py) git checkout
+        # "$base" -- "$path";; esac; done`: the case variable and its current patterns, and literal for-lists.
+        self.case_var, self.case_patterns = None, []
+        self.loop_lists = {}
 
     def script(self, container_path, depth=0):
         if depth > 4 or container_path in self.seen or not container_path.startswith('/tests/'):
@@ -122,6 +130,7 @@ class Shell:
                 heredoc = m.group(1)
             lines.append((number, raw))
         for number, raw in lines:
+            raw = self.loop_state(raw)
             before = len(self.events)
             m = re.match(r'\s*(?:export\s+|local\s+)?(\w+)=\$\(', raw)
             for command in re.split(r'\s*(?:&&|\|\||;|\|(?!\|))\s*', raw):
@@ -132,6 +141,40 @@ class Shell:
             uses = {v for v in re.findall(r'\$\{?(\w+)', raw)} & self.ran_vars
             if COMPARE.search(raw) and (ran_here or uses):
                 self.events.append(('compare', None, container_path, number, raw.strip()))
+
+    def loop_state(self, raw):
+        """Track `for VAR in words; do`, `case "$VAR" in` and its `PATTERN|PATTERN)` lines; return the part of
+        the line left to run as commands."""
+        m = re.match(r'\s*for\s+(\w+)\s+in\s+([^;]*?)\s*;\s*do\b(.*)$', raw)
+        if m:
+            words = m.group(2).split()
+            if words and not any(w.startswith('$') or '$(' in w or '`' in w for w in words):
+                self.loop_lists[m.group(1)] = [w.strip('\'"') for w in words]
+            return m.group(3)
+        m = re.match(r'\s*case\s+"?\$\{?(\w+)\}?"?\s+in\b(.*)$', raw)
+        if m:
+            self.case_var, self.case_patterns = m.group(1), []
+            raw = m.group(2)
+        if re.match(r'\s*esac\b', raw):
+            self.case_var, self.case_patterns = None, []
+            return ''
+        if self.case_var:
+            m = re.match(r'\s*\(?((?:[^\s()|;]+)(?:\s*\|\s*[^\s()|;]+)*)\)\s*(.*)$', raw)
+            if m:
+                self.case_patterns = [q.strip().strip('\'"') for q in m.group(1).split('|')]
+                return m.group(2)
+        return raw
+
+    def loop_paths(self, arg):
+        """Paths a restore-loop argument such as "$path" stands for, or None if it is no loop variable."""
+        m = re.fullmatch(r'\$\{?(\w+)\}?', arg)
+        if not m or not self.cwd:
+            return None
+        if m.group(1) == self.case_var and self.case_patterns and '*' not in self.case_patterns:
+            return [str(PurePosixPath(self.cwd) / q) for q in self.case_patterns]
+        if m.group(1) in self.loop_lists:
+            return [q for q in (norm(w, self.cwd) for w in self.loop_lists[m.group(1)]) if q]
+        return None
 
     def command(self, text, source, number, depth):
         # Command substitutions run their inner command; the outer assignment does not.
@@ -187,9 +230,9 @@ class Shell:
             sub = [a for a in args if not a.startswith('-')]
             if sub[:1] in (['checkout'], ['restore']) and '--' in args:
                 for p in args[args.index('--') + 1:]:
-                    q = norm(p, self.cwd)
-                    if q:
-                        self.events.append(('restore', q, source, number, text.strip()))
+                    for q in self.loop_paths(p) or [norm(p, self.cwd)]:
+                        if q:
+                            self.events.append(('restore', q, source, number, text.strip()))
             elif sub[:1] in (['reset'], ['stash']) or (sub[:1] == ['checkout'] and ('-f' in args or '.' in args)):
                 if self.cwd:
                     self.events.append(('restore', self.cwd, source, number, text.strip()))

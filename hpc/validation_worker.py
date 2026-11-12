@@ -257,6 +257,88 @@ def prebuild_result(preparation):
             'validation_stages_run': []}
 
 
+def start_model_server(args, scratch, port, start, processes, status, record_dir):
+    """Start the local vLLM server of args.serve_model in this allocation (weights staged on node-local disk, one
+    or more nodes, startup retries); returns (key, spec, plan, serving_port). Shared by validation jobs and the
+    stage-4 leak-repair job (hpc/leak_repair_job.py)."""
+    from hpc.local_assets import copy_asset
+    if args.serve_model == 'glm-5.3-flash':
+        from hpc.vllm_kpool_fix import apply
+        repair = apply()
+        save(scratch / 'vllm-kpool-repair.json', repair)
+        save(record_dir / 'vllm-kpool-repair.json', repair)
+    from config.models import resolve, weights_dir, placement
+    from config.runtime import record, check, cluster_config
+    check(cluster_config(os.environ.get('OT_CLUSTER', 'helma')), gpu=True)
+    key, spec = resolve(args.serve_model)
+    weights = Path(args.serve_weights) if getattr(args, 'serve_weights', None) else weights_dir(spec.name)
+    if not weights.is_dir():
+        raise RuntimeError(f'download model weights at {weights} first')
+    home = scratch / 'serving-home'
+    home.mkdir()
+    replicas = getattr(args, 'serve_replicas', 1)
+    plan = placement(spec, replicas=replicas)
+    if plan['nodes'] == 1:
+        weights, weights_staging = copy_asset(weights, scratch / 'model')
+        save(scratch / 'serving-staging.json', {'runtime': record(), 'weights': weights_staging})
+    else:
+        from hpc.local_assets import stage_multinode_weights
+        weights, weights_staging = stage_multinode_weights(weights, scratch / 'model', plan['nodes'])
+        save(scratch / 'serving-staging.json', {'runtime': record(), 'weights': weights_staging})
+    if plan['nodes'] == 1 and plan['gpus'] > args.gpus:
+        raise RuntimeError(f"{replicas} x {key} needs {plan['gpus']} GPUs, the allocation has {args.gpus}")
+    tp, pp = plan['tensor_parallel'], plan['pipeline_parallel']
+    allocated = int(os.environ.get('SLURM_JOB_NUM_NODES') or 1)
+    if plan['nodes'] > allocated:
+        raise RuntimeError(f"{key} needs {plan['nodes']} nodes, the allocation has {allocated}")
+    status['serving'] = {**plan, 'runtime': record(), 'weights': str(weights)}
+    serving_port = port - 10000
+    single = ['srun', '--exact', '--nodes=1', '--ntasks=1', f'--cpus-per-task={args.serve_cpus * replicas}',
+        gpu_request(args.partition, args.gpus), f'--mem={args.serve_memory_mb * replicas}M', '--cpu-bind=none']
+    command = [sys.executable, '-m', 'vllm.entrypoints.openai.api_server',
+        '--model', str(weights), '--served-model-name', key, '--host', getattr(args, 'serve_host', '127.0.0.1'),
+        '--port', str(serving_port), '--tensor-parallel-size', str(tp), '--pipeline-parallel-size', str(pp),
+        '--max-model-len', str(args.serve_context), '--max-num-seqs', str(args.max_num_seqs or 2 * args.concurrency),
+        '--gpu-memory-utilization', '0.9', '--dtype', spec.dtype, '--generation-config', 'auto',
+        '--enable-prefix-caching', '--enable-prompt-tokens-details', *spec.extra_args]
+    if spec.reasoning_parser:
+        command += ['--reasoning-parser', spec.reasoning_parser]
+    if spec.tool_call_parser:
+        command += ['--enable-auto-tool-choice', '--tool-call-parser', spec.tool_call_parser]
+    if plan['nodes'] == 1:
+        # Copies of the model behind the one address; vLLM balances requests between them.
+        model_commands = [('vllm', single + command +
+                           (['--data-parallel-size', str(replicas)] if replicas > 1 else []))]
+    else:
+        # Agents and their containers stay on this node; the other nodes only hold model layers.
+        head = os.environ.get('SLURMD_NODENAME') or os.uname().nodename.split('.')[0]
+        head_ip = subprocess.check_output(['hostname', '-I'], text=True).split()[0]
+        status['serving'].update(head=head, ray_address=f'{head_ip}:{serving_port - 10000}')
+        head_step, worker_step = serving_commands(plan, command, head=head, head_ip=head_ip,
+            ray_port=serving_port - 10000, partition=args.partition, cpus=args.serve_cpus,
+            memory_mb=args.serve_memory_mb, python=sys.executable, tmp=os.environ['TMPDIR'])
+        model_commands = [('vllm', head_step), ('ray-workers', worker_step)]
+    save(record_dir / 'execution.json', status)
+    # Startup precedes all task budgets. Zero disables only this
+    # readiness deadline; process exits and Slurm walltime still apply.
+    startup_timeout = float(os.environ.get('OT_MODEL_STARTUP_TIMEOUT', '600'))
+    if startup_timeout < 0 or not math.isfinite(startup_timeout):
+        raise ValueError('OT_MODEL_STARTUP_TIMEOUT must be finite and nonnegative')
+    status['serving']['startup_timeout_seconds'] = startup_timeout or None
+    save(record_dir / 'execution.json', status)
+    startup_retries = int(os.environ.get('OT_MODEL_STARTUP_RETRIES', '3'))
+    if startup_retries < 0:
+        raise ValueError('OT_MODEL_STARTUP_RETRIES must be nonnegative')
+    from hpc.model_startup import start_with_retries
+    start_with_retries(model_commands, start=start, processes=processes,
+                       wait_ready=wait_ready,
+                       url=f'http://127.0.0.1:{serving_port}/health',
+                       timeout=startup_timeout or None, retries=startup_retries,
+                       record=status['serving'],
+                       persist=lambda: save(record_dir / 'execution.json', status))
+    return key, spec, plan, serving_port
+
+
 def main(request):
     data = json.loads(request.read_text())
     args = argparse.Namespace(**data['args'])
@@ -367,6 +449,12 @@ def main(request):
                                                'static_concurrency': args.static_concurrency})
         args.out = scratch / 'results'
         from hpc.local_assets import stage_images, copy_asset
+        # Validated leak repairs (validation/leak_repair) replace tasks after stages 0/1/3; stage their images and
+        # runtimes now, or those repairs are not applied in this job.
+        leak_images, leak_runtimes = set(), set()
+        if not prebuild_only and getattr(args, 'contract', None):
+            from validation.leak_repair.tool import leak_assets
+            leak_images, leak_runtimes = leak_assets([task.name for task in tasks], (frozen.get('dataset') or {}).get('source'))
         if prebuild_only:
             images = scratch / 'images'
             images.mkdir()
@@ -377,7 +465,7 @@ def main(request):
                 from harbor_patches.image_context import environment_dir_hash_truncated
                 selected_keys = {environment_dir_hash_truncated(task / 'environment') for task in image_scope}
             images = stage_images(image_scope, base / 'images', scratch / 'images', selected_keys=selected_keys,
-                allow_missing_local=set(data['stages']) == {5} and getattr(args, 'review_evidence', 'auto') == 'auto')
+                optional_keys=leak_images, allow_missing_local=set(data['stages']) == {5} and getattr(args, 'review_evidence', 'auto') == 'auto')
         if not prebuild_only and set(data['stages']) == {5} and getattr(args, 'review_evidence', 'auto') == 'auto':
             from validation.stages.review_environment import choose
             probe_args = copy.copy(args)
@@ -413,7 +501,7 @@ def main(request):
                 from harbor_patches.runtime_images import root as runtime_image_root
                 image_cache = runtime_image_root()
                 if os.environ.get('OT_RUNTIME_NODE_CACHE'):
-                    local, summary = stage_runtimes(runtime_tasks, image_cache, Path(os.environ['OT_RUNTIME_NODE_CACHE']), agent_only=getattr(args, 'git_checks_only', False))
+                    local, summary = stage_runtimes(runtime_tasks, image_cache, Path(os.environ['OT_RUNTIME_NODE_CACHE']), agent_only=getattr(args, 'git_checks_only', False), optional_ids=leak_runtimes)
                     os.environ['OT_VERIFIER_IMAGE_CACHE'] = str(local)
                     os.environ['OT_RUNTIME_IMAGE_CACHE'] = str(local)
                     os.environ['OT_RUNTIME_CACHE'] = str(local)
@@ -508,80 +596,8 @@ def main(request):
                    '--num-workers', str(max(2, args.concurrency * 2))], 'worker')
             wait_ready(bridge + '/status', processes, timeout=600, workers=True, diagnostics=True)
         if args.serve_model:
-            if args.serve_model == 'glm-5.3-flash':
-                from hpc.vllm_kpool_fix import apply
-                repair = apply()
-                save(scratch / 'vllm-kpool-repair.json', repair)
-                save(request.parent / 'vllm-kpool-repair.json', repair)
-            from config.models import resolve, weights_dir, placement
-            from config.runtime import record, check, cluster_config
-            check(cluster_config(os.environ.get('OT_CLUSTER', 'helma')), gpu=True)
-            key, spec = resolve(args.serve_model)
-            weights = Path(args.serve_weights) if getattr(args, 'serve_weights', None) else weights_dir(spec.name)
-            if not weights.is_dir():
-                raise RuntimeError(f'download model weights at {weights} first')
-            home = scratch / 'serving-home'
-            home.mkdir()
-            replicas = getattr(args, 'serve_replicas', 1)
-            plan = placement(spec, replicas=replicas)
-            if plan['nodes'] == 1:
-                weights, weights_staging = copy_asset(weights, scratch / 'model')
-                save(scratch / 'serving-staging.json', {'runtime': record(), 'weights': weights_staging})
-            else:
-                from hpc.local_assets import stage_multinode_weights
-                weights, weights_staging = stage_multinode_weights(weights, scratch / 'model', plan['nodes'])
-                save(scratch / 'serving-staging.json', {'runtime': record(), 'weights': weights_staging})
-            if plan['nodes'] == 1 and plan['gpus'] > args.gpus:
-                raise RuntimeError(f"{replicas} x {key} needs {plan['gpus']} GPUs, the allocation has {args.gpus}")
-            tp, pp = plan['tensor_parallel'], plan['pipeline_parallel']
-            allocated = int(os.environ.get('SLURM_JOB_NUM_NODES') or 1)
-            if plan['nodes'] > allocated:
-                raise RuntimeError(f"{key} needs {plan['nodes']} nodes, the allocation has {allocated}")
-            status['serving'] = {**plan, 'runtime': record(), 'weights': str(weights)}
-            serving_port = port - 10000
-            single = ['srun', '--exact', '--nodes=1', '--ntasks=1', f'--cpus-per-task={args.serve_cpus * replicas}',
-                gpu_request(args.partition, args.gpus), f'--mem={args.serve_memory_mb * replicas}M', '--cpu-bind=none']
-            command = [sys.executable, '-m', 'vllm.entrypoints.openai.api_server',
-                '--model', str(weights), '--served-model-name', key, '--host', '127.0.0.1',
-                '--port', str(serving_port), '--tensor-parallel-size', str(tp), '--pipeline-parallel-size', str(pp),
-                '--max-model-len', str(args.serve_context), '--max-num-seqs', str(args.max_num_seqs or 2 * args.concurrency),
-                '--gpu-memory-utilization', '0.9', '--dtype', spec.dtype, '--generation-config', 'auto',
-                '--enable-prefix-caching', '--enable-prompt-tokens-details', *spec.extra_args]
-            if spec.reasoning_parser:
-                command += ['--reasoning-parser', spec.reasoning_parser]
-            if spec.tool_call_parser:
-                command += ['--enable-auto-tool-choice', '--tool-call-parser', spec.tool_call_parser]
-            if plan['nodes'] == 1:
-                # Copies of the model behind the one address; vLLM balances requests between them.
-                model_commands = [('vllm', single + command +
-                                   (['--data-parallel-size', str(replicas)] if replicas > 1 else []))]
-            else:
-                # Agents and their containers stay on this node; the other nodes only hold model layers.
-                head = os.environ.get('SLURMD_NODENAME') or os.uname().nodename.split('.')[0]
-                head_ip = subprocess.check_output(['hostname', '-I'], text=True).split()[0]
-                status['serving'].update(head=head, ray_address=f'{head_ip}:{serving_port - 10000}')
-                head_step, worker_step = serving_commands(plan, command, head=head, head_ip=head_ip,
-                    ray_port=serving_port - 10000, partition=args.partition, cpus=args.serve_cpus,
-                    memory_mb=args.serve_memory_mb, python=sys.executable, tmp=os.environ['TMPDIR'])
-                model_commands = [('vllm', head_step), ('ray-workers', worker_step)]
-            save(request.parent / 'execution.json', status)
-            # Startup precedes all task budgets. Zero disables only this
-            # readiness deadline; process exits and Slurm walltime still apply.
-            startup_timeout = float(os.environ.get('OT_MODEL_STARTUP_TIMEOUT', '600'))
-            if startup_timeout < 0 or not math.isfinite(startup_timeout):
-                raise ValueError('OT_MODEL_STARTUP_TIMEOUT must be finite and nonnegative')
-            status['serving']['startup_timeout_seconds'] = startup_timeout or None
-            save(request.parent / 'execution.json', status)
-            startup_retries = int(os.environ.get('OT_MODEL_STARTUP_RETRIES', '3'))
-            if startup_retries < 0:
-                raise ValueError('OT_MODEL_STARTUP_RETRIES must be nonnegative')
-            from hpc.model_startup import start_with_retries
-            start_with_retries(model_commands, start=start, processes=processes,
-                               wait_ready=wait_ready,
-                               url=f'http://127.0.0.1:{serving_port}/health',
-                               timeout=startup_timeout or None, retries=startup_retries,
-                               record=status['serving'],
-                               persist=lambda: save(request.parent / 'execution.json', status))
+            key, spec, plan, serving_port = start_model_server(args, scratch, port, start, processes, status,
+                                                               request.parent)
             critical_services = list(processes)
             try:
                 # Sampled for stage 8's inference resource use; optional.

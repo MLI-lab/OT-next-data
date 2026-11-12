@@ -1,0 +1,18 @@
+The tasks in {tasks_dir} failed the reference_leaks check.
+The check flags tasks where exact copies of the files the reference solution creates or changes are already
+available to the agent before it starts, which may leak part of the answer.
+
+The implementation of reference_leaks is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, the files that made it fail the check.
+
+The agent's environment is the image built from `environment/Dockerfile`, after `setup_files/setup.sh` (if present)
+has run. The agent can read every file in it.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: part or all of the solution can be found in the agent's environment;
+- `false_positive`: the match does not leak anything. For example, the task asks the agent to print a provided file,
+  `staged_input.txt`, and to save the output; the solution's output then has the same content as
+  `staged_input.txt`, which the agent is meant to read anyway. Or the solution's output is a tiny generic content,
+  such as the single line `2`, that happens to equal an unrelated system file;
+- `not_fixable`: the task only makes sense with the flagged files in the environment.

@@ -20,10 +20,10 @@ RULES = [
     Rule('verifier_paths', 'dynamic', 'ours', 'fail', 'validation.rules.dynamic.verifier_paths'),
     # Terminal-Bench checks run unchanged.
     Rule('compose-host-binds', 'static', 'TB', 'fail', TB),
-    Rule('dockerfile-platform', 'static', 'TB', 'fail', TB),
+    Rule('dockerfile-platform', 'static', 'TB', 'warning', TB),  # warning in the training profile only
     Rule('instruction-suffix', 'static', 'TB', 'fail', TB,
          repair='validation.rules.static.instruction_suffix'),
-    Rule('no-cheat-dir', 'static', 'TB', 'fail', TB),
+    Rule('no-cheat-dir', 'static', 'TB', 'fail', TB, repair='validation.rules.static.no_cheat_dir'),
     Rule('resource-sizes', 'static', 'TB', 'fail', TB),
     Rule('task-timeout', 'static', 'TB', 'fail', TB),
     # Terminal-Bench checks with our patch.

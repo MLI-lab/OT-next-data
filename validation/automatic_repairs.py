@@ -5,8 +5,12 @@ from pathlib import Path
 
 LABELS = {'anti-cheat-instruction': 'instruction-suffix',
           'relative-path-fix': 'task-absolute-path',
-          'dependency-pinning': 'pip-pinning'}
-RULES = {*LABELS.values(), 'repository_timestamps'}
+          'dependency-pinning': 'pip-pinning',
+          'cheat-dir-removal': 'no-cheat-dir'}
+# Checks with a leak repair (validation/leak_repair) also record whether a repair was applied.
+LEAK_RULES = ('agent_editable_test', 'verifier_tamper', 'repository_history', 'reference_leaks', 'no-cheat-dir',
+              'dockerfile-references')
+RULES = {*LABELS.values(), 'repository_timestamps', *LEAK_RULES}
 # The suffix repair is the same for every task, so its cell only says repaired.
 DETAILS = 'automatic_repair_details'
 
@@ -202,20 +206,31 @@ def archive_files(binary):
 
 
 def replace_in_archive(binary, files):
-    """The stored archive with changed file contents; modes and order stay as they were."""
+    """The stored archive holding exactly `files` (the task's complete files): changed contents replaced, files a
+    repair deleted left out, files it added appended (mode 0755 for .sh, else 0644). Kept members keep their modes
+    and order."""
     import io
     import tarfile
     out = io.BytesIO()
+    seen = set()
     with tarfile.open(fileobj=io.BytesIO(binary), mode='r:*') as source, \
             tarfile.open(fileobj=out, mode='w:gz', compresslevel=1) as target:
         for member in source.getmembers():
             name = member.name.removeprefix('./')
-            if member.isfile() and name in files:
+            if member.isfile():
+                if name not in files:
+                    continue
+                seen.add(name)
                 data = files[name]
                 member.size = len(data)
                 target.addfile(member, io.BytesIO(data))
             else:
-                target.addfile(member, source.extractfile(member) if member.isfile() else None)
+                target.addfile(member, None)
+        for name in sorted(set(files) - seen):
+            member = tarfile.TarInfo(name)
+            member.size = len(files[name])
+            member.mode = 0o755 if name.endswith('.sh') else 0o644
+            target.addfile(member, io.BytesIO(files[name]))
     return out.getvalue()
 
 

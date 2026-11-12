@@ -17,7 +17,7 @@ from validation.contract import files_digest
 
 # Executed only in the pristine image, with the original test.sh PATH and cwd.
 PROBE = r'''
-import ast, configparser, json, os, pathlib, platform, re, sys, sysconfig
+import ast, configparser, importlib.util, json, os, pathlib, platform, re, sys, sysconfig
 try:
     from importlib import metadata
 except ImportError:
@@ -29,6 +29,9 @@ for dist in metadata.distributions():
         requires=list(dist.requires or []), extras=list(dist.metadata.get_all('Provides-Extra') or []),
         location=str(dist.locate_file('')),
         direct_url=json.loads(direct) if direct else None,
+        metadata_path=str(dist._path),
+        plugin_origins={p.value.split(':')[0]: getattr(importlib.util.find_spec(p.value.split(':')[0]), 'origin', None)
+                        for p in dist.entry_points if p.group == 'pytest11'},
         plugins=[dict(name=p.name, value=p.value) for p in dist.entry_points if p.group == 'pytest11']))
 cwd = pathlib.Path.cwd()
 project_names = {cwd.name}
@@ -107,7 +110,28 @@ def plan(files, observation, *, interpreter='image'):
                 or package['location'].startswith(cwd + '/') or package['location'] == cwd
                 or direct.get('dir_info', {}).get('editable', False))
 
+    shadowed = {}
+    nameless = []
+    project_plugins = []
     for package in measured['packages']:
+        if not package.get('name'):
+            # Broken metadata without a Name cannot be selected by name. pluggy would
+            # still load its entry points, so only plugin-free ones are ignored.
+            if package.get('plugins'):
+                origins = package.get('plugin_origins', {})
+                metadata_path = package.get('metadata_path', '')
+                if (not metadata_path.startswith(package['location'] + '/')
+                        or not metadata_path.endswith(('.dist-info', '.egg-info'))
+                        or not all(isinstance(origins.get(p['value'].split(':')[0]), str)
+                                   and origins[p['value'].split(':')[0]].startswith(cwd + '/')
+                                   for p in package['plugins'])):
+                    raise ValueError('Nameless installed distribution registers pytest plugins')
+                # These plugins are the editable project under test. Preserve their
+                # original metadata and imports, rather than installing a guessed package.
+                project_plugins.extend(dict(p, distribution=None, metadata_path=metadata_path)
+                                       for p in package['plugins'])
+            nameless.append(dict(version=package.get('version'), location=package.get('location')))
+            continue
         name = canonicalize_name(package['name'])
         if name in packages and packages[name] != package:
             previous = packages[name]
@@ -115,22 +139,31 @@ def plan(files, observation, *, interpreter='image'):
             # the task package. Preserve both in the task environment and keep
             # metadata's original first-match precedence, never reinstall either
             # as a grading tool. Conflicting plugin entry points need review.
-            if (not is_project(previous) or not is_project(package)
-                    or previous['plugins'] != package['plugins']):
+            if is_project(previous) and is_project(package):
+                if previous['plugins'] != package['plugins']:
+                    raise ValueError('Ambiguous installed distribution: ' + name)
+                variants = project_metadata_variants.setdefault(name, [
+                    dict(version=previous['version'], location=previous['location'])])
+                variants.append(dict(version=package['version'], location=package['location']))
+                continue
+            # The probe lists distributions in sys.path order, so the first copy is
+            # the one Python imports and metadata resolves. A later copy stays in the
+            # task environment; it only blocks preparation if grading needs this
+            # distribution (checked below) or if pluggy would load its entry points.
+            if package['plugins']:
                 raise ValueError('Ambiguous installed distribution: ' + name)
-            variants = project_metadata_variants.setdefault(name, [
-                dict(version=previous['version'], location=previous['location'])])
-            variants.append(dict(version=package['version'], location=package['location']))
+            shadowed.setdefault(name, []).append(dict(version=package['version'], location=package['location']))
             continue
         packages[name] = package
     preserved = set()
     for name, package in packages.items():
         if is_project(package):
             preserved.add(name)
-    plugins = [dict(p, distribution=name) for name, package in packages.items() for p in package['plugins']]
+    plugins = [dict(p, distribution=name) for name, package in packages.items() for p in package['plugins']] + project_plugins
     roots = {'pytest'} | {name for name, package in packages.items() if package['plugins']}
     pending = [(name, set()) for name in sorted(roots - preserved)]
     selected = set()
+    unsatisfied = []
     processed_extras = {}
     marker_environment = dict(python_version='.'.join(measured['python'].split('.')[:2]),
         python_full_version=measured['python'], sys_platform='linux', platform_system='Linux',
@@ -156,23 +189,50 @@ def plan(files, observation, *, interpreter='image'):
                 continue
             dependency = canonicalize_name(requirement.name)
             installed = packages.get(dependency)
-            if installed is None or not requirement.specifier.contains(installed['version'], prereleases=True):
+            if installed is None:
                 raise ValueError('Inconsistent original grading dependency: ' + value)
+            if not requirement.specifier.contains(installed['version'], prereleases=True):
+                # Upstream shipped this combination. Install exactly the observed
+                # versions without dependency resolution (install_no_deps) and let
+                # the reference/no-op stages show whether grading works with it.
+                unsatisfied.append(dict(distribution=name, requirement=value,
+                                        installed=dependency + '==' + installed['version']))
             if requirement.url:
                 raise ValueError('Grading dependency URL requires explicit review: ' + value)
             pending.append((dependency, set(requirement.extras)))
     if 'pytest' in preserved:
         raise ValueError('Task modifies pytest itself; separate grading design required')
-    for name in selected:
+    def vendored_later(name):
+        # e.g. setuptools appends site-packages/setuptools/_vendor to sys.path: its
+        # packaging copy comes after site-packages, so `import packaging` and metadata
+        # both resolve to the first copy.
+        order = measured['sys_path']
+        first = packages[name]['location']
+        return first in order and all(
+            '_vendor' in copy['location'].split('/') and copy['location'] in order
+            and order.index(copy['location']) > order.index(first) for copy in shadowed[name])
+    ambiguous = sorted(name for name in selected & set(shadowed) if not vendored_later(name))
+    if ambiguous:
+        raise ValueError('Ambiguous installed distribution: ' + ambiguous[0])
+    requirements = []
+    for name in sorted(selected):
+        pin = name + '==' + packages[name]['version']
         if (packages[name].get('direct_url') or {}).get('url'):
-            raise ValueError('Non-index grading distribution needs a pinned source: ' + name)
+            pin = vcs_requirement(name, packages[name])
+        requirements.append(pin)
     image = {'image_sha256': observation['image_sha256'],
              'executable': measured['base_executable']}
     for key in ('overlay_sha256', 'deferred_sha256'):
         if key in observation:
             image[key] = observation[key]
+    # Legacy Matplotlib is already installed in the pristine image. Reuse its
+    # exact modules and metadata instead of rebuilding old sources on the host.
+    if 'matplotlib' in selected and packages['matplotlib']['version'] in ('3.1.3', '3.2.2'):
+        image['packages'] = {'matplotlib==' + packages['matplotlib']['version']:
+                             ['matplotlib', 'mpl_toolkits', 'pylab']}
+        interpreter = 'image'
     spec = runtime_spec(python=measured['python'], architecture=measured['architecture'],
-        libc=measured['libc'], requirements=[name + '==' + packages[name]['version'] for name in selected],
+        libc=measured['libc'], requirements=requirements,
         tools=['pytest'], image_python=image if interpreter == 'image' else None, install_no_deps=True)
     paths = list(dict.fromkeys([cwd + '/src', cwd] + [p for p in measured['sys_path']
         if p and (p.endswith(('/site-packages', '/dist-packages')) or p.startswith(cwd + '/'))]))
@@ -184,7 +244,34 @@ def plan(files, observation, *, interpreter='image'):
         raise ValueError('Conflicting original pytest plugin names')
     return dict(spec=spec, paths=paths, plugins=plugins,
                 project_distributions=sorted(preserved), grading_distributions=sorted(selected),
-                project_metadata_variants=project_metadata_variants)
+                project_metadata_variants=project_metadata_variants,
+                shadowed_distributions=shadowed, unsatisfied_original_requirements=unsatisfied,
+                nameless_distributions=nameless)
+
+
+# Grading distributions installed from a VCS commit in the original image, with the
+# GitHub archive of exactly that commit pinned by sha256 (downloaded twice, checked
+# that the packaged version matches the observation, 2026-11-10).
+VCS_SOURCES = {
+    ('https://github.com/syrusakbary/snapshottest.git', '54117098bd756c0fa6936f3bafab4bf85c58e943'): dict(
+        version='0.5.0', url='https://github.com/syrusakbary/snapshottest/archive/'
+        '54117098bd756c0fa6936f3bafab4bf85c58e943.tar.gz',
+        sha256='ae8bf43e05b263dea25b5fa4612bda7ed84aad54a890237d85832dbcd833ff97'),
+    ('https://github.com/Teemu/pytest-sugar.git', 'ee02ada200026f4bfabf2252c6c59b08f5564255'): dict(
+        version='0.9.4', url='https://github.com/Teemu/pytest-sugar/archive/'
+        'ee02ada200026f4bfabf2252c6c59b08f5564255.tar.gz',
+        sha256='c25915aa706df66eec825af9376dfbef2f4dee96a96dbd58ebe537295f8734e9'),
+}
+
+
+def vcs_requirement(name, package):
+    """Install a VCS-installed grading distribution from its pinned commit archive."""
+    direct = package.get('direct_url') or {}
+    vcs = direct.get('vcs_info') or {}
+    source = VCS_SOURCES.get((direct.get('url'), vcs.get('commit_id')))
+    if vcs.get('vcs') != 'git' or source is None or source['version'] != package['version']:
+        raise ValueError('Non-index grading distribution needs a pinned source: ' + name)
+    return name + ' @ ' + source['url'] + '#sha256=' + source['sha256']
 
 
 def plugin_loader_module(plugins):
@@ -215,7 +302,8 @@ def install(pluggy):
                 continue
             plugin = metadata.EntryPoint(name=key, value=entry['value'], group=group).load()
             self.register(plugin, name=key)
-            self._plugin_distinfo.append((plugin, DistFacade(metadata.distribution(entry['distribution']))))
+            self._plugin_distinfo.append((plugin, DistFacade(metadata.distribution(entry['distribution']) if entry['distribution'] is not None
+                                                       else metadata.PathDistribution(__import__('pathlib').Path(entry['metadata_path'])))))
             count += 1
         return count
 

@@ -1,0 +1,15 @@
+{
+  "gruebel_pycep_pr64": {
+    "task_id": "gruebel_pycep_pr64",
+    "date": "2026-11-12",
+    "decision": "Accept no-op verifier timeout as rejection of unchanged code when reference passes; restore task for all remaining default checks.",
+    "scope": "This task only; no changes to task resource limits.",
+    "historical_reference_reward": [
+      1.0
+    ],
+    "historical_nop_exception": "VerifierTimeoutError",
+    "historical_payload_binding": "unknown: saved outcome reports lack measured task content hashes",
+    "new_payload_sha256": "488e301eba0cb3def297c53feb1bcc1c18611c7440199c46b0ee3ad840175ede",
+    "fresh_validation_required": true
+  }
+}

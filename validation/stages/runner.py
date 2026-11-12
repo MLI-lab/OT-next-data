@@ -96,6 +96,8 @@ def parser():
                         help=f'stages 6/7 resource calibration (default: {value})')
     ap.add_argument('--calibration-state', type=Path,
                     help='stages 6/7: directory of the resumable calibration state (default: --out)')
+    from validation.leak_repair.stage4 import add_arguments as leak_repair_arguments
+    leak_repair_arguments(ap)
     ap.add_argument('--reference-leaks', action=argparse.BooleanOptionalAction, default=True,
                     help='evaluate reference-solution leaks in the stage-3 no-op containers (default: enabled)')
     ap.add_argument('--reference-runs', type=int, default=1,
@@ -970,8 +972,20 @@ def add_verifier_tamper(prepared, rows, task, args):
     if not wrapped:
         prepared['verifier_tamper'] = dict(status='incomplete', reason='no run was wrapped', tools=[])
         return
-    # No-op acceptance: a verifier that hits the task's memory/time limit scores 0 here too.
-    reward = lambda row: (runtime.assess_trials([row], 1, expected_reward=0, task_path=task).get('rewards') or [None])[0]
+    def reward(row):
+        # Reuse no-op acceptance, including accepted verifier failures with no
+        # numeric reward. assess_trials deliberately preserves their empty
+        # measured rewards list; for this comparison their accepted score is 0.
+        assessment = runtime.assess_trials([row], 1, expected_reward=0,
+                                          reward_key=getattr(args, 'reward_key', 'reward'), task_path=task)
+        scores = assessment.get('rewards') or []
+        if assessment['status'] == 'completed':
+            return scores[0] if scores else (0 if assessment.get('expected_baseline_failures') else None)
+        # Keep actual nonzero scores for the consistency comparison, but never
+        # turn an infrastructure/invalid-trial failure into an accepted zero.
+        if scores and assessment['findings'] == [f'{Path(row[0]).name}: expected reward 0, got {scores[0]}']:
+            return scores[0]
+        return None
     baseline = [reward(row) for row in rows if row not in wrapped] or [0]
     prepared['verifier_tamper'] = record = assess(Path(wrapped[0][0]), reward(wrapped[0]), baseline)
     if record['status'] == 'flagged':
@@ -1137,7 +1151,10 @@ def _run_stage(number, args):
             raise ValueError('materialized tasks do not cover this shard of the contract')
     from validation.contract import task_digest, task_records
     verified_hashes = {t['task_id']: t['sha256'] for t in task_records(contract)} if contract else {}
-    source_hashes = {t.name: verified_hashes[t.name] if t.name in verified_hashes else task_digest(t)
+    # Tasks repaired after an earlier stage of this run (leak repairs) are this stage's input.
+    versions = getattr(args, '_task_versions', None) or {}
+    source_hashes = {t.name: versions.get(t.name) or (verified_hashes[t.name] if t.name in verified_hashes
+                                                      else task_digest(t))
                      for t in sources}
     references = None
     suffixes = None

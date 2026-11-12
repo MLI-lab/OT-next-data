@@ -1,4 +1,4 @@
-"""Stream Scale SWE image/runtime preparation with a resumable, packed receipt DB.
+"""Stream Scale SWE image/runtime preparation with resumable per-shard receipt files.
 
 This command does not run validation, task initialization or grading. Images are
 temporary unless --keep-images is selected; runtime artifacts remain cached.
@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zlib
 
@@ -42,16 +43,45 @@ def unpack(binary):
 
 
 def database(path):
-    connection = sqlite3.connect(path, timeout=120)
-    connection.execute('CREATE TABLE IF NOT EXISTS receipts '
-        '(task TEXT, content_sha TEXT, status TEXT, receipt BLOB, PRIMARY KEY(task,content_sha))')
-    return connection
+    """Open a legacy receipt database read-only.
+
+    Receipts used to live in one SQLite file shared by every shard. Concurrent
+    writers on the cluster file system failed with "unable to open database
+    file", so new receipts go to one append-only JSONL file per shard and the
+    legacy database is only read (immutable: no lock or journal files).
+    """
+    return sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True)
 
 
-def saved(connection, row):
-    result = connection.execute('SELECT receipt FROM receipts WHERE task=? AND content_sha=?',
-        (row['path'], row['content_sha256'])).fetchone()
-    return json.loads(zlib.decompress(result[0])) if result else None
+def load_receipts(out):
+    """Return {(task, content_sha): receipt}; later JSONL entries win over legacy SQLite."""
+    receipts = {}
+    legacy = out / 'receipts.sqlite'
+    if legacy.is_file():
+        connection = database(legacy)
+        try:
+            for task, sha, blob in connection.execute('SELECT task, content_sha, receipt FROM receipts'):
+                receipts[task, sha] = (0.0, json.loads(zlib.decompress(blob)))
+        finally:
+            connection.close()
+    for path in sorted(out.glob('receipts-*.jsonl')):
+        with path.open() as stream:
+            for line in stream:
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # line cut off when a job was killed mid-write
+                key = (entry['task'], entry['content_sha'])
+                if key not in receipts or entry['written'] >= receipts[key][0]:
+                    receipts[key] = (entry['written'], entry['receipt'])
+    return {key: receipt for key, (_, receipt) in receipts.items()}
+
+
+def record(stream, row, receipt):
+    stream.write(json.dumps(dict(task=row['path'], content_sha=row['content_sha256'],
+        written=time.time(), receipt=receipt)) + '\n')
+    stream.flush()
+    os.fsync(stream.fileno())
 
 
 def prepare_one(row, image_metadata, args, log):
@@ -72,9 +102,12 @@ def prepare_one(row, image_metadata, args, log):
         environment_sha = environment_dir_hash(context)
         name = 'build_' + row['path'] + '-' + environment_sha[:12] + '.sif'
         cached = args.image_cache / 'bundles-v1' / (name + '.tar')
+        unpacked = args.image_cache / 'bundles-v1' / name  # shared caches also hold directory bundles
         binding = image_metadata.get('tasks', {}).get(row['path'], {})
         if cached.is_file():
             image = restore(cached, scratch)
+        elif unpacked.is_dir():
+            image = restore(unpacked, scratch)
         elif binding.get('environments'):
             if binding['content_sha256'] != row['content_sha256'] or len(binding['environments']) != 1:
                 raise ValueError('Published task image binding differs')
@@ -142,16 +175,18 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     args.cache.mkdir(parents=True, exist_ok=True)
     args.image_cache = args.image_cache or args.out / 'images'
-    connection = database(args.out / 'receipts.sqlite')
+    receipts = load_receipts(args.out)
     source = pq.ParquetFile(args.source)
     images = json.loads((source.schema_arrow.metadata or {}).get(b'ot.images.v1', b'{}'))
     selections, catalog, incomplete = {}, {}, []
-    with (args.out / ('prepare-' + str(args.shard_index) + '.log')).open('a') as log:
+    receipt_file = args.out / ('receipts-' + str(args.shard_index) + '-of-' + str(args.shard_count) + '.jsonl')
+    with (args.out / ('prepare-' + str(args.shard_index) + '.log')).open('a') as log, \
+            (receipt_file.open('a') if args.action == 'prepare' else open(os.devnull, 'w')) as receipt_stream:
         for index, batch in enumerate(source.iter_batches(batch_size=1)):
             if args.action == 'prepare' and index % args.shard_count != args.shard_index:
                 continue
             row = batch.to_pylist()[0]
-            receipt = saved(connection, row)
+            receipt = receipts.get((row['path'], row['content_sha256']))
             if receipt and receipt['status'] == 'prepared':
                 try:
                     verify(receipt['runtime'], args.cache)
@@ -165,10 +200,7 @@ def main():
                     receipt = dict(status='incomplete', error=str(error), source_revision=args.source_revision)
                     if getattr(error, 'observation', None) is not None:
                         receipt['observation'] = error.observation
-                connection.execute('INSERT OR REPLACE INTO receipts VALUES (?,?,?,?)',
-                    (row['path'], row['content_sha256'], receipt['status'],
-                     zlib.compress(json.dumps(receipt).encode())))
-                connection.commit()
+                record(receipt_stream, row, receipt)
                 print(json.dumps(dict(task=row['path'], status=receipt['status'], error=receipt.get('error'))), flush=True)
             if not receipt or receipt['status'] != 'prepared':
                 incomplete.append(dict(task=row['path'], reason=(receipt or {}).get('error', 'Not prepared')))

@@ -1,6 +1,7 @@
 from pathlib import Path
-import json,re,urllib.request,concurrent.futures
+import json,re,urllib.request,concurrent.futures,os
 P=Path(__file__).parent
+CALIBFORGE_REVIEW = Path(os.environ.get('OT_CALIBFORGE_REVIEW_ARCHIVE', '/home/vault/y500bb/y500bb12/calibforge-layout-20261112/stage2-review-171'))
 base='https://raw.githubusercontent.com/MLI-lab/OT-next-data/main/data/seta/stage2-review-199/'
 items=json.loads((P/'reviews.json').read_text())['items']
 (P/'tasks').mkdir(exist_ok=True)
@@ -15,7 +16,7 @@ def fetch(item):
  return task,m.group(2)
 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:instructions=dict(pool.map(fetch,items))
 (P/'instructions.json').write_text(json.dumps(instructions,indent=2))
-source=(P.parents[1]/'calibforge/stage2-review-171/build_reports.py').read_text()
+source=(CALIBFORGE_REVIEW/'build_reports.py').read_text()
 source=source.replace("SOURCE=OUT.parent/'reviews.json'","SOURCE=OUT/'reviews.json'")
 start=source.index(' reviews=json.loads(SOURCE.read_text()); instructions={}; location={}')
 end=source.index(' rows=[]; counts=',start)
@@ -51,7 +52,7 @@ for part in re.split(r'^## ',s,flags=re.M)[1:]:
  name,body=part.split('\n',1);body=re.split(r'^### ',body,flags=re.M)[0];defs[name.replace('-','_')]=re.sub(r'^Pass:.*\n','',body,flags=re.M).strip()
 active={c for v in items for c in v['verdicts'][0]['checks'] if c not in v.get('automatic_skips',{})}
 (P/'criterion_definitions.json').write_text(json.dumps({c:defs[c] for c in sorted(active)},indent=2))
-enrich=(P.parents[1]/'calibforge/stage2-review-171/add_descriptions.py').read_text()
+enrich=(CALIBFORGE_REVIEW/'add_descriptions.py').read_text()
 enrich=enrich.replace('The review JSON does not include a rubric revision, so these are reference definitions rather than a verified snapshot of the exact rubric used for this run.', 'These definitions accompany this saved SETA review snapshot.')
 enrich=enrich.replace('The exact rubric revision used for these reviews is not recorded.', 'Definitions come from the matching SETA review snapshot.')
 (P/'add_descriptions.py').write_text(enrich)

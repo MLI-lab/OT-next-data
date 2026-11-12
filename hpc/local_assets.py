@@ -38,7 +38,10 @@ def copy_asset(source, target, *, reserve=20 * GIB):
     return target, {'source': str(source), 'local': str(target), 'bytes': required}
 
 
-def stage_images(tasks, source, target, *, selected_keys=None, allow_missing_local=False):
+def stage_images(tasks, source, target, *, selected_keys=None, allow_missing_local=False, optional_keys=()):
+    """Copy the prepared images of `tasks` into job-local storage. `optional_keys` are further image keys (the
+    validated leak repairs' images, validation/leak_repair/tool.leak_assets) staged when present; a missing one only
+    means that repair is not applied in this job."""
     from harbor_patches.image_context import task_dockerfiles, environment_dir_hash_truncated
     target.mkdir(parents=True, exist_ok=True)
     selected = set()
@@ -62,6 +65,14 @@ def stage_images(tasks, source, target, *, selected_keys=None, allow_missing_loc
                     base = source / ('swesmith_base_' + hashlib.sha256(parts[1].encode()).hexdigest()[:12] + '.sif')
                     if base.is_file():
                         selected.add(base)
+    optional_found = set()
+    for key in sorted(set(optional_keys)):
+        found = set((source / 'bundles-v1').glob('*-' + key + '.sif')) | set((source / 'bundles-v1').glob('*-' + key + '.sif.tar'))
+        bundles.update(found)
+        flat = set(source.glob('*-' + key + '.sif'))
+        selected.update(flat)
+        if found or flat:
+            optional_found.add(key)
     if (source / 'base.sif').is_file():
         selected.add(source / 'base.sif')
     records, copied = [], {}
@@ -84,6 +95,9 @@ def stage_images(tasks, source, target, *, selected_keys=None, allow_missing_loc
         records.append({'source': str(bundle), 'local': str(local), 'verified_bundle': True})
     from validation.publishing.image_release import stage_published
     records.extend(stage_published(tasks, source, target, selected_keys=selected_keys, allow_missing_local=allow_missing_local))
+    if optional_keys:
+        records.append({'leak_repair_images': sorted(optional_found),
+                         'leak_repair_images_missing': sorted(set(optional_keys) - optional_found)})
     (target / 'staging.json').write_text(json.dumps(records, indent=2))
     return target
 
@@ -172,29 +186,39 @@ if __name__ == '__main__':
     print(json.dumps(stage_certificates(args.directory)))
 
 
-def stage_runtimes(tasks, source, target, *, agent_only=False):
+def runtime_ids(task, agent_only=False):
+    """The prepared runtime ids (64 hex) a task's runtime references name."""
+    from validation.publishing.runtime_release import KINDS, _context_of
+    task, wanted = Path(task), set()
+    for name in KINDS:
+        for reference in task.rglob(name):
+            if agent_only and reference.parent != task / 'setup_files':
+                continue
+            if _context_of(reference.relative_to(task).as_posix()) is None:
+                continue
+            key = json.loads(reference.read_text()).get('id')
+            if isinstance(key, str) and len(key) == 64:
+                wanted.add(key)
+    return wanted
+
+
+def stage_runtimes(tasks, source, target, *, agent_only=False, optional_ids=()):
     """Copy the prepared runtimes these tasks reference into job-local storage once.
 
     Images remain compressed and are mounted directly inside containers. Prefer
     node-local disk rather than RAM-backed storage. All bytes are copied unchanged and checked again before use;
-    missing entries are reported to the caller."""
-    import json
-    from validation.publishing.runtime_release import KINDS, _context_of
+    missing entries are reported to the caller. `optional_ids` (the validated leak repairs' runtimes) are staged when
+    present; missing ones are listed separately and only mean that repair is not applied in this job."""
     source, target = Path(source), Path(target)
     target.mkdir(parents=True, exist_ok=True)
     wanted = set()
     for task in tasks:
-        for name in KINDS:
-            for reference in Path(task).rglob(name):
-                if agent_only and reference.parent != Path(task) / 'setup_files':
-                    continue
-                if _context_of(reference.relative_to(task).as_posix()) is None:
-                    continue
-                key = json.loads(reference.read_text()).get('id')
-                if isinstance(key, str) and len(key) == 64:
-                    wanted.add(key)
+        wanted |= runtime_ids(task, agent_only)
+    optional = sorted(k for k in set(optional_ids) - wanted
+                      if all((source / (k + s)).is_file() for s in ('.squashfs', '.squashfs.json')))
+    optional_missing = sorted(set(optional_ids) - wanted - set(optional))
     records, missing = [], []
-    for key in sorted(wanted):
+    for key in sorted(wanted) + optional:
         suffixes = ('.squashfs', '.squashfs.json')
         for suffix in suffixes:
             path = source / (key + suffix)
@@ -205,5 +229,7 @@ def stage_runtimes(tasks, source, target, *, agent_only=False):
             records.append(record)
     summary = {'source': str(source), 'local': str(target), 'runtimes': len(wanted),
                'bytes': sum(r['bytes'] for r in records), 'missing': missing}
+    if optional_ids:
+        summary.update(leak_repair_runtimes=optional, leak_repair_runtimes_missing=optional_missing)
     (target / 'staging.json').write_text(json.dumps(summary, indent=2))
     return target, summary

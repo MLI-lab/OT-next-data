@@ -2,7 +2,8 @@
 
 environment-first-v4: 0 = static checks (they never block a task), 1 = build and
 setup, 2 = reference solution, 3 = no-op. Dynamic checks run inside stages 1-3;
-only a failed build blocks stages 2 and 3. 5 = LLM task review, 6 = target RL model
+only a failed build blocks stages 2 and 3. 4 = leak repair (agent sessions write repair functions for flagged
+tasks, then the repaired tasks run stages 0-3 again; validation/leak_repair). 5 = LLM task review, 6 = target RL model
 pass@k and 7 = strong teacher pass@k (both with resource calibration), then 8-11.
 v4 inserted stage 7: records of environment-first-v3 are accepted for stages 0-5,
 which mean the same in both layouts (stages above 5 never ran under v3).
@@ -10,7 +11,7 @@ which mean the same in both layouts (stages above 5 never ran under v3).
 LAYOUT = 'environment-first-v4'
 STATIC, BUILD, REFERENCE, NOP = 0, 1, 2, 3
 NAMES = {
-    0: 'static_checks', 1: 'build_validation', 2: 'oracle_validation', 3: 'nop_validation',
+    0: 'static_checks', 1: 'build_validation', 2: 'oracle_validation', 3: 'nop_validation', 4: 'leak_repair',
     5: 'llm_rubric_review', 6: 'agent_trials', 7: 'teacher_trials',
     8: 'trace_metrics', 9: 'trajectory_analysis', 10: 'cheat_trials',
     11: 'hacker_fixer_loop',

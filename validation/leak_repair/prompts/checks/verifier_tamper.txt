@@ -1,0 +1,26 @@
+The tasks in {tasks_dir} failed the verifier_tamper check.
+The check flags tasks where the verifier uses programs from the agent's container, such as `python3` or `pytest`.
+The agent could replace such a program, e.g. with a `pytest` that always reports success, and pass without solving
+the task.
+
+The implementation of verifier_tamper is in `{check_source}`.
+`{evidence_dir}/<task>.json` contains, for each task, the programs the verifier ran from the agent's container.
+`tests/ot-verifier-runtime.json` refers to the task's prepared verifier runtime by its `id`;
+`{runtimes_dir}/<id>.json` lists what that runtime contains.
+
+How the verifier runs: The [verifier].environment_mode setting in task.toml determines whether
+the verifier runs in the same container as the agent (shared, the default) or in a separate container (separate).
+In `separate` mode, tests run in a fresh container built from `tests/Dockerfile`, which receives only the paths
+listed in `artifacts` in `task.toml` from the agent's container.
+In `shared` mode, tests run in the agent's container. After the agent stops, the harness uploads `tests/`,
+then runs `tests/setup.sh` if present and `tests/test.sh`.
+Replacing container programs such as `bash`, `sh` or coreutils is a known limitation we do not need to address.
+
+Read at least 10 of the tasks and their evidence (skim more if it helps), and classify each task you read
+as one of:
+- `true_positive`: the verifier runs a Python interpreter or test tool, e.g. `pytest`, from the agent's container
+  instead of from the prepared verifier runtime;
+- `false_positive`: the recorded program was not run by the verifier, or the evidence is incomplete;
+- `not_fixable`: the verifier needs a non-Python toolchain (go, cargo, java/mvn/gradle, make/cmake/gcc,
+  node/npm), for which there is no prepared runtime; or the program is what the task is about (the agent is
+  asked to install, configure or build it), so the verifier has to use the agent's copy.

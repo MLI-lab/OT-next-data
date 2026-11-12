@@ -151,3 +151,46 @@ Helma workspaces normally live on `/hnvme`; ZIH workspaces on an available
 `/data/horse`, `/data/ws` or `/data/cat` filesystem. Choose the actual workspace
 path when running setup. The detailed staging behavior is in the
 [runtime reference](../.agents/RUNTIME.md#local-storage).
+
+## Stage 4 with a separate GPU server
+
+Stage 4 can run its repair agent, bridges and task checks in a CPU allocation
+while an independently managed GPU job serves the model. Add these options to
+the stage-4 submission (the hostname and port below are placeholders):
+
+```sh
+--leak-repair-model qwen38-27b \
+--leak-repair-api-base http://GPU_NODE:PORT/v1 \
+--leak-repair-partition cpu \
+--leak-repair-cpus 192 \
+--leak-repair-memory 512G \
+--leak-repair-concurrency 16
+```
+
+The CPU and memory options size the host allocation. Task CPU and memory limits
+remain those of the input tasks. Choose concurrency from aggregate CPU, memory
+and scratch requirements. This mode neither requests GPUs nor starts or stops
+the external server. Its GPU job must be ready before the CPU job starts and
+remain alive until the repair sessions finish. Use a model endpoint reachable
+from the CPU nodes, with its served model name matching the registry key.
+The job checks `/v1/models` before staging task images or starting sessions.
+An unreachable endpoint or model mismatch fails the job without starting repairs.
+
+For an authenticated endpoint, set `OT_LEAK_REPAIR_API_KEY` in the secret file
+selected by `OT_SECRETS_FILE`. Keys are not stored in the stage-4 request.
+The endpoint hostname bypasses the job's internet proxy. Both container bridges
+and the repair validation service remain on loopback on the CPU node; validation
+retains the original contract's network mode and prebuilt-image requirement.
+The GPU server's binding, authentication and cross-node connectivity must be
+configured independently. Without `--leak-repair-api-base`, existing local-model
+and Claude launch behavior is unchanged.
+
+Repair sessions still run sequentially by check, because later checks consume
+earlier repairs. `--leak-repair-concurrency` controls concurrent task checks
+within a session and its subsequent validation rerun, not parallel repair agents.
+
+A session only receives tasks with a failure or warning for its check and no
+recorded failure in any other check. Other warnings are allowed. Missing and
+execution-error results remain unresolved; this eligibility filter does not
+establish that a task has passed validation. Reevaluate eligibility against the
+latest matching task results before submission.

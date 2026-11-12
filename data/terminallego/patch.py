@@ -402,7 +402,7 @@ def cache_key(entries, scratch):
 # their packages; the task-specific steps run unchanged, in order, from
 # setup_files/setup.sh when the container starts. Everything else keeps its own image.
 
-from data.tmax.patch import install_line  # noqa: E402  (canonical apt/pip install lines)
+from data.utils.install_lines import install_line  # noqa: E402  (canonical apt/pip install lines)
 from data.utils.verifier_runtime import (  # noqa: E402
     cran_offline_or_online, http_replay_or_online, offline_recipe, offline_request)
 

@@ -15,7 +15,7 @@ from validation.stages.runner import parser, run_stage, save
 
 def main():
     ap = parser()
-    ap.add_argument('--stages', default='1', help='comma-separated stage numbers (0-3, 5-11), or all (default: 1)')
+    ap.add_argument('--stages', default='1', help='comma-separated stage numbers (0-11), or all = every stage but 4 (default: 1)')
     args = ap.parse_args()
     from validation.stages.layout import NAMES
     try:
@@ -23,8 +23,18 @@ def main():
         if not numbers or any(n not in NAMES for n in numbers) or len(set(numbers)) != len(numbers):
             raise ValueError('choose unique stages from ' + ', '.join(map(str, sorted(NAMES)))
                              + ' (static checks are stage 0 since layout v3)')
+        from validation.leak_repair.stage4 import check_selection
+        check_selection(numbers)
     except ValueError as exc:
         ap.error(str(exc))
+    if numbers == [4]:
+        # Stage 4 alone, on a finished stage 0-3 run: its own job (validation/leak_repair/stage4.py).
+        from validation.leak_repair.stage4 import submit_alone
+        try:
+            submit_alone(args)
+        except (ValueError, RuntimeError, OSError) as exc:
+            ap.error(str(exc))
+        return 0
     from hpc.validation_submit import maybe_submit
     try:
         from validation.stages.passk_stage import resolve_models
@@ -42,6 +52,9 @@ def main():
 
 
 def run_selected(args, numbers):
+    if 4 in numbers:
+        raise ValueError('stage 4 runs in its own job after stages 0-3: submit the run (--submit helma) or plan shards, '
+                         'or run --stages 4 alone on a finished run')
     if getattr(args, 'prebuild_only', False):
         raise ValueError('--prebuild-only must run through the Slurm image preparation worker')
     from validation.stages.layout import LAYOUT
@@ -70,6 +83,8 @@ def run_selected(args, numbers):
                     if number == 7:
                         teacher_routing(args, stage_runs)
                 path, result = run_stage(number, args)
+                if not args.dry_run and not getattr(args, 'git_checks_only', False):
+                    leak_repairs_after_stage(number, path, result, args)
                 report['stages'].append({'stage': number, 'report': str(path),
                                          'status': 'findings' if result['has_findings'] else 'completed'})
                 stage_runs[number] = (path, result)
@@ -94,6 +109,8 @@ def run_selected(args, numbers):
             if stage_report.get('task_content_sha256'):
                 export_report(args.out / 'results.parquet', stage_report,
                               stage_report['task_content_sha256'], settings=vars(args))
+                # Leak repairs applied right after this stage: the row moves to the repaired version.
+                apply_repairs(args.out / 'results.parquet', stage_report.get('leak_repairs'))
         # Automatic path and pip repairs from the stage-1 and stage-2 evidence.
         from validation.automatic_repairs import files_from, plan
         plans = ({} if getattr(args, 'git_checks_only', False) else
@@ -105,6 +122,29 @@ def run_selected(args, numbers):
     save(summary, report)
     print(f'Pipeline report: {summary}')
     return int(any(s['status'] in ('findings', 'error') or (s['status'] == 'skipped' and not args.dry_run) for s in report['stages']))
+
+
+def leak_repairs_after_stage(number, path, report, args):
+    """Apply the stored leak repairs of the checks that ran in this stage (validation/leak_repair), so the following
+    stages run on the repaired tasks. The report records each repair; later stages accept exactly these versions."""
+    from validation.leak_repair.tool import CHECK_STAGE, cheat_findings, stage_repairs
+    from validation.stages.runner import save
+    if (number not in set(CHECK_STAGE.values()) or not getattr(args, 'tasks', None) or not Path(args.tasks).is_dir()
+            or not report.get('task_content_sha256')):
+        return
+    from validation.contract import read as read_contract
+    source = read_contract(args.contract)['dataset'] if getattr(args, 'contract', None) else {}
+    rows = observations({number: report}, report['task_content_sha256'], '', vars(args))
+    root, repairs = stage_repairs(number, rows, args.tasks, args.out, source.get('source'),
+                                  {'no-cheat-dir': cheat_findings(source.get('normalization'))})
+    if not repairs:
+        return
+    report['leak_repairs'] = repairs
+    save(path, report)
+    args.tasks = root
+    versions = dict(getattr(args, '_task_versions', None) or {})
+    versions.update({task: r['to'] for task, r in repairs.items() if r['to'] != r['from']})
+    args._task_versions = versions
 
 
 def retry_unsettled(args, stage_runs, numbers):
@@ -291,6 +331,9 @@ def observations(reports, hashes, dataset='', settings=None):
                 row[name], record = normalize(name, value if value is not None else status(record.get('status')), record)
                 row['details'] = encode({**details(row), name: record})
             static = int(stage) == 0
+            nop_scores = [v for v in item.get('rewards', [])
+                          if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)] if int(stage) == 3 else []
+            mixed_nop = len(set(nop_scores)) > 1
             if not static:
                 if int(stage) == 5:
                     # One column per rubric criterion with every review of this judge;
@@ -309,6 +352,8 @@ def observations(reports, hashes, dataset='', settings=None):
                     # observed wrong reward, preserving the original details.
                     if int(stage) in (2, 3) and item.get('rewards') == []:
                         value = 'not_run'
+                    if name == 'nop' and any(v != 0 for v in nop_scores):
+                        value = 'fail'
                     put(name, item, value)
             if int(stage) in (6, 7) and item.get('status') != 'skipped':
                 # One column per role: target RL model (6) and strong teacher (7). pass@k is from the final,
@@ -352,6 +397,15 @@ def observations(reports, hashes, dataset='', settings=None):
                                 ('do_not_modify', 'do_not_modify'), ('verifier_tamper', 'verifier_tamper'),
                                 ('verifier_paths', 'verifier_paths')]:
                 record = item.get(field)
+                if field == 'listing_order' and mixed_nop:
+                    record = {**(record or {}), 'status': 'flagged', 'normal_rewards': nop_scores,
+                              'reason': f'Mixed no-op baseline rewards {nop_scores}; unchanged task grading is inconsistent.'}
+                if (field == 'verifier_tamper' and isinstance(record, dict)
+                        and record.get('status') == 'incomplete' and any(v != 0 for v in nop_scores)
+                        and 'differs from the no-op runs' in record.get('reason', '')):
+                    put(name, {**record, 'status': 'skipped', 'blocked_by_stage': 3,
+                               'reason': f'Blocked by failed no-op baseline: rewards {nop_scores}. ' + record['reason']}, 'blocked')
+                    continue
                 if field == 'do_not_modify' and isinstance(record, dict) and (
                         record.get('blocked_by_stage') is not None or record.get('status') == 'skipped'):
                     # One do_not_modify column: the container check replaces the static
@@ -359,6 +413,11 @@ def observations(reports, hashes, dataset='', settings=None):
                     # An incomplete container check is still reported as incomplete.
                     record = None
                 if isinstance(record, dict):
+                    if int(stage) == 3 and field == 'verifier_paths':
+                        from validation.nop_path_details import explain_nop_path_oom
+                        explanation = explain_nop_path_oom(item)
+                        if explanation:
+                            record = {**record, 'details': explanation}
                     value = None
                     if field == 'verifier_tamper' and record.get('status') == 'flagged':
                         value = 'warning'
@@ -382,7 +441,10 @@ def observations(reports, hashes, dataset='', settings=None):
             for name, checks in environment_checks.items():
                 values = {status(check.get('status')) for check in checks}
                 value = next(v for v in ('fail', 'not_run', 'warning', 'pass') if v in values)
-                put(name, {'checks': checks}, value)
+                # The per-environment reasons become the check's details text (results cell).
+                reasons = list(dict.fromkeys(c['reason'] for c in checks
+                                             if isinstance(c.get('reason'), str) and c['reason']))
+                put(name, {'checks': checks, **({'reason': '; '.join(reasons)} if reasons else {})}, value)
             # A failed build blocks the dynamic checks that need its container or a trial.
             blocked = (item.get('blocked_by_stage') is not None or
                        (int(stage) == 1 and item.get('build_status', item.get('status')) not in ('passed', 'completed')))
@@ -406,22 +468,36 @@ def is_judge_cell(value):
 def evaluation_column(name, value):
     """Stage 5-7 columns: judge verdicts, pass@k of both models, resource requirements. Evaluation runs
     prepare their own task copies (another hash), so these attach to the task's row by task id."""
-    return is_judge_cell(value) or name.startswith('passk_') or name == 'resources'
+    return is_judge_cell(value) or name.startswith('passk_') or name in ('resources', 'resources_recommended')
 
 
 def final_requirements(record):
-    """The task's requirement from both models' calibration: per resource the least that a model that solved
-    the task needed (each model's own requirement is already its smallest solved attempt); when neither solved
-    it, the teacher's requirement if it ran, else the target model's."""
+    """Prefer successful teacher measurements, then successful target measurements.
+    Otherwise take the maximum of the usable clean-batch estimates. One usable model suffices.
+    These are recommendations; this function does not edit task payloads.
+    """
     keys = ('cpus', 'memory_mb', 'storage_mb')
     roles = [r for r in ('target', 'teacher') if record.get(f'{r}_requirements')]
-    winners = [r for r in roles if record.get(f'{r}_outcome') == 'solved']
+    usable = [r for r in roles if record[f'{r}_requirements'].get('status') != 'unresolved'
+              and all(record[f'{r}_requirements'].get(k) is not None for k in keys)]
+    winners = [r for r in ('teacher', 'target') if r in usable and
+               (record[f'{r}_requirements'].get('basis') == 'successful traces' or
+                record.get(f'{r}_outcome') == 'solved')]
     if winners:
-        record['requirements'] = {k: min(record[f'{r}_requirements'][k] for r in winners) for k in keys}
-        record['source'] = 'min of solved: ' + ', '.join(winners)
-    elif roles:
-        role = 'teacher' if 'teacher' in roles else 'target'
-        record['requirements'], record['source'] = record[f'{role}_requirements'], role
+        role = winners[0]
+        record['requirements'] = {k: record[f'{role}_requirements'][k] for k in keys}
+        record['source'] = role + ' successful traces'
+        record['status'] = 'resolved'
+    elif not usable:
+        record['requirements'] = {k: None for k in keys}
+        record['source'] = 'unresolved: missing usable successful traces or complete clean batch'
+        record['status'] = 'unresolved'
+    else:
+        record['requirements'] = {k: max(record[f'{r}_requirements'][k] for r in usable) for k in keys}
+        record['source'] = 'max of usable clean batches: ' + ', '.join(usable)
+        record['status'] = 'resolved'
+    record['models_without_usable_estimate'] = [r for r in roles if r not in usable]
+
     return record
 
 
@@ -560,7 +636,7 @@ def summary(record):
 def cell(name, status, record, repair):
     """The Parquet cell of one check: status, repaired (repairable checks only) and one
     short details text."""
-    from validation.automatic_repairs import RULES as repairable
+    from validation.automatic_repairs import LEAK_RULES, RULES as repairable
     value = {'status': status}
     if name in repairable:
         value['repaired'] = (repair or {}).get('applied')
@@ -576,6 +652,10 @@ def cell(name, status, record, repair):
             text = record.get('details') if isinstance(record.get('details'), str) else None
             if not text:
                 text = summary(record)
+    if not value.get('repaired') and (repair or {}).get('details') and name in LEAK_RULES:
+        # The repair loop's decision on a finding it did not repair (not fixable, not recognised, ...), then the finding.
+        if not (text or '').startswith(repair['details']):  # a cell read back already carries it
+            text = repair['details'] + (f'; check finding: {text}' if text else '')
     if text:
         value['details'] = text if len(text) <= 1000 else text[:997] + '...'
     if name in TIMED:
@@ -588,6 +668,8 @@ def uncell(row):
     row = dict(row)
     records, repairs = {}, {}
     for name, value in list(row.items()):
+        if name in ('resources_recommended', 'passk_target', 'passk_teacher') and isinstance(value, dict):
+            continue  # Structured evaluation cells retain their own details and values.
         if isinstance(value, dict) and 'verdicts' in value and 'status' not in value:
             row[name] = {field: dict(value.get(field) or []) for field in JUDGE_FIELDS} if value['verdicts'] is not None else None
             if row[name] is None:
@@ -643,6 +725,9 @@ def write(path, rows):
     judged = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'verdicts' in v}
     integers = {n for n in names if n.endswith(('_solved', '_attempts', '_successes', '_valid_attempts')) or n in ('cpus', 'memory_mb')}
     def kind(name):
+        if name == 'resources_recommended' and name in checks:
+            return pa.struct([('cpus', pa.int64()), ('memory_mb', pa.int64()), ('storage_mb', pa.int64()),
+                              ('status', pa.string()), ('details', pa.string())])
         if name in judged:
             reviews = pa.map_(pa.string(), pa.list_(pa.string()))
             return pa.struct([('verdicts', reviews), ('details', reviews)])
@@ -719,7 +804,7 @@ def repair_rows(rows, plans):
         for rule, repair in plan['rules'].items():
             row[rule] = repair['status']
         row['automatic_repairs'] = combine(row.get('automatic_repairs'), encode({
-            rule: {'applied': True, 'evidence': [], 'details': repair['details']}
+            rule: {'applied': repair.get('applied', True), 'evidence': [], 'details': repair['details']}
             for rule, repair in plan['rules'].items()}))
     return rows
 

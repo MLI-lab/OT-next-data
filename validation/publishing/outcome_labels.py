@@ -31,6 +31,7 @@ def _labels(stage, item, not_required=()):
         warning_labels = {'check-task-absolute-path.sh': 'warning:relative-instruction-path',
                           'reference-solution-leak': 'warning:reference-solution-leak',
                           'check-pip-pinning.sh': 'warning:unpinned-dependency',
+                          'check-dockerfile-platform.sh': 'warning:pinned-platform',
                           'check-artifact-efficiency.py': 'warning:large-artifact'}
         warnings = {warning_labels[c['check']] for c in item.get('checks', [])
                     if c['status'] == 'warning' and c['check'] in warning_labels}

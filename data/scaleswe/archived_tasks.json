@@ -647,10 +647,6 @@
     "category": "reference-solution-reward-zero",
     "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_function/test_parse_array.py::test_parse_last. Exception: AssertionError. Pytest summary with the reference solution: 26 failed, 11 passed in 8.20s."
   },
-  "gruebel_pycep_pr64": {
-    "category": "verifier-timeout-without-fix",
-    "reason": "The reference solution passes in seconds, but the no-op run hits the 30-minute verifier limit in two independent attempts: the selected tests hang on the unfixed code instead of failing. Archived because a verifier must terminate for every candidate solution."
-  },
   "hadialqattan_pycln_pr121": {
     "category": "reference-solution-reward-zero",
     "reason": "With the reference solution applied the selected tests still fail in the task image; the failure is a test or environment defect of the task, not of the validation runtime. First failing test: tests/test_config.py::TestParseConfigFile::test_parse_methods[pycln.yml]. Exception: AssertionError. Pytest summary with the reference solution: 5 failed, 266 passed, 6 warnings in 1.31s."

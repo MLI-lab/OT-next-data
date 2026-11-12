@@ -51,17 +51,17 @@ def test_target_and_teacher_columns_and_merged_resources(tmp_path):
     b = {r['task_id']: r for r in results.read(path)}['b']
     resources = json.loads(b['resources'])
     assert b['passk_teacher_outcome'] == 'solved' and b['passk_target_outcome'] == 'unsolved'
-    assert resources['requirements'] == {'cpus': 4, 'memory_mb': 4096, 'storage_mb': 10240} and resources['source'] == 'min of solved: teacher'
+    assert resources['requirements'] == {'cpus': 4, 'memory_mb': 4096, 'storage_mb': 10240} and resources['source'] == 'teacher successful traces'
     assert resources['target_allocation'] == BASE and resources['teacher_allocation'] == teacher_alloc
     # A later target-model export does not take the requirement back from the teacher.
     results.export_report(path, {'stage': 6, 'items': [item('b', 'unsolved', 0, BASE, {'cpus': 2, 'memory_mb': 2048, 'storage_mb': 10240})]},
                           {'b': 'h6'}, dataset='d')
-    assert json.loads({r['task_id']: r for r in results.read(path)}['b']['resources'])['source'] == 'min of solved: teacher'
-    # Both models solved a: per resource the least either needed (target 2 vCPU/3 GiB, teacher 4 vCPU/2 GiB).
+    assert json.loads({r['task_id']: r for r in results.read(path)}['b']['resources'])['source'] == 'teacher successful traces'
+    # Both models solved a: use the teacher recommendation, not a cross-model minimum.
     results.export_report(path, {'stage': 7, 'items': [item('a', 'solved', 3, teacher_alloc, {'cpus': 4, 'memory_mb': 2048, 'storage_mb': 10240})]},
                           {'a': 'h7'}, dataset='d')
     a = json.loads({r['task_id']: r for r in results.read(path)}['a']['resources'])
-    assert a['requirements'] == {'cpus': 2, 'memory_mb': 2048, 'storage_mb': 10240} and a['source'] == 'min of solved: target, teacher'
+    assert a['requirements'] == {'cpus': 4, 'memory_mb': 2048, 'storage_mb': 10240} and a['source'] == 'teacher successful traces'
 
 
 def test_teacher_routing_from_this_run_and_from_results(tmp_path):

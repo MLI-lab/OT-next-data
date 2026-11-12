@@ -78,7 +78,10 @@ def prepare(spec, runtime, scratch, image):
              'for pin, modules in packages.items():\n'
              ' name, version=pin.split("==",1); assert m.version(name)==version\n'
              ' for module in modules:\n'
-             '  origin=importlib.util.find_spec(module).origin; pathlib.Path(origin).resolve().relative_to(root); importlib.import_module(module)\n')
+             '  spec=importlib.util.find_spec(module); paths=[spec.origin] if spec.origin else list(spec.submodule_search_locations or [])\n'
+             '  assert paths, module\n'
+             '  for path in paths: pathlib.Path(path).resolve().relative_to(root)\n'
+             '  importlib.import_module(module)\n')
     check += ('for module in '+repr(sorted(modules))+':\n'
               ' origin=importlib.util.find_spec(module).origin; pathlib.Path(origin).resolve().relative_to(root); importlib.import_module(module)\n')
     subprocess.run(command(image, scratch, runtime / 'bin/python3', '-I', '-c', check), check=True)

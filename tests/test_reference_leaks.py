@@ -428,3 +428,38 @@ def test_packaged_submodule_pointer_to_absent_store_is_recorded(tmp_path):
 ])
 def test_absent_submodule_store_rejects_ambiguous_paths(tmp_path, pointer):
     assert not files.absent_submodule_store(str(tmp_path), pointer)
+
+
+def test_empty_solution_files_are_not_matched():
+    """An empty solution file matches every empty file (e.g. /etc/machine-id); it is left out, as in nl2bash."""
+    from validation.stages.reference_leaks import verdict, without_empty_files
+    empty = {'path': '/workspace/.seeded', 'size': 0, 'sha256': 'e3b0c442'}
+    real = {'path': '/workspace/out.txt', 'size': 64, 'sha256': '900edd9a'}
+    evidence = without_empty_files({'files': [empty, real], 'deleted_files': [], 'workspace': '/workspace'})
+    assert evidence['files'] == [real] and evidence['empty_files'] == ['/workspace/.seeded']
+    result = verdict(evidence, {'status': 'completed', 'files': [{**real, 'matches': []}]})
+    assert result['status'] == 'passed' and result['changed_files'] == 1 and result['empty_files'] == ['/workspace/.seeded']
+    only_empty = without_empty_files({'files': [empty], 'deleted_files': [], 'workspace': '/workspace'})
+    result = verdict(only_empty, {'status': 'not_applicable', 'files': []})
+    assert result['status'] == 'not_applicable' and 'empty files' in result['reason']
+
+
+def test_snapshot_root_uses_final_declared_workdir(tmp_path):
+    env = tmp_path / 'environment'
+    env.mkdir()
+    dockerfile = env / 'Dockerfile'
+    dockerfile.write_text('FROM base\nWORKDIR /workspace\nWORKDIR project\n')
+    assert leaks.snapshot_request(tmp_path) == {'mode': 'snapshot', 'root': '/workspace/project'}
+    dockerfile.write_text('FROM base\nWORKDIR /old\nFROM other\n')
+    assert leaks.snapshot_request(tmp_path) == {'mode': 'snapshot'}
+
+
+def test_root_image_uses_single_literal_verifier_workspace(tmp_path):
+    (tmp_path / 'environment').mkdir()
+    (tmp_path / 'environment/Dockerfile').write_text('FROM base\nWORKDIR /\n')
+    (tmp_path / 'tests').mkdir()
+    script = tmp_path / 'tests/test.sh'
+    script.write_text('cd /workspace/project || exit 1\npython /tests/score.py\n')
+    assert leaks.snapshot_request(tmp_path)['root'] == '/workspace/project'
+    script.write_text('cd /workspace/a\ncd /workspace/b\n')
+    assert leaks.snapshot_request(tmp_path)['root'] == '/'

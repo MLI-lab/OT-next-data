@@ -654,6 +654,27 @@ def test_calibforge_nproc_allowance_is_content_pinned(tmp_path, monkeypatch, cha
     assert row['checks'][0]['status'] == ('passed' if changed is None else 'failed')
 
 
+@pytest.mark.parametrize('line,expected', [
+    ('COPY files/test_basic.py /tests/test_basic.py\n', 'failed'),   # the task's own test, under another path
+    ('COPY files/test_basic.py /app/test_basic.py\n', 'failed'),
+    ('COPY tests/test_basic.py /app/\n', 'failed'),
+    ('COPY tests/test.sh /app/\n', 'failed'),                         # upstream match, unchanged
+    ('COPY tests/test.py /app/\n', 'failed'),                         # upstream match, unchanged
+    ("RUN printf 'x' > tests/test_processor.py\n", 'passed'),         # the project's own test
+    ('COPY files/tests/test_configforge.py /app/tests/test_configforge.py\n', 'passed'),
+    ('# COPY files/test_basic.py /tests/test_basic.py\n', 'passed'),
+])
+def test_dockerfile_references_catches_the_tasks_own_tests(tmp_path, line, expected):
+    task = make_task(tmp_path)
+    (task / 'tests/test_basic.py').write_text('def test_x():\n    assert True\n')
+    (task / 'environment/Dockerfile').write_text('FROM ubuntu:24.04\n' + line)
+    _, checks, _ = load_checks('training')
+    out = tmp_path / 'report'
+    run_checks([task], out, exclude=[name for name in checks if name != 'check-dockerfile-references.sh'])
+    row = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert row['checks'][0]['status'] == expected
+
+
 def test_dockerfile_comment_filter_preserves_heredoc_data():
     from validation.rules.static.terminal_bench import dockerfile_without_comments
     text = '# tests/test.sh provenance\nCOPY <<EOF /app/example\n# tests/test.sh is data here\nEOF\n'
@@ -825,3 +846,25 @@ def test_training_excludes_image_baking_and_network_patterns_for_prepared_runtim
     names = {rule.name for rule in selected}
     assert 'verifier-tooling-baked' not in names
     assert 'trial-network-fetch' not in names
+
+
+def test_finding_uses_local_rule_reason_from_json():
+    from validation.rules.static.terminal_bench import finding
+    out = json.dumps({'status': 'failed', 'details': {'reason': 'Required script: /home/user/a.py', 'limitations': ['x', 'y']}}, indent=2)
+    assert finding(out, Path('/tmp/t'), 't') == 'Required script: /home/user/a.py'
+    assert finding('FAIL: plain text finding\n', Path('/tmp/t'), 't') == 'plain text finding'
+
+@pytest.mark.parametrize('profile,expected,exit_code', [('training', 'warning', 0), ('portable', 'failed', 1), ('terminal-bench', 'failed', 1)])
+def test_platform_warning_keeps_training_task(tmp_path, profile, expected, exit_code):
+    from validation.publishing.outcome_labels import labels
+    task = make_task(tmp_path)
+    (task / 'environment/Dockerfile').write_text('FROM --platform=linux/amd64 python:3.12-slim\n')
+    _, checks, _ = load_checks(profile)
+    out = tmp_path / 'report'
+    assert run_checks([task], out, profile, exclude=[n for n in checks if n != 'check-dockerfile-platform.sh']) == exit_code
+    item = json.loads((out / 'summary.json').read_text())['tasks'][0]
+    assert item['checks'][0]['status'] == expected
+    assert item['checks'][0]['exit_code'] == 1
+    assert item['status'] == ('passed' if profile == 'training' else 'failed')
+    if profile == 'training':
+        assert labels(0, item) == ['warning:pinned-platform']

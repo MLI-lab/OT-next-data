@@ -4,11 +4,11 @@ import subprocess
 
 import pytest
 
-from data.calibforge import source_inputs
+from data.calibforge import patch as source_inputs
 
 
 def source_role(monkeypatch):
-    from data.calibforge import python_roles
+    from data.calibforge import patch as python_roles
     data=b'original dataset bytes\n'
     entry=dict(filename='data.gz',url='https://example.org/data.gz',sha256=hashlib.sha256(data).hexdigest())
     value=dict(image_sha256='a'*64,sources=[entry],verifier=True,agent_targets={'data.gz':'/app/data.gz'},agent_note='Input is available at `/app/data.gz`.',snippet_replacements=[dict(before='data_path = "old"',filename='data.gz')])
@@ -24,8 +24,8 @@ def test_source_input_uses_fresh_cache_and_rejects_changed_bytes(tmp_path,monkey
     ns={};exec(code,ns);assert ns['result']==data
     source.write_bytes(b'agent-changed')
     with pytest.raises(ValueError,match='checksum differs'):exec(code,{})
-    assert source_inputs.spec({},verifier=True,image_sha256='a'*64)['sources']==value['sources']
-    with pytest.raises(ValueError,match='image differs'):source_inputs.spec({},image_sha256='b'*64)
+    assert source_inputs.source_input_spec({},verifier=True,image_sha256='a'*64)['sources']==value['sources']
+    with pytest.raises(ValueError,match='image differs'):source_inputs.source_input_spec({},image_sha256='b'*64)
 
 
 def test_task_source_setup_single_prepare_and_online_fallback(tmp_path,monkeypatch):
@@ -59,7 +59,7 @@ def test_task_source_setup_single_prepare_and_online_fallback(tmp_path,monkeypat
 def test_agent_python_inputs_are_separate_from_verifier_sources(monkeypatch):
     _,value=source_role(monkeypatch)
     value['agent_python']=dict(python='/usr/bin/python3',requirements=['pandas==3.1.0','pyarrow==26.0.0'])
-    agent=source_inputs.spec({});verifier=source_inputs.spec({},verifier=True)
+    agent=source_inputs.source_input_spec({});verifier=source_inputs.source_input_spec({},verifier=True)
     assert agent['python']==[dict(tool='uv',python='/usr/bin/python3',requirements=value['agent_python']['requirements'])]
     assert not verifier['python'] and not verifier['uv']
     setup=source_inputs.task_updates({'instruction.md':b'Build the model.'})['setup_files/setup.sh'].decode()
@@ -68,4 +68,4 @@ def test_agent_python_inputs_are_separate_from_verifier_sources(monkeypatch):
     assert '/usr/bin/python3 -I -m pip install --break-system-packages' in setup
     assert subprocess.run(['bash','-n'],input=setup,text=True,capture_output=True).returncode==0
     value['agent_python']['requirements']=['pandas']
-    with pytest.raises(ValueError,match='exact pins'):source_inputs.spec({})
+    with pytest.raises(ValueError,match='exact pins'):source_inputs.source_input_spec({})

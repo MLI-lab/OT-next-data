@@ -1,6 +1,6 @@
 import json
 import pytest
-from data.calibforge import verifier_runtime as runtime
+from data.calibforge import patch as runtime
 from validation.contract import files_digest
 from harbor_patches.verifier_bundle import FORMAT,spec_id
 
@@ -8,7 +8,7 @@ from harbor_patches.verifier_bundle import FORMAT,spec_id
 @pytest.fixture(autouse=True)
 def calibforge_task_fixture():
     """Reviewed records name their task; tests convert the task named 'task'."""
-    from data.calibforge.python_roles import current_task
+    from data.calibforge.patch import current_task
     token = current_task.set('task')
     yield
     current_task.reset(token)
@@ -30,9 +30,9 @@ def case(source=b'from pathlib import Path\nimport subprocess\ndef test_output()
 
 
 def test_exact_version_and_task_command_semantics_preserved():
-    args=case();planned=runtime.plan(*args);key=spec_id(planned['spec'])
+    args=case();planned=runtime.runtime_plan(*args);key=spec_id(planned['spec'])
     catalog={key:dict(id=key,format=FORMAT,spec=planned['spec'],status='ready',archive_sha256='c'*64)}
-    result=runtime.apply(args[0],planned,catalog)
+    result=runtime.runtime_apply(args[0],planned,catalog)
     assert planned['spec']['python']=='3.13.9'
     assert 'image_python' not in planned['spec']
     assert 'iniconfig==2.3.0' in planned['spec']['requirements']
@@ -46,17 +46,17 @@ def test_exact_version_and_task_command_semantics_preserved():
 
 @pytest.mark.parametrize('source',[b'import pandas',b'import sys\nprint(sys.executable)',b'from .helper import x'])
 def test_task_environment_dependencies_require_review(source):
-    with pytest.raises(ValueError,match='review'):runtime.plan(*case(source))
+    with pytest.raises(ValueError,match='review'):runtime.runtime_plan(*case(source))
 
 
 def test_agent_program_retains_original_python_and_assertions():
     source = b'import sys, subprocess\ndef test_program():\n    assert subprocess.call([sys.executable, "/app/program.py"]) == 0\n'
     args = case(source)
-    planned = runtime.plan(*args)
+    planned = runtime.runtime_plan(*args)
     assert planned['task_python_calls'] == 1
     key = spec_id(planned['spec'])
     catalog = {key: dict(id=key, format=FORMAT, spec=planned['spec'], status='ready', archive_sha256='c'*64)}
-    updated = runtime.apply(args[0], planned, catalog)
+    updated = runtime.runtime_apply(args[0], planned, catalog)
     assert updated['tests/test_outputs.py'] == source.replace(b'sys.executable', b'"/opt/verifier/bin/python"')
     assert b'OT_VERIFIER_PYTHON' in updated['tests/test.sh']
 
@@ -92,13 +92,13 @@ def test_bound_task_import_directory_remains_visible():
     files, image, probe, binding, bundle = case(source)
     files['instruction.md'] = b'Implement /app/solver.py.'
     binding['content_sha256'] = files_digest(files.items())
-    assert runtime.plan(files, image, probe, binding, bundle)['task_imports'] == ['solver']
+    assert runtime.runtime_plan(files, image, probe, binding, bundle)['task_imports'] == ['solver']
 
 
 def test_task_subprocess_import_snippet_requires_original_interpreter_review():
     source = b'import subprocess\ndef test_program():\n    assert subprocess.call(["python3", "-c", "import sys; sys.path.insert(0, \'/app\'); import program"]) == 0\n'
     with pytest.raises(ValueError,match='literal nested Python'):
-        runtime.plan(*case(source))
+        runtime.runtime_plan(*case(source))
 
 
 @pytest.mark.parametrize('suffix', ['.py', '.c', '.cpp', '.pyx'])
@@ -107,14 +107,14 @@ def test_explicit_agent_module_import_remains_visible(suffix):
     files, image, probe, binding, bundle = case(source)
     files['instruction.md'] = ('Implement /app/solver' + suffix + '.').encode()
     binding['content_sha256'] = files_digest(files.items())
-    planned = runtime.plan(files, image, probe, binding, bundle)
+    planned = runtime.runtime_plan(files, image, probe, binding, bundle)
     assert planned['task_imports'] == ['solver']
     assert 'sys.path.insert(0, "/app")' not in planned['test_source']
     assert "find_spec(fullname, ['/app'])" in planned['test_source']
     files['tests/test_outputs.py'] = source.replace(b'"/app"', b'"/opt/verifier/lib/python3.13/site-packages"')
     binding['content_sha256'] = files_digest(files.items())
     with pytest.raises(ValueError, match='container package import path'):
-        runtime.plan(files, image, probe, binding, bundle)
+        runtime.runtime_plan(files, image, probe, binding, bundle)
 
 
 @pytest.mark.parametrize('bootstrap', runtime.UV_BOOTSTRAP_PREFIXES)
@@ -130,17 +130,17 @@ def test_reviewed_uv_installers_are_replaced_by_preparation(bootstrap):
 
 def test_image_and_original_interpreter_bindings_required():
     args=case();args[1]['sif_sha256']='c'*64
-    with pytest.raises(ValueError,match='identity'):runtime.plan(*args)
+    with pytest.raises(ValueError,match='identity'):runtime.runtime_plan(*args)
     args=case();obs=json.loads(args[2]['stdout'].split('=',1)[1]);obs['python']='3.13.10'
     args[2]['stdout']='OT_RUNTIME_PROBE='+json.dumps(obs)
-    with pytest.raises(ValueError,match='interpreter'):runtime.plan(*args)
+    with pytest.raises(ValueError,match='interpreter'):runtime.runtime_plan(*args)
 
 
 def test_existing_setup_and_changed_plans_rejected():
-    args=case();planned=runtime.plan(*args);args[0]['tests/setup.sh']=b'echo required initialization'
-    with pytest.raises(ValueError,match='changed'):runtime.apply(args[0],planned,{})
+    args=case();planned=runtime.runtime_plan(*args);args[0]['tests/setup.sh']=b'echo required initialization'
+    with pytest.raises(ValueError,match='changed'):runtime.runtime_apply(args[0],planned,{})
     args[3]['content_sha256']=files_digest(args[0].items())
-    with pytest.raises(ValueError,match='review'):runtime.plan(*args)
+    with pytest.raises(ValueError,match='review'):runtime.runtime_plan(*args)
 
 
 def test_shared_immutable_base_preserves_python_and_grader():
@@ -150,11 +150,11 @@ def test_shared_immutable_base_preserves_python_and_grader():
         'RUN apt-get update && apt-get install -y python3-numpy\n').encode()
     binding['content_sha256'] = files_digest(files.items())
     binding['environments'][0].update(bundle='another-task', environment_sha256='d' * 64)
-    planned = runtime.plan(files, image, probe, binding, bundle, shared=True)
+    planned = runtime.runtime_plan(files, image, probe, binding, bundle, shared=True)
     assert planned['spec']['python'] == '3.13.9'
     assert planned['interpreter_evidence'] == 'shared immutable base'
     with pytest.raises(ValueError, match='identity'):
-        runtime.plan(files, image, probe, binding, bundle)
+        runtime.runtime_plan(files, image, probe, binding, bundle)
 
 
 @pytest.mark.parametrize('change', [
@@ -432,7 +432,7 @@ def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, mo
     source=tmp_path/'source.parquet'
     table=pa.Table.from_pylist(rows).replace_schema_metadata({b'ot.images.v1':json.dumps(images).encode(),b'ot.review.v1':b'old'})
     pq.write_table(table,source)
-    spec=runtime.plan(files,image,probe,binding,bundle)['spec'];key=spec_id(spec)
+    spec=runtime.runtime_plan(files,image,probe,binding,bundle)['spec'];key=spec_id(spec)
     cache=tmp_path/'cache';cache.mkdir()
     (cache/(key+'.json')).write_text(json.dumps(dict(id=key,format=FORMAT,spec=spec,status='ready',archive_sha256='c'*64)))
     monkeypatch.setattr(verifier_bundle,'verify',lambda *a:tmp_path/'unused')
@@ -450,12 +450,7 @@ def test_export_preserves_membership_history_and_unreviewed_payload(tmp_path, mo
     assert report['tasks'][0]['archive_sha256']=='c'*64
     import hashlib
     manifest=json.loads((tmp_path/'output/tasks.manifest.json').read_text())
-    assert {entry['path'] for entry in manifest['patcher_dependencies']}=={
-        'runtime.patch.py','runtime-dependency-python_roles.py','runtime-dependency-packaging_runtime.py',
-        'runtime-dependency-source_inputs.py',
-        'runtime-dependency-task_installation_roles.json','runtime-dependency-task_service_roles.json',
-        'runtime-dependency-task_module_roles.json','runtime-dependency-task_initialization_roles.json',
-        'runtime-dependency-task_packaging_roles.json','runtime-dependency-task_native_dependencies.json'}
+    assert {entry['path'] for entry in manifest['patcher_dependencies']} == {'repairs.py'}
     for entry in manifest['patcher_dependencies']:
         assert entry['sha256']==hashlib.sha256((tmp_path/'output'/entry['path']).read_bytes()).hexdigest()
     meta=output.schema.metadata
@@ -1429,7 +1424,7 @@ def test_common_base_can_attach_an_independent_literal_grader():
         source_file='tests/test_outputs.py',source_sha256=hashlib.sha256(source.encode()).hexdigest(),probe_invocation='python3',
         uses=[dict(line=call.lineno,column=call.col_offset,role='grading',call_sha256=hashlib.sha256(ast.get_source_segment(source,call).encode()).hexdigest())],
         observed=dict(python='3.12.3',executable='/usr/bin/python3',resolved_executable='/usr/bin/python3.12',prefix='/usr',requirements=[],stdlib=['json','os']))
-    planned=runtime.plan(files,image,probe,binding,bundle,shared=True,auxiliary={'literal':record})
+    planned=runtime.runtime_plan(files,image,probe,binding,bundle,shared=True,auxiliary={'literal':record})
     assert planned['spec']['python']=='3.13.9'
     assert planned['spec']['auxiliary']['literal']['python']=='3.12.3'
     assert '/../aux/literal/bin/python3' in planned['test_source']
@@ -1655,7 +1650,7 @@ def test_base_plan_passes_measured_pins_to_dependency_call_review():
     observed=json.loads(args[2]['stdout'].split('OT_RUNTIME_PROBE=')[1])
     observed['requirements'].append('torch==2.7.1')
     args[2]['stdout']='OT_RUNTIME_PROBE='+json.dumps(observed)
-    planned=runtime.plan(*args)
+    planned=runtime.runtime_plan(*args)
     assert 'torch==2.7.1' in planned['spec']['requirements']
     assert 'subprocess.check_call' not in planned['test_source']
     assert planned['prepared_install_calls']['tests/test_outputs.py'][0]['requirements'][0]['resolved']=='torch==2.7.1'
@@ -2010,23 +2005,23 @@ def test_native_cached_tool_guard_is_removed_before_installer_simplification(mon
 
 
 def test_base_plan_keeps_source_bound_native_tool_dependencies(monkeypatch):
-    from data.calibforge import python_roles
+    from data.calibforge import patch as python_roles
     files,image,probe,binding,bundle=case()
     monkeypatch.setattr(python_roles,'task_module_roles',lambda files:[{'modules':[], 'clean_tools':{'valgrind':'/usr/bin/valgrind.bin'},
         'native_resources':{'valgrind/'+name:'/usr/libexec/valgrind/'+name for name in (
             'memcheck-amd64-linux','vgpreload_core-amd64-linux.so','vgpreload_memcheck-amd64-linux.so','default.supp')}}])
-    planned=runtime.plan(files,image,probe,binding,bundle)
+    planned=runtime.runtime_plan(files,image,probe,binding,bundle)
     assert planned['spec']['image_tools']['image_sha256']=='a'*64
     assert planned['spec']['image_tools']['executables']=={'valgrind':'/usr/bin/valgrind.bin'}
     assert len(planned['spec']['image_tools']['resources'])==4
     key=spec_id(planned['spec']);catalog={key:dict(id=key,format=FORMAT,spec=planned['spec'],status='ready',archive_sha256='c'*64)}
-    updated=runtime.apply(files,planned,catalog)
+    updated=runtime.runtime_apply(files,planned,catalog)
     assert updated['tests/test.sh'].startswith(b'#!/bin/bash\nexport PATH=')
 
 
 def test_source_bound_server_launch_does_not_exempt_grading_client(monkeypatch):
     import ast,hashlib
-    from data.calibforge import python_roles
+    from data.calibforge import patch as python_roles
     text='''import subprocess
 server = None
 for path in ['/app/server.py','/app/echo.py']:

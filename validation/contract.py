@@ -570,6 +570,9 @@ def verify_materialized(args):
         wanted = set(slice_ids(contract, shard))
         paths = [p for p in paths if p.name in wanted]
         expected = [r for r in expected if r['task_id'] in wanted]
+    # A task repaired earlier in this run (leak repairs) is expected in its recorded repaired version.
+    versions = getattr(args, '_task_versions', None) or {}
+    expected = [dict(r, sha256=versions.get(r['task_id'], r['sha256'])) for r in expected]
     observed = sorted(({'task_id': p.name, 'sha256': task_digest(p)} for p in paths), key=lambda r: r['task_id'])
     if observed != expected:
         raise ValueError('materialized task IDs/content differ from frozen contract')

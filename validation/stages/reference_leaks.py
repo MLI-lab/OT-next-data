@@ -40,6 +40,22 @@ def evidence_digest(task):
                         for p in task.rglob('*') if p.is_file() and p.relative_to(task).as_posix() != 'instruction.md')
 
 
+def snapshot_request(task):
+    # Bridge exec may default to / rather than the image's declared WORKDIR.
+    from validation.rules.dynamic.environment.check import declared_workdir
+    root = declared_workdir(Path(task) / 'environment' / 'Dockerfile')
+    if root == '/':
+        # Some images deliberately start at /; use a single explicit verifier
+        # workspace rather than scanning the entire container or guessing a path.
+        import re
+        script = Path(task) / 'tests' / 'test.sh'
+        text = script.read_text() if script.is_file() else ''
+        paths = re.findall(r'^cd (/[^\s;$`]+)(?: \|\| exit 1)?\s*$', text, re.M)
+        if len(set(paths)) == 1 and paths[0] != '/' and '..' not in paths[0].split('/'):
+            root = paths[0]
+    return {'mode': 'snapshot', **({'root': root} if root else {})}
+
+
 async def probe(environment, request):
     source = Path(reference_files.__file__).read_text()
     remote = '/tmp/ot-reference-probe-' + uuid4().hex + '.json'
@@ -99,14 +115,14 @@ def install():
         path = self.paths.trial_dir / ARTIFACT
         report = {'version': reference_files.VERSION, 'task_sha256': evidence_digest(task),
                   'status': 'incomplete', 'phase': 'after-setup-before-verifier',
-                  'scope': 'Regular-file contents under the initial agent working directory; .git excluded.',
+                  'scope': 'Regular-file contents under the declared image working directory or explicit verifier workspace; .git excluded.',
                   'files': [], 'deleted_files': []}
         before = None
         try:
             if getattr(getattr(self.task, 'config', None), 'steps', None):
                 raise ValueError('Multi-step reference capture is not yet supported')
             with self.agent_environment.with_default_user(kwargs.get('user')):
-                before = await probe(self.agent_environment, {'mode': 'snapshot'})
+                before = await probe(self.agent_environment, snapshot_request(task))
         except Exception as exc:
             report['error'] = str(exc)
         path.write_text(json.dumps(report, indent=2) + '\n')
@@ -164,13 +180,22 @@ def matched_text(files, limit=5):
     return ', '.join(parts[:limit]) + (f' and {len(parts) - limit} more' if len(parts) > limit else '')
 
 
+def without_empty_files(evidence):
+    """Leave out empty solution files: an empty file reveals nothing, and its content (the empty string) matches
+    every empty file in the container, e.g. /etc/machine-id."""
+    files = [f for f in evidence['files'] if f.get('size') != 0]
+    empty = sorted(f['path'] for f in evidence['files'] if f.get('size') == 0)
+    return {**evidence, 'files': files, 'empty_files': sorted(set(evidence.get('empty_files', [])) | set(empty))}
+
+
 def verdict(evidence, observation):
     files = observation['files']
     count = sum(bool(f['matches']) for f in files)
     total = len(files)
     fraction = count / total if total else 0
     deleted = evidence.get('deleted_files', [])
-    deletion_only = bool(not total and deleted and observation['status'] == 'not_applicable')
+    empty = evidence.get('empty_files', [])
+    deletion_only = bool(not total and (deleted or empty) and observation['status'] == 'not_applicable')
     complete = bool(total and observation['status'] == 'completed')
     above_threshold = count * 2 > total
     status = ('not_applicable' if deletion_only else 'error' if not complete else
@@ -186,11 +211,13 @@ def verdict(evidence, observation):
             'all_changed_files_found': bool(total and count == total and complete),
             'deleted_files': deleted, 'skipped_deleted_files': deleted,
             'deletion_policy': 'Deleted files have no post-solution contents to hash; excluded from exact-content matching and its denominator.',
+            'empty_files': empty,
+            'empty_file_policy': 'Empty files reveal nothing and match every empty file; excluded from matching and its denominator.',
             'files': files,
             'stats': observation.get('stats', {}), 'errors': observation.get('errors', []),
             'scope': evidence.get('scope'), 'workspace': evidence['workspace'],
             'scan_scope': 'Agent-readable regular files and local Git blobs across the filesystem, excluding /proc, /sys and /dev.',
-            'reason': ('Reference only deletes files; no added or modified file contents to check' if deletion_only else
+            'reason': ('Reference only deletes files or writes empty files; no file contents to check' if deletion_only else
                        'Incomplete scan or no captured added or modified file contents' if not complete else
                        f'{count}/{total} changed files ({100 * fraction:.2f}%) already readable before solving: '
                        + matched_text(files) + '; '
@@ -229,9 +256,10 @@ def plan_nop_scans(tasks, output):
             results[task.name] = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete',
                                   'reason': str(exc)}
             continue
+        evidence = without_empty_files(evidence)
         if evidence['files']:
             requests[task.name] = evidence
-        elif evidence.get('deleted_files'):
+        elif evidence.get('deleted_files') or evidence.get('empty_files'):
             results[task.name] = verdict(evidence, {'status': 'not_applicable', 'files': []})
         else:
             results[task.name] = {'check': CHECK, 'status': 'error', 'scan_status': 'incomplete',

@@ -7,13 +7,13 @@ import tempfile
 from types import SimpleNamespace
 
 import pytest
-from data.calibforge import packaging_runtime
+from data.calibforge import patch as packaging_runtime
 
 
 @pytest.fixture(autouse=True)
 def calibforge_task_fixture():
     """Reviewed records name their task; tests convert the task named 'task'."""
-    from data.calibforge.python_roles import current_task
+    from data.calibforge.patch import current_task
     token = current_task.set('task')
     yield
     current_task.reset(token)
@@ -78,23 +78,22 @@ def test_packaging_adaptation_binds_instruction_source_and_project(tmp_path,monk
     digest=lambda body:hashlib.sha256(body).hexdigest()
     call=next(n for n in ast.walk(ast.parse(source)) if isinstance(n,ast.Call))
     record=dict(source_file='tests/test_outputs.py',task='task',source_sha256=digest(source),evidence_sha256={'environment/setup.py':digest(files['environment/setup.py'])},calls=[digest(ast.dump(call).encode())],build_requirements=['setuptools','wheel'])
-    (tmp_path/'task_packaging_roles.json').write_text(json.dumps([record]))
-    monkeypatch.setattr(packaging_runtime,'__file__',str(tmp_path/'packaging_runtime.py'))
+    monkeypatch.setattr(packaging_runtime, '_records', lambda: [record])
     image=dict(python='3.13.9',original_uvx_path=True)
     adapted,helper,found=packaging_runtime.adapt(files,'tests/test_outputs.py',image)
     assert '_ot_packaging_run' in adapted and 'sys.executable' not in adapted and helper and found==record
     with pytest.raises(ValueError,match='exact original'):
         packaging_runtime.adapt(files,'tests/test_outputs.py',{**image,'python':'3.12.3'})
     changed={**files,'environment/setup.py':b'changed source'}
-    assert packaging_runtime.role(changed,'tests/test_outputs.py',image) is None
+    assert packaging_runtime.packaging_role(changed,'tests/test_outputs.py',image) is None
 
 
 def test_task_setup_prepares_runtime_and_wheel_inputs_with_compact_references():
-    from data.calibforge.verifier_runtime import runtime_setup_updates
+    from data.calibforge.patch import runtime_setup_updates
     from data.utils.verifier_runtime import runtime_spec
     from harbor_patches.verifier_bundle import spec_id,FORMAT,OFFLINE_FORMAT
     primary=runtime_spec(python='3.13.9',requirements=['pytest==8.4.1'],tools=['pytest'])
-    offline=packaging_runtime.offline_spec({'build_requirements':['setuptools>=61.0','wheel']})
+    offline=packaging_runtime.packaging_offline_spec({'build_requirements':['setuptools>=61.0','wheel']})
     catalog={spec_id(spec):dict(format=fmt,id=spec_id(spec),spec=spec,status='ready',archive_sha256=digest*64)
              for spec,fmt,digest in [(primary,FORMAT,'a'),(offline,OFFLINE_FORMAT,'b')]}
     updates=runtime_setup_updates(dict(spec=primary,verifier_offline_spec=offline),catalog)
@@ -124,7 +123,7 @@ def test_packaging_cli_uses_the_created_child_selected_by_path(tmp_path,monkeypa
 
 def test_packaging_example_api_uses_real_local_request_and_private_venv(tmp_path):
     import json,sys
-    from data.calibforge.packaging_runtime import HELPER
+    from data.calibforge.patch import HELPER
     logical=tmp_path/'agent-venv';logical.mkdir()
     private=tmp_path/'clean-venv';(private/'bin').mkdir(parents=True)
     cli=private/'bin/datafetch'
@@ -144,7 +143,7 @@ def test_packaging_example_api_uses_real_local_request_and_private_venv(tmp_path
 
 def test_primary_packaging_retains_install_order_and_uses_trusted_build_installer(tmp_path):
     from types import SimpleNamespace
-    from data.calibforge.packaging_runtime import HELPER
+    from data.calibforge.patch import HELPER
     ns={};exec(HELPER,ns);calls=[]
     ns['_ot_packaging_primary_python']=str(tmp_path/'runtime/bin/python')
     ns['_ot_packaging_primary_commands']=['python','pip','filestats','fs-analyze']
@@ -173,7 +172,7 @@ def test_primary_packaging_retains_install_order_and_uses_trusted_build_installe
 
 
 def test_primary_packaging_lookup_and_python3_use_private_runtime(tmp_path,monkeypatch):
-    from data.calibforge.packaging_runtime import HELPER
+    from data.calibforge.patch import HELPER
     from types import SimpleNamespace
     import subprocess
     ns={};exec(HELPER,ns)

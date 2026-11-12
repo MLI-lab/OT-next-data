@@ -186,8 +186,8 @@ def test_all_pipeline_continues_and_analyzes_both_job_types(source, tmp_path, mo
     monkeypatch.setattr(run, 'run_stage', fake)
     options = args(source, tmp_path)
     options.dry_run = False
-    assert run.run_selected(options, [1, 2, 3, 4, 5, 6, 7, 10, 8, 9, 11]) == 1
-    assert [n for n, _ in calls] == [1, 2, 3, 4, 5, 6, 7, 10, 8, 8, 8, 9, 9, 9, 11]
+    assert run.run_selected(options, [1, 2, 3, 5, 6, 7, 10, 8, 9, 11]) == 1
+    assert [n for n, _ in calls] == [1, 2, 3, 5, 6, 7, 10, 8, 8, 8, 9, 9, 9, 11]
     assert [p.name for n, p in calls if n == 9] == ['job-6', 'job-7', 'job-10']
 
 
@@ -373,7 +373,7 @@ def test_agent_stage_records_run_settings_and_metrics(source, tmp_path, upstream
 
 
 @pytest.mark.parametrize('site,partition', [('helma', 'h200'), ('zih', 'barnard')])
-@pytest.mark.parametrize('stages', [[1], [3, 4, 5], [6, 7]])
+@pytest.mark.parametrize('stages', [[1], [2, 3, 5], [6, 7]])
 def test_slurm_submission_exports_auth_without_recording_it(source, tmp_path, monkeypatch, stages, site, partition):
     from hpc.validation_submit import maybe_submit
     import subprocess

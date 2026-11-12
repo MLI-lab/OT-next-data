@@ -52,12 +52,6 @@ EVIDENCE_FINDINGS = ('verifier execution evidence is missing', 'verifier invocat
 
 
 @lru_cache(maxsize=1)
-def reviewed_tmax_zeros():
-    registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_tmax_nop_zeros.json'
-    return json.loads(registry.read_text()) if registry.exists() else {}
-
-
-@lru_cache(maxsize=1)
 def reviewed_multiswe_zeros():
     registry = Path(__file__).parents[1] / 'rules/dynamic/nop_baseline/reviewed_multiswe_nop_zeros.json'
     return json.loads(registry.read_text()) if registry.exists() else {}
@@ -150,20 +144,13 @@ def manually_reviewed_nop(item):
             'previous_status': item.get('status'), 'previous_findings': item.get('findings'),
             'source': 'validation/rules/dynamic/nop_baseline/reviewed_mimo_nop_zeros.json', **exact})
     review = REVIEWED.get(Path(item.get('task', '')).name)
-    # TMAX fixture rejections were reviewed against exact saved report items.
-    # A later retry or changed finding must not inherit an earlier acceptance.
-    if review is None:
-        review = reviewed_tmax_zeros().get(Path(item.get('task', '')).name)
-        if review and hashlib.sha256(json.dumps(item, sort_keys=True, separators=(',', ':')).encode()).hexdigest() != review['report_item_sha256']:
-            return item
     findings = item.get('findings') or []
     if (not review or item.get('status') == 'passed' or any(r not in (0, 0.0) for r in item.get('rewards') or [])
             or not findings or not all(any(e in f for e in EVIDENCE_FINDINGS) for f in findings)):
         return item
     return reviewed_pass(item, {'previous_status': item.get('status'), 'previous_findings': findings,
                                'reviewed': review['reviewed'], 'output_line': review['output_line'],
-                               'source': ('validation/rules/dynamic/nop_baseline/reviewed_tmax_nop_zeros.json' if review.get('publication_only')
-                                          else 'validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py')})
+                               'source': 'validation/rules/dynamic/nop_baseline/reviewed_nop_zeros.py'})
 
 
 def combine(runs, tasks, out):

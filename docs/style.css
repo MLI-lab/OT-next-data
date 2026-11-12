@@ -11,8 +11,9 @@
   --s2: #97d7eb;  /* 2 environment & verifier (light blue) */
   --s3: #ebcd75;  /* 3 leakage & tampering (yellow) */
   --s4: #9ad7b5;  /* 4 LLM judge (green) */
-  --s5: #ef9f8f;  /* 5 target RL model (not in the figures) */
-  --s6: #f0a6c8;  /* 6 strong teacher (not in the figures) */
+  --s5: #df7969;  /* 5 target RL model (not in the figures) */
+  --s6: #df8ab6;  /* 6 strong teacher (not in the figures) */
+  --s7: #4a9d89;
   --link: #2a78d6;
   --pass: #1f9d55;
   --fail: #d64545;
@@ -187,3 +188,47 @@ body.ex-open { overflow: hidden; }
 #effort { margin-top: 28px; }
 th.metric-col { white-space: nowrap; }
 .hist h2 .hint { font-size: 14px; font-weight: 400; color: var(--text-primary); }
+
+/* what a step does (README text) */
+.stage-docs { max-width: 82ch; margin: 6px 0 16px; padding: 12px 16px; border-left: 3px solid var(--line);
+  background: var(--surface-2); border-radius: 0 8px 8px 0; color: var(--text-primary); }
+.stage-doc + .stage-doc { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.stage-doc h2 { font-size: 14px; margin: 0 0 6px; }
+.stage-doc p { margin: 0 0 8px; line-height: 1.5; }
+.stage-doc dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.stage-doc dt { font-weight: 650; color: var(--text-secondary); }
+.stage-doc dd { margin: 0; }
+.stage-doc code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface); padding: 0 4px; border-radius: 4px; }
+@media (max-width: 600px) { .stage-doc dl { grid-template-columns: 1fr; } .stage-doc dd { margin-bottom: 6px; } }
+
+.flow .loop .loop-arrow { fill: none; stroke-width: 1.6; }
+.flow .loop rect { fill: var(--surface); stroke-width: 1.4; }
+
+/* Recorded pass@4 distributions and resource calibration. */
+.evaluation-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(300px,1fr)); gap: 18px; margin: 16px 0; }
+.eval-card { padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+.eval-card h2 { margin-top: 0; }
+.model-caption { color: var(--text-secondary); font-size: 12px; }
+.flow .model-caption { fill: var(--text-secondary); font-size: 11px; }
+.distribution { display: flex; height: 28px; overflow: hidden; border-radius: 4px; }
+.distribution span { display: block; min-width: 1px; }
+.distribution-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: 12px; }
+.distribution-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; }
+.metric-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; margin: 20px 0; }
+.metric-cards > div { border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.metric-cards b { display: block; font-size: 26px; }
+.metric-cards span { color: var(--text-secondary); }
+.calibration-table { width: 100%; margin: 14px 0; }
+.calibration-table td, .calibration-table th { padding: 9px 10px; text-align: right; }
+.calibration-table td:first-child, .calibration-table th:first-child { text-align: left; }
+.policy-paragraph { max-width: 90ch; line-height: 1.65; }
+.batch-heading { margin-top: 22px; }
+
+.flow .result-divider { stroke: var(--surface); stroke-width: 1.5; fill: none; pointer-events: none; }
+.flow .result-block:hover .band, .flow .result-block:focus .band { opacity: 1; }
+
+.pk-overview{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}.pk-matrix{border-collapse:collapse;width:100%}.pk-matrix th{font-size:12px;padding:7px}.pk-matrix button{width:100%;padding:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--text-primary);cursor:pointer}.pk-matrix .active,.pk-group-buttons .active{background:var(--s3);color:#222}.pk-group-buttons{display:flex;gap:5px;flex-wrap:wrap}.pk-group-buttons button{padding:6px 10px;border:1px solid var(--line);border-radius:5px;cursor:pointer}.pk-overview .venn-fig{margin:0}#pk-traces{border-top:1px solid var(--line);margin:22px 0} @media(max-width:850px){.pk-overview{grid-template-columns:1fr}.pk-matrix th{padding:4px}}
+
+.calibration-view{max-width:680px}.calibration-view h2{margin-top:24px}.calibration-caption{font-size:12px;margin:0 0 18px}.reduction-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:34px}.reduction-cards h3{font-size:13px;font-weight:500;color:var(--text-secondary);margin:0 0 8px}.reduction-value{font-size:30px;font-weight:650;color:var(--s7);letter-spacing:-.5px}.reduction-cards p{font-size:13px;margin:8px 0;color:var(--text-secondary)}.reduction-cards small{display:block;font-size:11px;color:var(--text-muted);margin-top:3px}.calibration-batches{width:100%;max-width:620px;display:block;margin-top:18px}.batch-model{font-size:13px;fill:var(--text-primary)}.batch-count{font-size:12px;fill:var(--text-secondary)}.calibration-policy{border-top:1px solid var(--line);padding-top:14px;margin-top:8px;font-size:12px;color:var(--text-secondary)}.calibration-policy summary{cursor:pointer}.calibration-policy p{line-height:1.65}@media(max-width:520px){.reduction-cards{gap:12px}.reduction-value{font-size:25px}}
+
+.batch-definition{font-size:12px;line-height:1.55;max-width:590px}.batch-legend{display:flex;flex-wrap:wrap;gap:12px 24px;margin:18px 0 4px;font-size:12px;color:var(--text-secondary)}.batch-legend span{display:flex;align-items:center;gap:7px}.batch-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}.batch-scale-note{font-size:11px;margin:0 0 18px}

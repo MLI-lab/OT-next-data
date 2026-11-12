@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 
 from data.scaleswe.runtime import PROBE, entrypoint, plan, prepared_files
-from harbor_patches.verifier_bundle import digest, spec_id, verify, validate_archive
+from harbor_patches.verifier_bundle import digest, spec_id, verify, verify_source_archive, validate_archive
 from hpc.offline_prep.image_python_runtime import command, source_image, stage_source
 from validation.contract import files_digest
 
@@ -66,7 +66,8 @@ def prepare(files, image, cache, *, source_digest, uv='uv'):
             available = json.loads(subprocess.check_output(
                 [uv, 'python', 'list', '--all-versions', '--output-format', 'json'], text=True))
             target = 'cpython-' + measured['python'] + '-linux-' + measured['architecture'] + '-' + measured['libc']
-            if any(item['key'] == target for item in available):
+            if (any(item['key'] == target for item in available)
+                    and not reviewed['spec'].get('image_python', {}).get('packages')):
                 reviewed = plan(files, observation, interpreter='standalone')
         spec = reviewed['spec']
         generated = prepared_files(files, spec, None, observation=observation)
@@ -90,7 +91,9 @@ def prepare(files, image, cache, *, source_digest, uv='uv'):
         record = json.loads((cache / (reference['id'] + '.json')).read_text())
         runtime = scratch / 'runtime'
         runtime.mkdir()
-        with tarfile.open(archive) as packed:
+        # verify() returns the SquashFS runtime image; the smoke test unpacks its
+        # checksum-verified source archive instead.
+        with tarfile.open(verify_source_archive(record, cache)) as packed:
             packed.extractall(runtime, filter='data')
         smoke = subprocess.run(command(pristine, scratch, runtime / 'python/bin/python3', '-I', '-c',
             'import platform, pytest, ssl; assert platform.python_version() == ' + repr(spec['python'])),

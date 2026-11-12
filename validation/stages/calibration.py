@@ -222,56 +222,87 @@ def ceil_gib(mb):
     return max(1, math.ceil(mb * MIB / GIB - 1e-9))
 
 
-def requirements(attempts, final_allocation, upstream, policy):
-    """MiMo's sizing rules over the relevant attempts, never below calibration floors or upstream.
+def clean_batch(attempts, k):
+    """A complete batch with outcomes and no resource failures/starvation flags."""
+    return len(attempts) == k and all(
+        (a.get('calibration') or {}).get('kind') == 'valid'
+        and not any((a.get('calibration') or {}).get(f) for f in ('oom', 'disk_full', 'cpu_starved'))
+        for a in attempts)
 
-    When attempts solved the task (reward 1, any round): the smallest solved attempt sets memory and disk (its
-    peak, plus MiMo's headroom) and the fewest CPUs any solved attempt had sets CPUs, so the task gets the least
-    that is known to suffice; a runaway attempt (e.g. an endless recursive query) never sets them. Otherwise
-    MiMo's rules over all attempts:
-    Memory: ceil(max memory.peak GiB) + 1. An attempt that was OOM-killed measured a truncated peak, so it
-    is left out of the maximum; instead the allocation it failed at plus 1 GiB is a floor.
-    Disk: max(10, ceil(max written GiB) + 2); an attempt that reached its limit has an unknown real peak,
-    so it gives double that limit (MiMo's 40 GiB case).
-    CPU: the calibrated count (2 by default, 4 for confirmed CPU-starved tasks), at least upstream."""
-    upstream = upstream or {}
-    wins = [a for a in attempts if solved(a)]
-    floors = {'cpus': max(int(upstream.get('cpus') or 0), 1), 'memory_mb': int(upstream.get('memory_mb') or 0),
-              'storage_mb': int(upstream.get('storage_mb') or 0)}
-    if wins:
-        peak = lambda a, key: max((e[key] for e in environments(a) if _number(e.get(key))), default=None)
-        memory = [p for a in wins if (p := peak(a, 'memory_peak_mb')) is not None]
-        disk = [p for a in wins if (p := peak(a, 'disk_peak_mb')) is not None]
-        cpus = [(a.get('allocation') or final_allocation)['cpus'] for a in wins]
-        return {
-            'cpus': max(min(cpus), floors['cpus']),
-            'memory_mb': max((ceil_gib(min(memory)) + 1) * 1024 if memory else final_allocation['memory_mb'], floors['memory_mb']),
-            'storage_mb': max(max(10, ceil_gib(min(disk)) + 2) * 1024 if disk else final_allocation['storage_mb'], floors['storage_mb']),
-            'measured_attempts': len(wins), 'sized_from': 'smallest solved attempt',
-            'memory_peak_mb': min(memory, default=None), 'disk_peak_mb': min(disk, default=None),
-        }
-    sized = attempts
-    memory_peaks, disk_peaks, memory_floor, disk_floor = [], [], 0, 0
-    for attempt in sized:
-        calibration = attempt.get('calibration') or {}
-        allocation = attempt.get('allocation') or final_allocation
-        envs = environments(attempt)
-        if calibration.get('oom'):
-            memory_floor = max(memory_floor, allocation['memory_mb'] + 1024)
-        else:
-            memory_peaks += [e['memory_peak_mb'] for e in envs if _number(e.get('memory_peak_mb'))]
-        if calibration.get('disk_full'):
-            disk_floor = max(disk_floor, int(allocation['storage_mb'] * policy.factor))
-        else:
-            disk_peaks += [e['disk_peak_mb'] for e in envs if _number(e.get('disk_peak_mb'))]
-    memory = (ceil_gib(max(memory_peaks)) + 1) * 1024 if memory_peaks else final_allocation['memory_mb']
-    disk = max(10, ceil_gib(max(disk_peaks)) + 2) * 1024 if disk_peaks else final_allocation['storage_mb']
+
+def cpu_measurements(attempts):
+    """Agent CPU seconds / elapsed step seconds is average cores, not a peak."""
+    import statistics
+    values = []
+    for a in attempts:
+        env = (a.get('resources') or {}).get('agent') or {}
+        cpu, wall = env.get('cpu_seconds'), env.get('step_seconds')
+        if _number(cpu) and cpu >= 0 and _number(wall) and wall > 0:
+            values.append(cpu / wall)
+    median = statistics.median(values) if values else None
+    return {'traces': len(values), 'average_cores_median': median,
+            'average_cores_min': min(values, default=None),
+            'average_cores_max': max(values, default=None),
+            'fraction_average_at_most_one': sum(v <= 1 for v in values) / len(values) if values else None,
+            'ceil_median_candidate_cpus': max(1, math.ceil(median)) if median is not None else None,
+            'ceil_max_average_cpus': max(1, math.ceil(max(values))) if values else None,
+            'ceil_min_average_cpus': max(1, math.ceil(min(values))) if values else None,
+            'peak_cores': None, 'peak_available': False,
+            'note': 'Average includes waiting time. Max of trace averages is not a sampled peak; integer candidate is not validated.'}
+
+
+def requirements(attempts, final_allocation, upstream, policy, *, rounds=None, k=4):
+    """Use successful measurements, else the first complete resource-clean batch.
+
+    No original-resource floors. Memory = ceil(peak GiB) + 1; disk =
+    ceil(peak GiB) + 2, with no 10 GiB floor. Successes use per-resource
+    minima; an unsolved clean batch uses maxima. Resource-failed traces
+    never provide settled estimates. CPU = max(1, ceil(reducer(cpu_seconds /
+    step_seconds))), using min for successes and max for an unsolved clean batch.
+    """
+    all_wins = [a for a in attempts if solved(a)]
+    wins = [a for a in all_wins if (a.get('calibration') or {}).get('kind') == 'valid'
+            and not any((a.get('calibration') or {}).get(f) for f in ('oom', 'disk_full'))]
+    selected_round = None
+    if all_wins:
+        sized, reducer, basis = wins, min, 'successful traces'
+        reason = 'No successful trace without a resource failure' if not wins else None
+    else:
+        batches = rounds if rounds is not None else [{'attempts': attempts}]
+        selected = next(((i, r['attempts']) for i, r in enumerate(batches) if clean_batch(r['attempts'], k)), None)
+        selected_round, sized = selected if selected else (None, [])
+        reducer, basis = max, 'first resource-clean batch (none solved)'
+        reason = 'No complete resource-clean batch' if not sized else None
+    def peak(a, key):
+        return max((e[key] for e in environments(a) if _number(e.get(key))), default=None)
+    memory = [p for a in sized if (p := peak(a, 'memory_peak_mb')) is not None]
+    disk = [p for a in sized if (p := peak(a, 'disk_peak_mb')) is not None]
+    cpus = [(a.get('allocation') or final_allocation)['cpus'] for a in sized]
+    cpu = cpu_measurements(sized)
+    missing = [key for key, values in [('memory_mb', memory), ('storage_mb', disk)]
+               if len(values) != len(sized) or not values]
+    if not sized or cpu['traces'] != len(sized):
+        missing.append('cpus')
+    if missing and reason is None:
+        reason = 'Incomplete resource measurements: ' + ', '.join(missing)
+    resolved = reason is None
     return {
-        'cpus': max(final_allocation['cpus'], int(upstream.get('cpus') or 0), 1),
-        'memory_mb': max(memory, memory_floor, int(upstream.get('memory_mb') or 0)),
-        'storage_mb': max(disk, disk_floor, int(upstream.get('storage_mb') or 0)),
-        'measured_attempts': len(sized), 'sized_from': 'all attempts (none solved)',
-        'memory_peak_mb': max(memory_peaks, default=None), 'disk_peak_mb': max(disk_peaks, default=None),
+        'cpus': cpu['ceil_min_average_cpus' if all_wins else 'ceil_max_average_cpus'] if resolved else None,
+        'memory_mb': (ceil_gib(reducer(memory)) + 1) * 1024 if resolved else None,
+        'storage_mb': (max(0, math.ceil(reducer(disk) / 1024 - 1e-9)) + 2) * 1024 if resolved else None,
+        'status': 'resolved' if resolved else 'unresolved', 'reason': reason,
+        'measured_attempts': len(sized), 'selected_batch_index': selected_round,
+        'sized_from': 'smallest solved attempt' if all_wins else 'first resource-clean batch',
+        'basis': basis, 'resource_censored': not resolved and any(
+            (a.get('calibration') or {}).get('oom') or (a.get('calibration') or {}).get('disk_full') for a in attempts),
+        'resource_failures_observed': any((a.get('calibration') or {}).get('kind') == 'resource' for a in attempts),
+        'missing_measurements': missing,
+        'memory_peak_mb': reducer(memory) if memory else None,
+        'disk_peak_mb': reducer(disk) if disk else None,
+        'cpu_measurements': cpu,
+        'tested_cpu_allocations': sorted(set(cpus)),
+        'cpu_sizing_rule': 'max(1, ceil(' + ('min' if all_wins else 'max') +
+                           '(cpu_seconds / step_seconds across selected traces)))',
     }
 
 

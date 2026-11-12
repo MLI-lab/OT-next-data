@@ -12,7 +12,7 @@ has passed validation or finished its runtime migration. Use each run's
 | Datasource | Documentation | Patcher |
 | --- | --- | --- |
 | BugsInPy | [README](tasktrove_bugsinpy/README.md) | [patch.py](tasktrove_bugsinpy/patch.py) |
-| CalibForge | [README](calibforge/README.md) | [patch.py](calibforge/patch.py) |
+| CalibForge | [README](../docs/datasources/calibforge/README.md) | [patch.py](calibforge/patch.py) |
 | CrossCodeEval | [README](crosscodeeval/README.md) | [patch.py](crosscodeeval/patch.py) |
 | Endless Terminals | [README](endless_terminals/README.md) | [patch.py](endless_terminals/patch.py), [Apptainer adaptation](endless/patch.py) |
 | FACET | [README](facet/README.md) | [patch.py](facet/patch.py) |
@@ -27,7 +27,6 @@ has passed validation or finished its runtime migration. Use each run's
 | SWE-Lego | [README](swelego/README.md) | [patch.py](swelego/patch.py) |
 | TermiGen | [README](termigen/README.md) | [patch.py](termigen/patch.py) |
 | Terminal-Lego | [README](terminallego/README.md) | [patch.py](terminallego/patch.py) |
-| TMAX | [README](tmax/README.md) | [patch.py](tmax/patch.py) |
 
 Each patcher has its own arguments; run `python data/<source>/patch.py --help`.
 [Conversion pilots](conversion-pilots/README.md) and the

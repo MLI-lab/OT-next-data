@@ -52,13 +52,51 @@ def without_runtime_install(script, environ=None):
     return script if proxychains_configured(environ) else script.replace(LEGACY_PIP_INSTALL, '')
 
 
-def ensure_tmux(cmd, run):
-    """Check for tmux; install it in the running container when the image does not provide it."""
+STATIC_TARGET = '/usr/local/bin/tmux'
+STATIC_COPY = (f'mkdir -p /usr/local/bin && cat > {STATIC_TARGET}.ot-partial && '
+               f'chmod 755 {STATIC_TARGET}.ot-partial && mv -f {STATIC_TARGET}.ot-partial {STATIC_TARGET}')
+
+
+def static_tmux(environ=None):
+    """A statically linked tmux on the host for offline clusters, or None.
+
+    OT_STATIC_TMUX names it explicitly; otherwise $OT_WORKSPACE/tools/tmux-static/tmux is used if present.
+    """
+    import os
+    from pathlib import Path
+    environ = os.environ if environ is None else environ
+    if environ.get('OT_STATIC_TMUX'):
+        path = Path(environ['OT_STATIC_TMUX'])
+        if not path.is_file():
+            raise RuntimeError(f'OT_STATIC_TMUX={path} is not a file')
+        return path
+    workspace = environ.get('OT_WORKSPACE')
+    path = Path(workspace) / 'tools' / 'tmux-static' / 'tmux' if workspace else None
+    return path if path is not None and path.is_file() else None
+
+
+def ensure_tmux(cmd, run, environ=None):
+    """Check for tmux; install it in the running container when the image does not provide it.
+
+    Offline, the package manager cannot reach its mirrors. If a static tmux is configured,
+    only that one binary is copied to /usr/local/bin/tmux (where Harbor links tmux anyway):
+    the container gains tmux and nothing else, as with the online install.
+    """
     check = run(cmd + ['tmux -V'], capture_output=True, text=True, timeout=30)
     if not check.returncode:
         return
     install = run(cmd + [INSTALL], capture_output=True, text=True, timeout=600)
     check = run(cmd + ['tmux -V'], capture_output=True, text=True, timeout=30)
+    static = None if not check.returncode else static_tmux(environ)
+    if static is not None:
+        copy = run(cmd + [STATIC_COPY], input=static.read_bytes(), capture_output=True, timeout=120)
+        check = run(cmd + [STATIC_TARGET + ' -V'], capture_output=True, text=True, timeout=30)
+        if not check.returncode:
+            print(f'tmux: image lacks it and the package manager failed; copied static {static} '
+                  f'to {STATIC_TARGET}: {(check.stdout or "").strip()}', flush=True)
+            return
+        install.stderr = (install.stderr or '') + ' static tmux copy failed: ' + (
+            copy.stderr.decode(errors='replace') if isinstance(copy.stderr, bytes) else (copy.stderr or ''))
     if check.returncode:
         error = ((install.stderr or '') + (install.stdout or '') + (check.stderr or '') + (check.stdout or ''))
         raise RuntimeError('Task image lacks tmux and installing it at task start failed. '

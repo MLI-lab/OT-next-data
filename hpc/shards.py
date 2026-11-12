@@ -108,8 +108,9 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
         payload = dict(contract['arguments'])
         payload.update(contract=str(Path(contract_path).resolve()), prepare_contract=None, submit='never',
                        out=str(folder), shard=f'{index}/{count}', partition=partition, gpus=gpus, cpus=cpus,
-                       time=time, memory=memory, stages=','.join(map(str, contract['stages'])))
-        save(folder / 'request.json', {'args': payload, 'stages': contract['stages']})
+                       time=time, memory=memory, stages=','.join(str(n) for n in contract['stages'] if n != 4))
+        # Stage 4 runs once for the whole run, after the array (validation/leak_repair/stage4.py).
+        save(folder / 'request.json', {'args': payload, 'stages': [n for n in contract['stages'] if n != 4]})
     # Keep one packed snapshot on shared storage instead of ~1,000 files; every
     # shard (and any retry) unpacks it on node-local disk at job start.
     from hpc.validation_submit import archive_code_snapshot
@@ -147,6 +148,12 @@ def plan(contract_path, count, out, *, time, cpus, memory, partition, array_conc
     if submit:
         job = subprocess.check_output(command, text=True).strip()
         (out / 'array-job-id.txt').write_text(job + '\n')
+        if 4 in contract['stages']:
+            from validation.leak_repair.stage4 import submit as submit_stage4
+            from validation.stages.runner import parser as runner_parser
+            settings = runner_parser().parse_args([])
+            vars(settings).update({k: v for k, v in arguments.items() if k.startswith('leak_repair_') or k == 'concurrency'})
+            submit_stage4(settings, contract_path, out, shards_root=out, after=job.split(';')[0])
         return job
     return None
 
@@ -185,7 +192,7 @@ def merge(contract_path, root, out):
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     written, jobs = {}, []
-    for stage in contract['stages']:
+    for stage in [n for n in contract['stages'] if n != 4]:
         reports = shard_reports(root, stage)
         if not reports:
             raise ValueError(f'no shard reports for stage {stage} under {root}')
@@ -227,6 +234,9 @@ def merge(contract_path, root, out):
         merged['task_content_sha256'] = {
             name: digest for _, report in reports
             for name, digest in report.get('task_content_sha256', {}).items()}
+        if any(report.get('leak_repairs') for _, report in reports):
+            merged['leak_repairs'] = {name: record for _, report in reports
+                                      for name, record in (report.get('leak_repairs') or {}).items()}
         if any('automatic_repairs' in report for _, report in reports):
             merged['automatic_repairs'] = {
                 name: evidence for _, report in reports
@@ -256,6 +266,9 @@ def merge(contract_path, root, out):
             export_report(out / 'results.parquet', merged,
                           {t['task_id']: t['sha256'] for t in task_records(contract)},
                           settings=contract.get('arguments', {}))
+            # Leak repairs applied right after this stage: the row moves to the repaired version.
+            from validation.run import apply_repairs
+            apply_repairs(out / 'results.parquet', merged.get('leak_repairs'))
         written[stage] = str(target)
     if (written and not contract.get('arguments', {}).get('git_checks_only')
             and not any(json.loads(Path(p).read_text()).get('dry_run') for p in written.values())):
@@ -263,8 +276,11 @@ def merge(contract_path, root, out):
         from validation.automatic_repairs import files_from, plan
         from validation.run import apply_repairs
         merged_reports = {int(stage): json.loads(Path(p).read_text()) for stage, p in written.items()}
-        apply_repairs(out / 'results.parquet', plan(
-            merged_reports, lambda tasks: files_from(contract['arguments']['tasks'], tasks)))
+        # Tasks as the run left them: the shards' recorded leak repairs replayed on the originals.
+        from validation.leak_repair.tool import repaired_loader
+        load = repaired_loader(lambda tasks: files_from(contract['arguments']['tasks'], tasks), merged_reports,
+                               (contract.get('dataset') or {}).get('source'))
+        apply_repairs(out / 'results.parquet', plan(merged_reports, load))
     executions = [json.loads(p.read_text()) for p in sorted(Path(root).glob('shards/*/execution.json'))]
     first = executions[0] if executions else {}
     (out.parent / 'execution.json').write_text(json.dumps({

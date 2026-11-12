@@ -853,17 +853,31 @@ def inventory(task, context=None, instruction_view=None):
                 records.extend(python_paths(text, label, context=context))
             else:
                 # Extract Python heredocs without executing task-controlled code.
+                from validation.rules.dynamic.verifier_shell_sources import python_heredoc_command, unused_function_lines
+                # Bash ignores NUL bytes while reading shell source, including heredocs.
+                # Do not apply this normalization to standalone Python files.
+                if re.match(r'#![^\n]*\bbash\b', text):
+                    text = text.replace('\x00', '')
                 lines = text.splitlines()
+                unused = unused_function_lines(lines)
+                if unused:
+                    coverage.append(f'unreferenced shell function body excluded: {label}')
                 fallbacks = shell_fallbacks(lines)
                 cursor = 0
                 while cursor < len(lines):
+                    if cursor in unused:
+                        cursor += 1
+                        continue
                     line = lines[cursor]
                     match = re.search(r'<<-?\s*[\x27\"]?(\w+)', line)
-                    if match and re.search(r'\bpython[\d.]*\b', line):
+                    if match and python_heredoc_command(line):
                         end = cursor + 1
                         while end < len(lines) and lines[end].strip() != match[1]:
                             end += 1
-                        records.extend(python_paths('\n'.join(lines[cursor + 1:end]), label, cursor + 1, context=context))
+                        body = lines[cursor + 1:end]
+                        if '<<-' in line:
+                            body = [part.lstrip('\t') for part in body]
+                        records.extend(python_paths('\n'.join(body), label, cursor + 1, context=context))
                         cursor = end + 1
                         continue
                     for path, role in shell_paths(line, context):
