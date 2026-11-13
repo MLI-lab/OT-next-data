@@ -196,8 +196,8 @@ def render_compact(rows, metadata, dataset):
                    and metadata.get('excluded_build_failures') == len(rows) - payloads else ''),
                 '## Rule-based checks\n\n'
                 f'All **{len(rows):,} tasks** are checked for setup problems, verifier behaviour and leakage in stages 0 to 3. '
-                'Only tasks with passing checks or warnings qualify for subsequent stages. '
-                'Tasks with failed or incomplete checks are excluded, though earlier judge or pass@4 results may remain.\n\n'
+                'Only tasks that pass all required checks or receive only warnings qualify for subsequent stages. '
+                'Tasks that fail a check or have incomplete checks are not selected for subsequent stages.\n\n'
                 + table(['Rule-check outcome', 'Tasks'], [
                     ['All applicable rules pass, no warnings', f'{len(kept) - warnings:,}'],
                     ['Passes with warnings, no failures or incomplete checks', f'{warnings:,}'],
