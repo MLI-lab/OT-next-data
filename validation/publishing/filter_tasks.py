@@ -1,6 +1,6 @@
 """Filter a task/results Parquet pair; usable standalone with only pyarrow installed.
 
-Example: python filter_tasks.py --judge qwen --experiment-2 --out experiment2/qwen
+Example: python filter_tasks.py --judge qwen --experiment-1 --out experiment1/qwen
 No pass@k filter is applied. Warnings stay; missing/incomplete checks do not pass.
 """
 import argparse
@@ -146,7 +146,7 @@ def export(tasks, results, out, judge=None, allow_fail=(), experiment2=False,
     import pyarrow.parquet as pq
     tasks, results, out = Path(tasks), Path(results), Path(out)
     if experiment2 and (not judge or allow_fail):
-        raise ValueError('--experiment-2 requires --judge and cannot use --allow-fail')
+        raise ValueError('--experiment-1 requires --judge and cannot use --allow-fail')
     if allow_fail and not judge:
         raise ValueError('--allow-fail requires --judge')
     table = pq.read_table(results)
@@ -230,7 +230,8 @@ def main():
                         help='Allow this judge criterion to fail; all others must pass (repeatable)')
     parser.add_argument('--criteria', nargs='+', default=JUDGE_CRITERIA,
                         help='Judge criteria to enforce; default = all eight adjusted-rubric criteria')
-    parser.add_argument('--experiment-2', action='store_true', help='Export all three Experiment 2.1 groups')
+    parser.add_argument('--experiment-1', '--experiment-2', dest='experiment_2', action='store_true',
+                        help='Export all three Experiment 1 groups')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     summary = export(args.tasks, args.results, args.out, args.judge, args.allow_fail, args.experiment_2, args.criteria)

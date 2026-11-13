@@ -271,11 +271,11 @@ def render_compact(rows, metadata, dataset):
             sizes = [len(select(rows, alias, allowed)[0]) for allowed in EXPERIMENT.values()]
             label = 'Qwen' if alias == 'qwen' else 'GLM'
             commands.append(f'# {label}: clean {sizes[0]:,}, clean + incomplete-only {sizes[1]:,}, clean + shortcuts-only {sizes[2]:,}\n'
-                            f'python filter_tasks.py --judge {alias} --experiment-2 --out experiment2/{alias}')
-        sections.append('## Proposed RL experiment\n\n'
+                            f'python filter_tasks.py --judge {alias} --experiment-1 --out experiment1/{alias}')
+        sections.append('## Experiment 1: rubric filtering and RL performance\n\n'
                         'River’s `VERIFIER-TOO-WEAK` combined incomplete solutions, where the agent still does part of the work, '
                         'with shortcuts that bypass it. We split these into `VERIFIER-ACCEPTS-INCOMPLETE` and `VERIFIER-ACCEPTS-SHORTCUTS`.\n\n'
-                        '**Hypothesis:** adding tasks that fail only `VERIFIER-ACCEPTS-INCOMPLETE` improves RL performance compared with clean-only training.\n\n'
+                        '**Hypothesis:** rubric criteria may have different effects on RL performance, so filtering out every task with a failed criterion may not be best. In particular, adding incomplete-only tasks may improve performance compared with clean-only training.\n\n'
                         '**Setup:** generate three datasets for RL, clean, clean + incomplete-only, and clean + shortcuts-only.\n\n'
                         '```bash\n' + '\n\n'.join(commands) + '\n```')
     if metadata.get('resource_note'):
