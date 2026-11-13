@@ -144,7 +144,84 @@ def resource_use(rows):
     return result
 
 
+def render_compact(rows, metadata, dataset):
+    """Consumer card generated from the same check cells as the detailed views."""
+    from validation.publishing.filter_tasks import (
+        REQUIRED_CHECKS, JUDGES, EXPERIMENT, select, status,
+    )
+    rows = latest(rows, dataset)
+    rules = metadata.get('required_rules', list(REQUIRED_CHECKS))
+    kept, failed, pending = baseline(rows, rules)
+    title = metadata.get('title', dataset)
+    sections = [f'# {title}',
+                table(['Tasks in payload', 'Result records', 'Validation passed¹', 'Failed', 'Incomplete'],
+                      [[metadata.get('payload_tasks', UNKNOWN), len(rows), len(kept), len(failed), len(pending)]]),
+                '¹ Includes warnings and not-applicable checks. The task file is unfiltered; use the filter below. '
+                'AI detection is intentionally excluded by user policy.']
+    eval_rows = []
+    for key, label in [('passk_target', 'Qwen3.5-35B-A3B'), ('passk_teacher', 'GLM-5.3-Flash')]:
+        if any(key in r for r in rows):
+            counts = Counter(status(r.get(key)) for r in rows)
+            eval_rows.append([label, counts['pass'], counts['fail'],
+                              len(rows) - counts['pass'] - counts['fail']])
+    if eval_rows:
+        sections.append('## Recorded pass@4 results\n\n' + table(
+            ['Model', 'At least one success', 'Complete unsolved', 'Incomplete / not run'], eval_rows))
+    sections.append('<details>\n<summary>Validation results by check</summary>\n\n'
+                    + rule_table(rows, rules) + '\n\n</details>')
+    sections.append('## Files\n\n'
+                    '`tasks.parquet` contains task archives; `results.parquet` contains checks, judge verdicts and evaluations. '
+                    '`cached_images/` contains environment images and their index. `runtime-manifest.json` maps tasks '
+                    'to the shared `runtimes/` files. `filter_tasks.py` creates selected task/results pairs.')
+    if metadata.get('asset_note'):
+        sections.append(metadata['asset_note'])
+    sections.append('## Filtering\n\n'
+                    'Install `pyarrow` and put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
+                    'By default, the script requires all recorded default-training validation checks through leakage '
+                    'to pass, warn or be not applicable. Failed, missing and incomplete checks are excluded. '
+                    'Task IDs and payload hashes must match. No pass@k filter is applied.\n\n'
+                    '```bash\n'
+                    '# Deterministic validation and leakage checks only\n'
+                    'python filter_tasks.py --out validated\n\n'
+                    '# Also require every adjusted-rubric criterion to pass for one judge\n'
+                    'python filter_tasks.py --judge qwen --out clean-qwen\n\n'
+                    '# Allow one named criterion to fail; retain all other judge requirements\n'
+                    'python filter_tasks.py --judge glm \\\n'
+                    '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n'
+                    '```\n\n'
+                    '`--criteria` optionally selects which judge criteria to enforce; the default is all eight. '
+                    'Judge models are evaluated separately. Missing verdicts are excluded; if repeated reviews disagree, any fail counts as a fail.')
+    if metadata.get('experiment2'):
+        cohorts = []
+        for alias, model in JUDGES.items():
+            sizes = [len(select(rows, alias, allowed)[0]) for allowed in EXPERIMENT.values()]
+            cohorts.append(['Qwen' if alias == 'qwen' else 'GLM', *[f'{n:,}' for n in sizes]])
+        sections.append('## Proposed RL experiment\n\n'
+                        '**Experiment 2.1:** train separate RL runs on three datasets for each judge: '
+                        '**clean**, **clean + VERIFIER-ACCEPTS-INCOMPLETE-only**, and '
+                        '**clean + VERIFIER-ACCEPTS-SHORTCUTS-only**. Clean tasks pass every selected judge criterion. '
+                        'An “only” addition fails that criterion and passes the other seven; tasks failing both are excluded. '
+                        'Each augmented dataset contains the same clean core. Judges are Qwen3.8-27B and GLM-5.3-Flash.\n\n'
+                        + table(['Judge', 'Clean', 'Clean + incomplete-only', 'Clean + shortcuts-only'], cohorts)
+                        + '\n\n**Hypothesis:** relative to clean-only training, adding incomplete-only tasks improves held-out '
+                        'performance, while adding shortcuts-only tasks reduces it. This is a proposed hypothesis, not a measured result. '
+                        'Keep the model, evaluation set, seeds and training budget matched across conditions. Because the added groups '
+                        'differ in size, use a size-matched comparison as a control for data quantity.\n\n'
+                        '```bash\n'
+                        'python filter_tasks.py --judge qwen --experiment-2 --out experiment2/qwen\n'
+                        'python filter_tasks.py --judge glm  --experiment-2 --out experiment2/glm\n'
+                        '```\n\n'
+                        'Each command writes `clean/`, `clean-plus-incomplete/` and `clean-plus-shortcuts/`, each with '
+                        '`tasks.parquet` and `results.parquet`, plus a selection record. Counts use current, version-matched results; '
+                        'repaired tasks without fresh judge verdicts are excluded.')
+    if metadata.get('resource_note'):
+        sections.append('## Task resources\n\n' + metadata['resource_note'])
+    return '\n\n'.join(sections) + '\n', kept
+
+
 def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, student_key=None):
+    if metadata.get('compact'):
+        return render_compact(rows, metadata, dataset)
     if view not in ('v1', 'v2', 'v3'):
         raise ValueError('Unknown release view')
     rows = latest(rows, dataset)
@@ -261,8 +338,12 @@ def main():
     parser.add_argument('--evaluation-key')
     parser.add_argument('--student-key')
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--compact', action='store_true', help='Generate a compact consumer card with filtering commands')
     args = parser.parse_args()
-    write(args.results, json.loads(args.run.read_text()), args.out, args.view, args.dataset,
+    metadata = json.loads(args.run.read_text())
+    if args.compact:
+        metadata['compact'] = True
+    write(args.results, metadata, args.out, args.view, args.dataset,
           json.loads(args.annotation.read_text()) if args.annotation else None,
           args.evaluation_key, args.student_key)
 
