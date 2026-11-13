@@ -16,6 +16,24 @@ from validation.outcomes import TASK_LIMITS as TASK_LIMIT
 from validation.stages import harbor as runtime
 
 
+def check_verifier_entrypoint(source, item):
+    """Reject a Dockerfile copied into the shell entrypoint after environment setup."""
+    if item.get('build_status', item['status']) != 'passed':
+        return
+    entrypoint = source / 'tests' / 'test.sh'
+    dockerfile = source / 'environment' / 'Dockerfile'
+    if not entrypoint.is_file() or not dockerfile.is_file():
+        return
+    script = entrypoint.read_bytes().strip()
+    if not script.startswith(b'FROM ') or script != dockerfile.read_bytes().strip():
+        return
+    item.update(status='failed', build_status='failed', environment_setup_status='passed',
+                verifier_entrypoint_status='failed',
+                reason='Malformed verifier entrypoint: tests/test.sh contains the environment Dockerfile '
+                       'instead of a shell test launcher. Environment setup succeeded, '
+                       'but the task verifier is invalid.')
+
+
 def configure_preparation_review(args):
     review = getattr(args, 'review_setup', None)
     if review is not None:
@@ -244,6 +262,7 @@ async def run_builds(sources, out, args, outcomes):
                     item['reason'] = history[0].get('reason') or '; '.join(reasons)
             item['build_status'] = ('passed' if any(r.get('build_status', r['status']) == 'passed'
                                                      for r in history) else history[-1].get('build_status', history[-1]['status']))
+            check_verifier_entrypoint(sources[len(items)], item)
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()
             items.append(item)
@@ -284,6 +303,10 @@ async def run_builds(sources, out, args, outcomes):
                                     'infrastructure_failure': 'infrastructure failure on the first attempt and all 3 retries; '
                                                               'no verdict on the task'}[stability])
             # Preserve the authoritative aggregate in the streaming journal too.
+            outcomes.write(json.dumps(item) + '\n')
+            outcomes.flush()
+        check_verifier_entrypoint(sources[len(items)], item)
+        if item.get('verifier_entrypoint_status') == 'failed':
             outcomes.write(json.dumps(item) + '\n')
             outcomes.flush()
         items.append(item)

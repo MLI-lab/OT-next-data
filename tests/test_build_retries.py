@@ -255,3 +255,32 @@ def test_exceeding_declared_limits_is_a_failed_build_with_a_verdict(tmp_path, mo
     assert error.split(': ', 1)[-1][:20] in item['reason'] or 'limit exceeded' in item['reason']
     row, = run.observations({1: {'items': [dict(item, task=str(tmp_path / 'heavy'))]}}, {'heavy': 'h'})
     assert row['build'] == 'fail'
+
+
+@pytest.mark.parametrize('preparation_runs', [1, 2])
+@pytest.mark.parametrize('malformed', [True, False])
+def test_dockerfile_verifier_is_setup_failure(tmp_path, monkeypatch, preparation_runs, malformed):
+    from validation.outcomes import normalize
+    source = tmp_path / 'task'
+    (source / 'tests').mkdir(parents=True)
+    (source / 'environment').mkdir()
+    dockerfile = 'FROM ubuntu:24.04\nRUN apt-get update\n'
+    (source / 'environment/Dockerfile').write_text(dockerfile)
+    (source / 'tests/test.sh').write_text(dockerfile.rstrip() if malformed else
+                                         '#!/bin/sh\npython3 -m pytest /tests/test_outputs.py\n')
+    calls = []
+    async def build(task, out, args):
+        calls.append(task)
+        return {'status': 'passed', 'environments': [
+            {'environment': 'agent', 'status': 'passed', 'timings_seconds': {'start': 1}}]}
+    monkeypatch.setattr(build_retries.runtime, 'check_runtime_task', lambda *a: None)
+    monkeypatch.setattr(build_retries.runtime, 'build_task', build)
+    args = SimpleNamespace(concurrency=1, backend='apptainer', preparation_runs=preparation_runs)
+    journal = StringIO()
+    item = asyncio.run(build_retries.run_builds([source], tmp_path / 'out', args, journal))[0]
+    assert len(calls) == preparation_runs
+    assert item['build_status'] == ('failed' if malformed else 'passed')
+    if malformed:
+        assert item['environment_setup_status'] == 'passed'
+        assert normalize('build', 'fail', item)[0] == 'fail'
+        assert 'Malformed verifier entrypoint' in journal.getvalue()
