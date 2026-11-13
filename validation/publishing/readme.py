@@ -146,12 +146,14 @@ def resource_use(rows):
 
 def complete_batch_distribution(rows, key, k=4):
     """Use one selected complete calibration batch per task, never pool retries."""
+    from validation.publishing.filter_tasks import baseline_issues
     counts = Counter()
     for row in rows:
         value = row.get(key) or {}
         state = value.get('status') if isinstance(value, dict) else value
         if state in (None, 'not_run', 'not_requested', 'not_applicable'):
             counts['not_run'] += 1
+            counts['excluded' if baseline_issues(row) else 'awaiting'] += 1
             continue
         try:
             record = document(value.get('details')) if isinstance(value, dict) else {}
@@ -235,7 +237,8 @@ def render_compact(rows, metadata, dataset):
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
                                    ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
-                                   ['Not run / awaiting rerun', *[f'{c["not_run"]:,}' for c in distributions]]]))
+                                   ['Not run, excluded by rule checks', *[f'{c["excluded"]:,}' for c in distributions]],
+                                   ['Awaiting evaluation or rerun', *[f'{c["awaiting"]:,}' for c in distributions]]]))
         for (_, label), counts in zip(models, distributions):
             if counts['success_elsewhere']:
                 sections.append(f"{counts['success_elsewhere']:,} {label} tasks succeeded in another recorded batch "

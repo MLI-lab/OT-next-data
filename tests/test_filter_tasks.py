@@ -114,7 +114,16 @@ def test_attempt_distribution_uses_selected_batch_not_earlier_successes():
         attempt('pass', 0, 4), attempt('pass', 2, 4), attempt('pass', 1, 3),
         {'passk_target': {'status': 'not_requested', 'details': 'Changed task needs rerun'}}
     ], 'passk_target')
-    assert counts == {0: 1, 2: 1, 'incomplete': 1, 'not_run': 1, 'success_elsewhere': 1}
+    assert counts == {0: 1, 2: 1, 'incomplete': 1, 'not_run': 1, 'excluded': 1, 'success_elsewhere': 1}
+
+
+def test_not_run_distribution_separates_excluded_tasks_from_eligible_retries():
+    eligible, excluded = row('eligible'), row('excluded')
+    excluded['build']['status'] = 'fail'
+    for task in (eligible, excluded):
+        task['passk_target'] = {'status': 'not_run'}
+    counts = complete_batch_distribution([eligible, excluded], 'passk_target')
+    assert counts == {'not_run': 2, 'excluded': 1, 'awaiting': 1}
 
 
 def test_rule_summary_separates_warnings_and_judge_only_groups():
