@@ -235,9 +235,10 @@ def render_compact(rows, metadata, dataset):
         sections.append('## Pass@4 results\n\n'
                         + table(['Successful attempts', *[label for _, label in models]],
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
-                                + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
-                                   ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
-                                   ['Awaiting evaluation or rerun', *[f'{c["awaiting"]:,}' for c in distributions]]]))
+                                + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]]]
+                                + ([['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]]]
+                                   if any(c['incomplete'] for c in distributions) else [])
+                                + [['Awaiting evaluation or rerun', *[f'{c["awaiting"]:,}' for c in distributions]]]))
         for (_, label), counts in zip(models, distributions):
             if counts['success_elsewhere']:
                 sections.append(f"{counts['success_elsewhere']:,} {label} tasks succeeded in another recorded batch "
