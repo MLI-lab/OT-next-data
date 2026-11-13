@@ -78,11 +78,11 @@ def rule_statistics(rows, required_rules):
 
 def rule_table(rows, required_rules):
     fields = ['passed', 'failed', 'warning', 'automatically_repaired', 'unresolved',
-              'not_applicable', 'repair_not_recorded']
+              'not_applicable']
     def share(count, total):
         return f'{count} ({count / total:.1%})' if total else '0 (0.0%)'
     return table(['Rule', 'Total tasks', 'Passed', 'Failed', 'Warning', 'Automatically repaired',
-                  'Unresolved', 'Not applicable', 'Repair not recorded'],
+                  'Unresolved', 'Not applicable'],
                  [[stat['rule'], stat['total'], *[share(stat[field], stat['total']) for field in fields]]
                   for stat in rule_statistics(rows, required_rules)])
 
@@ -230,26 +230,16 @@ def render_compact(rows, metadata, dataset):
     if models:
         distributions = [complete_batch_distribution(rows, key) for key, _ in models]
         sections.append('## Pass@4 results\n\n'
-                        'For each model, we count how many of four attempts succeed on a task. '
-                        'When resource calibration produces several batches, we use the selected complete batch rather than combining retries. '
-                        'This table uses all recorded tasks, without filtering on the LLM judges.\n\n'
+                        'Successful attempts out of four, using one complete batch per task and no LLM-judge filtering.\n\n'
                         + table(['Successful attempts', *[label for _, label in models]],
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
                                    ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
-                                   ['Not run / awaiting rerun', *[f'{c["not_run"]:,}' for c in distributions]]])
-                        + '\n\n`0/4` means none of the four attempts succeeded, `4/4` means all four succeeded. '
-                        'The solved row is the sum of 1/4 through 4/4.')
+                                   ['Not run / awaiting rerun', *[f'{c["not_run"]:,}' for c in distributions]]]))
         for (_, label), counts in zip(models, distributions):
             if counts['success_elsewhere']:
                 sections.append(f"{counts['success_elsewhere']:,} {label} tasks succeeded in another recorded batch "
                                 'but scored 0/4 in the selected batch. They appear under 0/4 here.')
-    sections.append('## Files\n\n'
-                    '- `tasks.parquet`: the task instructions, files and tests.\n'
-                    '- `results.parquet`: rule checks, judge verdicts and pass@4 results.\n'
-                    '- `cached_images/`: environment images and a manifest showing which task uses each image.\n'
-                    '- `runtime-manifest.json`: links and checksums for the dependencies in the shared `runtimes/` folder.\n'
-                    '- `filter_tasks.py`: a script that selects tasks and saves their matching results.')
     if metadata.get('asset_note'):
         sections.append(metadata['asset_note'])
     sections.append('## Filtering\n\n'
@@ -351,7 +341,6 @@ def render(rows, metadata, view, dataset, annotation=None, evaluation_key=None, 
                      'Failed and Warning show final check outcomes. Unresolved combines infrastructure errors, incomplete checks and checks not run. '
                      'Automatically repaired counts tasks with a recorded automatic pipeline repair, regardless of the final outcome; '
                      'it overlaps the other columns and does not include manual repairs. Installing a timestamp repair script alone does not count as executing a repair. '
-                     'Missing repair evidence is shown as Repair not recorded. '
                      'A task can be flagged by several rules. Warnings do not remove tasks. Unresolved tasks are excluded from v1 until their required checks finish.']
     else:
         sections += ['## Evaluation settings\n\n' + table(['Setting', 'Value'],

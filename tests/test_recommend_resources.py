@@ -148,3 +148,13 @@ def test_missing_cpu_measurements_cannot_silently_recommend_one_cpu():
     need = recompute(state)['recommendation']
     assert need['status'] == 'unresolved' and need['cpus'] is None
     assert 'cpus' in need['missing_measurements']
+
+
+def test_recompute_prefers_first_recorded_solve_over_earlier_unsolved_batch():
+    batches = [[attempt(0)] * 4,
+               [attempt(1), attempt(0, 8000, 1), attempt(0), attempt(0)],
+               [attempt(1)] * 4]
+    state = {'rounds': [{'allocation': BASE, 'attempts': b} for b in batches],
+             'upstream': BASE, 'allocation': BASE}
+    out = recompute(state)
+    assert (out['outcome'], out['successes'], out['valid_attempts'], out['batch_index']) == ('solved', 1, 4, 1)

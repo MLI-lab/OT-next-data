@@ -25,7 +25,7 @@ def test_v1_overlap_warnings_infra_and_missing():
     assert [r['task_id'] for r in selected] == ['a']
     assert '| Flagged tasks | 1 |' in text
     assert '| Unresolved tasks | 2 |' in text
-    assert '| paths | 4 | 0 (0.0%) | 1 (25.0%) | 1 (25.0%) | 0 (0.0%) | 2 (50.0%) | 0 (0.0%) | 0 (0.0%) |' in text
+    assert '| paths | 4 | 0 (0.0%) | 1 (25.0%) | 1 (25.0%) | 0 (0.0%) | 2 (50.0%) | 0 (0.0%) |' in text
     assert '| Original images | not recorded |' in text
 
 

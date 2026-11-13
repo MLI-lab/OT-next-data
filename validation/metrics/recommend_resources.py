@@ -38,7 +38,11 @@ def recompute(state, k=4):
         decision = cal.decide(batch, allocation, policy, round_index=index,
                               infra_retries_used=policy.infra_retries,
                               capped=state.get('capped', False))
-        if chosen is None and decision.action == 'final' and len(batch) == k:
+        # Preserve the first settled solve even when a revised CPU policy would
+        # have stopped an older recorded run at an earlier unsuccessful batch.
+        first_solve = (any(cal.solved(a) for a in batch)
+                       and chosen is not None and not any(cal.solved(a) for a in chosen[1]))
+        if (chosen is None or first_solve) and decision.action == 'final' and len(batch) == k:
             chosen = (index, batch, decision)
     for a in state.get('history', []):
         a['calibration'] = cal.classify(a, a.get('allocation') or state['allocation'], policy)

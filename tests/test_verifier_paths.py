@@ -974,3 +974,62 @@ def test_tab_stripping_python_heredoc(tmp_path):
     result = shell_inventory(tmp_path, "#!/bin/bash\nif python3 <<-'PY'\n\topen('/app/oracle')\n\tPY\nthen\ntrue\nfi\n")
     assert not result['errors']
     assert '/app/oracle' in [p['path'] for p in result['paths']]
+
+
+def test_empty_scoped_inventory_does_not_need_runtime_snapshots(tmp_path):
+    path = task(tmp_path, "open('/home/user/answer.py')")
+    value = dict(inventory=rule.inventory(path), snapshots={},
+                 errors=['after_verifier: task memory limit exceeded'])
+    result = rule.assess(value)
+    assert result['status'] == 'passed'
+    assert result['observations_required'] is False
+    value['inventory']['errors'] = ['test source could not be parsed']
+    assert rule.assess(value)['status'] == 'incomplete'
+    assert rule.assess({'snapshots': {}, 'errors': ['inventory unavailable']})['status'] == 'incomplete'
+
+
+def test_observer_skips_runtime_when_inventory_has_no_paths_in_scope(tmp_path):
+    path = task(tmp_path, "open('/home/user/answer.py')")
+    class Environment:
+        async def exec(self, *args, **kwargs):
+            raise AssertionError('No runtime probe should run')
+    verifier_dir = tmp_path / 'trial/verifier'
+    verifier = SimpleNamespace(trial_paths=SimpleNamespace(verifier_dir=verifier_dir),
+                               task=SimpleNamespace(paths=SimpleNamespace(task_dir=path)),
+                               _resolve_tests=lambda: (None, path / 'tests', None))
+    wrapper = SimpleNamespace(verifier=verifier, environment=Environment(), _runtime_bundle=None)
+    asyncio.run(rule.observe(wrapper, 'before_setup', {}))
+    record = json.loads((verifier_dir / rule.ARTIFACT).read_text())['invocations'][0]
+    assert record['result']['status'] == 'passed'
+    assert not record['errors']
+
+
+def test_observer_supplies_python_only_when_native_interpreter_is_missing(tmp_path, monkeypatch):
+    from contextlib import asynccontextmanager
+    from validation import probe_python
+    path = task(tmp_path, "open('/app/oracle')")
+    events = []
+    class Environment:
+        async def exec(self, command, **kwargs):
+            if command.startswith('private-python'):
+                return SimpleNamespace(return_code=0, stdout=json.dumps({'/app/oracle': {'state': 'present'}}), stderr='')
+            return SimpleNamespace(return_code=127, stdout='', stderr='verifier_paths probe needs an existing Python 3.7+ interpreter')
+    @asynccontextmanager
+    async def staged(environment):
+        events.append('stage')
+        yield 'private-python', 'a'*64
+        events.append('cleanup')
+    monkeypatch.setattr(probe_python, 'staged', staged)
+    verifier_dir = tmp_path / 'trial/verifier'
+    verifier = SimpleNamespace(trial_paths=SimpleNamespace(verifier_dir=verifier_dir),
+                               task=SimpleNamespace(paths=SimpleNamespace(task_dir=path)),
+                               _resolve_tests=lambda: (None, path / 'tests', None))
+    wrapper = SimpleNamespace(verifier=verifier, environment=Environment(), _runtime_bundle=None)
+    async def run():
+        for phase in rule.PHASES:
+            await rule.observe(wrapper, phase, {})
+    asyncio.run(run())
+    record = json.loads((verifier_dir / rule.ARTIFACT).read_text())['invocations'][0]
+    assert record['result']['status'] == 'passed'
+    assert record['probe_runtime_sha256'] == 'a'*64
+    assert events == ['stage', 'cleanup'] * 3

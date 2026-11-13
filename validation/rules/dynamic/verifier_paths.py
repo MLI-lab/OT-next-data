@@ -1038,6 +1038,15 @@ def resolved_instructions(tasks, out_root, contract_hash=None):
 
 
 def assess(record):
+    inventory_ = record.get('inventory') or {}
+    # No filesystem observation is needed when every parsed path is already
+    # excluded by the rule's scope. Never apply this to a missing/broken inventory.
+    if ('paths' in inventory_ and not inventory_.get('errors')
+            and not any(not path.get('excluded') for path in inventory_['paths'])):
+        return dict(status='passed', findings=[], errors=[], git_recoverable={}, archive_recoverable={},
+                    limitation=LIMITATION, coverage=inventory_.get('coverage', []),
+                    observations_required=False,
+                    reason='No unmentioned static verifier input paths require filesystem observations.')
     errors = list(record.get('inventory', {}).get('errors', [])) + list(record.get('errors', []))
     snapshots = record.get('snapshots', {})
     missing_phases = [phase for phase in PHASES if phase not in snapshots]
@@ -1182,22 +1191,33 @@ async def observe(wrapper, phase, kwargs):
                           snapshots={}, errors=[])
             wrapper._verifier_path_record = record
         paths = [p['path'] for p in record['inventory']['paths'] if not p['excluded']]
-        from validation.stages.reference_leaks import PROBE_PYTHONS
-        from harbor_patches.verifier_mount import command as mount_command
-        command = ('ot_path_python=; for ot_candidate in ' + PROBE_PYTHONS + '; do '
-                   'if "$ot_candidate" -I -c "import sys; assert sys.version_info >= (3, 7)" >/dev/null 2>&1; '
-                   'then ot_path_python="$ot_candidate"; break; fi; done; '
-                   'if [ -z "$ot_path_python" ]; then echo "verifier_paths probe needs an existing Python 3.7+ interpreter (including uv-managed locations)" >&2; exit 127; fi; '
-                   '"$ot_path_python" -I -c ' + shlex.quote(PROBE) + ' ' + shlex.quote(json.dumps(paths)) + ' ' +
-                   shlex.quote(json.dumps(record['inventory'].get('extraction_requests', []))))
-        options = {key: value for key, value in kwargs.items() if key in ('user', 'env', 'cwd')}
-        result = await wrapper.environment.exec(mount_command(wrapper._runtime_bundle, command), timeout_sec=30, **options)
-        if result.return_code:
-            raise RuntimeError(f'probe exited {result.return_code}: {result.stderr}')
-        snapshot = json.loads(result.stdout.strip().splitlines()[-1])
-        if set(snapshot) != set(paths):
-            raise ValueError('probe returned an incomplete path inventory')
-        record['snapshots'][phase] = snapshot
+        if not paths and not record['inventory'].get('errors'):
+            record['snapshots'][phase] = {}
+        else:
+            from validation.stages.reference_leaks import PROBE_PYTHONS
+            from harbor_patches.verifier_mount import command as mount_command
+            command = ('ot_path_python=; for ot_candidate in ' + PROBE_PYTHONS + '; do '
+                       'if "$ot_candidate" -I -c "import sys; assert sys.version_info >= (3, 7)" >/dev/null 2>&1; '
+                       'then ot_path_python="$ot_candidate"; break; fi; done; '
+                       'if [ -z "$ot_path_python" ]; then echo "verifier_paths probe needs an existing Python 3.7+ interpreter (including uv-managed locations)" >&2; exit 127; fi; '
+                       '"$ot_path_python" -I -c ' + shlex.quote(PROBE) + ' ' + shlex.quote(json.dumps(paths)) + ' ' +
+                       shlex.quote(json.dumps(record['inventory'].get('extraction_requests', []))))
+            options = {key: value for key, value in kwargs.items() if key in ('user', 'env', 'cwd')}
+            result = await wrapper.environment.exec(mount_command(wrapper._runtime_bundle, command), timeout_sec=30, **options)
+            if result.return_code == 127 and 'probe needs an existing Python' in (result.stderr or ''):
+                from validation.probe_python import staged
+                async with staged(wrapper.environment) as (python, digest):
+                    probe = (python + ' -c ' + shlex.quote(PROBE) + ' ' + shlex.quote(json.dumps(paths))
+                             + ' ' + shlex.quote(json.dumps(record['inventory'].get('extraction_requests', []))))
+                    result = await wrapper.environment.exec(mount_command(wrapper._runtime_bundle, probe),
+                                                            timeout_sec=30, **options)
+                    record['probe_runtime_sha256'] = digest
+            if result.return_code:
+                raise RuntimeError(f'probe exited {result.return_code}: {result.stderr}')
+            snapshot = json.loads(result.stdout.strip().splitlines()[-1])
+            if set(snapshot) != set(paths):
+                raise ValueError('probe returned an incomplete path inventory')
+            record['snapshots'][phase] = snapshot
     except Exception as exc:
         if record is None:
             record = dict(inventory={}, snapshots={}, errors=[])
