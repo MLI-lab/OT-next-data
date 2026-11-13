@@ -596,6 +596,18 @@ def verifier_oom(exception):
             and 'in verify' in traceback)
 
 
+def verifier_timeout(exception):
+    """A verifier deadline, including a proven timeout followed by failed cleanup."""
+    if exception.get('exception_type') == 'VerifierTimeoutError':
+        return True
+    return (exception.get('exception_type') == 'PhaseCancellationError'
+            and re.fullmatch(r'VerifierTimeoutError cancellation did not finish within [0-9.]+ seconds',
+                             str(exception.get('exception_message') or '')) is not None
+            and re.search(r'(?m)^(?:harbor\.trial\.errors\.)?VerifierTimeoutError: '
+                          r'Verifier execution timed out after [0-9.]+ seconds',
+                          str(exception.get('exception_traceback') or '')) is not None)
+
+
 def tests_ran(path, verifier):
     """The recorder or the verifier's own CTRF report shows executed tests in this trial."""
     from validation.stages.execution_evidence import MANIFEST, ctrf_executed, scope_output
@@ -621,7 +633,7 @@ def valid_nop_zero(path, result, reward_key):
     state is accepted: grading ran and did not accept the no-op.
     """
     exception = result.get('exception_info') or {}
-    timed_out = exception.get('exception_type') == 'VerifierTimeoutError'
+    timed_out = verifier_timeout(exception)
     if exception.get('exception_type') not in (None, *VERIFIER_CRASHES) and not verifier_oom(exception) and not timed_out:
         return None
     verifier = result.get('verifier_result') or {}
@@ -785,7 +797,7 @@ def assess_trials(results, expected_count, expected_reward=None, reward_key='rew
                 notes.append(f'{path.name}: accepted zero: {problem}')
             if zero['observed_reward'] is not None:
                 scores.append(zero['observed_reward'])
-            elif verifier_oom(zero['exception_info'] or {}) or (zero['exception_info'] or {}).get('exception_type') == 'VerifierTimeoutError':
+            elif verifier_oom(zero['exception_info'] or {}) or verifier_timeout(zero['exception_info'] or {}):
                 # Grading ran and hit the task's own limit: an observed zero.
                 scores.append(0)
             continue

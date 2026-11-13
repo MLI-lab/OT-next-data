@@ -46,3 +46,28 @@ def test_verifier_timeout_and_oom_are_observed_nop_zeros(tmp_path):
 def test_startup_timeout_is_not_a_nop_zero(tmp_path):
     startup = {'exception_type': 'EnvironmentStartTimeoutError'}
     assert harbor.valid_nop_zero(tmp_path, {'exception_info': startup}, 'reward') is None
+
+
+def test_confirmed_verifier_deadline_remains_nop_zero_after_cleanup_failure(tmp_path):
+    exception = {
+        'exception_type': 'PhaseCancellationError',
+        'exception_message': 'VerifierTimeoutError cancellation did not finish within 30.0 seconds',
+        'exception_traceback': 'harbor.trial.errors.VerifierTimeoutError: Verifier execution timed out after 300.0 seconds\n'
+                               '\nThe above exception was the direct cause of the following exception:\n'}
+    trial = {'exception_info': exception, 'verifier_result': None}
+    result = harbor.assess_trials([(tmp_path / 'a', trial)], 1, expected_reward=0, require_execution=True)
+    assert result['status'] == 'completed' and result['rewards'] == [0]
+    assert result['expected_baseline_failures'][0]['exception_info'] == exception
+    assert harbor.assess_trials([(tmp_path / 'a', trial)], 1, expected_reward=1)['status'] == 'failed'
+    assert harbor.valid_nop_zero(tmp_path, {**trial, 'verifier_result': {'rewards': {'reward': 1}}}, 'reward') is None
+
+
+def test_cleanup_failure_without_proven_verifier_deadline_is_not_zero(tmp_path):
+    for message, trace in [
+        ('VerifierTimeoutError cancellation did not finish within 30.0 seconds', ''),
+        ('AgentTimeoutError cancellation did not finish within 30.0 seconds',
+         'harbor.trial.errors.VerifierTimeoutError: Verifier execution timed out after 300.0 seconds'),
+        ('EnvironmentStartTimeoutError cancellation did not finish within 30.0 seconds', '')]:
+        exception = {'exception_type': 'PhaseCancellationError',
+                     'exception_message': message, 'exception_traceback': trace}
+        assert harbor.valid_nop_zero(tmp_path, {'exception_info': exception}, 'reward') is None
