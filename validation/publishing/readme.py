@@ -181,7 +181,7 @@ def render_compact(rows, metadata, dataset):
     payloads = metadata.get('payload_tasks')
     payload_count = f'{payloads:,}' if isinstance(payloads, int) else UNKNOWN
     warnings = sum(any(outcome(r, rule) == 'warning' for rule in rules) for r in kept)
-    intro = (f"`tasks.parquet` and `results.parquet` contain all **{len(rows):,} tasks**."
+    intro = metadata.get('task_description') or (f"`tasks.parquet` and `results.parquet` contain all **{len(rows):,} tasks**."
              if payloads == len(rows) else
              f"There are **{payload_count} tasks** in `tasks.parquet` and results for all **{len(rows):,} tasks** in `results.parquet`.")
     if metadata.get('included_build_failures'):
@@ -195,15 +195,22 @@ def render_compact(rows, metadata, dataset):
                    if isinstance(payloads, int) and len(rows) > payloads
                    and metadata.get('excluded_build_failures') == len(rows) - payloads else ''),
                 '## Rule-based checks\n\n'
-                f'We first check all **{len(rows):,} tasks** for setup problems, verifier behaviour and leakage. '
-                'Tasks are kept when every applicable rule passes or gives a warning. '
-                'Any failed rule puts a task in the failed group. Tasks with unfinished checks stay incomplete unless they already have a failure.\n\n'
+                f'We check all **{len(rows):,} tasks** for setup problems, verifier behaviour and leakage '
+                '(static checks in stage 0 and execution checks in stages 1 to 3). '
+                'Tasks qualify for subsequent stages when every applicable required rule passes or gives only a warning. '
+                'A failed rule or an incomplete required check excludes the task from the current selection. '
+                'Incomplete means a check errored, timed out or otherwise produced no usable verdict; it does not count as a pass. '
+                'Skipped pass@4 evaluations are usually recorded as `not_run`; `not_requested` also appears, including when repaired tasks await fresh evaluation. '
+                'Judge cells may have no verdict for that model. '
+                'The file retains existing evaluations, so a task that is now excluded can still have recorded judge or pass@4 results.\n\n'
                 + table(['Rule-check outcome', 'Tasks'], [
                     ['All applicable rules pass, no warnings', f'{len(kept) - warnings:,}'],
                     ['Passes with warnings, no failures or incomplete checks', f'{warnings:,}'],
                     ['Total retained by the rule filter', f'{len(kept):,}'],
                     ['At least one failed rule', f'{len(failed):,}'],
                     ['Incomplete required checks, no recorded failure', f'{len(pending):,}']])]
+    if metadata.get('incomplete_note'):
+        sections.append(metadata['incomplete_note'])
     sections.append('<details>\n<summary>Show results for each rule</summary>\n\n'
                     + rule_table(rows, rules) + '\n\n</details>')
     judge_rows = []
