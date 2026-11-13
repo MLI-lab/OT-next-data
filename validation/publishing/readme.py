@@ -266,28 +266,18 @@ def render_compact(rows, metadata, dataset):
                     'Available criteria, with explanations in the [rubric](https://github.com/MLI-lab/OT-next-data/blob/main/validation/rubrics/rubric_ot/rubric.toml):\n\n'
                     + '\n'.join(f'- `{criterion}`' for criterion in JUDGE_CRITERIA))
     if metadata.get('experiment2'):
-        cohorts = []
-        for alias, model in JUDGES.items():
+        commands = []
+        for alias in JUDGES:
             sizes = [len(select(rows, alias, allowed)[0]) for allowed in EXPERIMENT.values()]
-            cohorts.append(['Qwen' if alias == 'qwen' else 'GLM', *[f'{n:,}' for n in sizes]])
+            label = 'Qwen' if alias == 'qwen' else 'GLM'
+            commands.append(f'# {label}: clean {sizes[0]:,}, clean + incomplete-only {sizes[1]:,}, clean + shortcuts-only {sizes[2]:,}\n'
+                            f'python filter_tasks.py --judge {alias} --experiment-2 --out experiment2/{alias}')
         sections.append('## Proposed RL experiment\n\n'
-                        '**Experiment 2.1:** compare RL training on three datasets, using each judge separately: '
-                        '**clean**, **clean + VERIFIER-ACCEPTS-INCOMPLETE-only**, and '
-                        '**clean + VERIFIER-ACCEPTS-SHORTCUTS-only**. Clean tasks pass every selected judge criterion. '
-                        'The added tasks fail only the named criterion and pass the other seven. Tasks failing both are excluded. '
-                        'Both larger datasets include all the clean tasks. The judges are Qwen3.8-27B and GLM-5.3-Flash.\n\n'
-                        + table(['Judge', 'Clean', 'Clean + incomplete-only', 'Clean + shortcuts-only'], cohorts)
-                        + '\n\n**Hypothesis:** adding incomplete-only tasks improves performance on the held-out evaluation set compared with clean-only training, '
-                        'while adding shortcuts-only tasks makes it worse. This is a proposed hypothesis, not a measured result.\n\n'
-                        'Use the same model, evaluation set, seeds and training budget for all three runs. '
-                        'The added groups differ in size, so also compare equally sized additions to check whether a change comes from task quality or simply more data.\n\n'
-                        '```bash\n'
-                        'python filter_tasks.py --judge qwen --experiment-2 --out experiment2/qwen\n'
-                        'python filter_tasks.py --judge glm  --experiment-2 --out experiment2/glm\n'
-                        '```\n\n'
-                        'Each command writes `clean/`, `clean-plus-incomplete/` and `clean-plus-shortcuts/`, each with '
-                        '`tasks.parquet` and `results.parquet`. A `selection.json` file records which tasks were chosen. '
-                        'The counts above use the current task versions. Repaired tasks are left out until their new judge verdicts are available.')
+                        'River’s `VERIFIER-TOO-WEAK` combined incomplete solutions, where the agent still does part of the work, '
+                        'with shortcuts that bypass it. We split these into `VERIFIER-ACCEPTS-INCOMPLETE` and `VERIFIER-ACCEPTS-SHORTCUTS`.\n\n'
+                        '**Hypothesis:** adding tasks that fail only `VERIFIER-ACCEPTS-INCOMPLETE` improves RL performance compared with clean-only training.\n\n'
+                        '**Setup:** generate three datasets for RL, clean, clean + incomplete-only, and clean + shortcuts-only.\n\n'
+                        '```bash\n' + '\n\n'.join(commands) + '\n```')
     if metadata.get('resource_note'):
         sections.append('## Task resources\n\n' + metadata['resource_note'])
     return '\n\n'.join(sections) + '\n', kept

@@ -98,8 +98,8 @@ def test_stale_results_never_become_a_finished_export(tmp_path):
 def test_compact_card_counts_are_computed_and_hypothesis_is_not_a_result():
     r = row()
     text, _ = render_compact([r], {'payload_tasks': 1, 'experiment2': True}, 'CalibForge')
-    assert '| Qwen | 1 | 1 | 1 |' in text
-    assert 'not a measured result' in text
+    assert '# Qwen: clean 1, clean + incomplete-only 1, clean + shortcuts-only 1' in text
+    assert '**Hypothesis:**' in text
     assert 'Previous release' not in text
     assert 'Current coverage' not in text
     assert 'AI detection' not in text
