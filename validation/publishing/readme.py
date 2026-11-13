@@ -256,8 +256,15 @@ def render_compact(rows, metadata, dataset):
                     'python filter_tasks.py --judge qwen --out clean-qwen\n\n'
                     '# Allow this GLM criterion to fail, all other criteria must pass\n'
                     'python filter_tasks.py --judge glm \\\n'
-                    '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n'
-                    '```')
+                    '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n\n'
+                    '# Allow either or both criteria to fail, all other criteria must pass\n'
+                    'python filter_tasks.py --judge glm \\\n'
+                    '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE \\\n'
+                    '  --allow-fail VERIFIER-ACCEPTS-SHORTCUTS \\\n'
+                    '  --out glm-with-incomplete-and-shortcuts\n'
+                    '```\n\n'
+                    'Available criteria, with explanations in the [rubric](https://github.com/MLI-lab/OT-next-data/blob/main/validation/rubrics/rubric_ot/rubric.toml):\n\n'
+                    + '\n'.join(f'- `{criterion}`' for criterion in JUDGE_CRITERIA))
     if metadata.get('experiment2'):
         cohorts = []
         for alias, model in JUDGES.items():
