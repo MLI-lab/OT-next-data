@@ -75,3 +75,12 @@ def test_nested_setup_error_preserves_specific_cause():
         {'status': 'error', 'error': 'container start timed out'}]})
     assert issue['category'] == 'timeout'
     assert issue['phase'] == 'setup'
+
+
+def test_not_run_is_distinct_from_execution_failure():
+    assert normalize('nop', 'not_requested', {}) == ('not_run', {'reason': 'Not requested'})
+    assert normalize('nop', 'blocked', {}) == ('not_run', {'reason': 'Blocked by an earlier check'})
+    for state in ('timeout', 'oom', 'execution_error', 'infrastructure_error'):
+        assert normalize('nop', state, {})[0] == state
+    assert normalize('nop', 'not_run', {'status': 'error', 'error': 'TimeoutError'})[0] == 'timeout'
+    assert normalize('nop', 'not_run', {'details': 'Awaiting evaluation after repair'})[0] == 'not_run'

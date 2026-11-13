@@ -103,23 +103,28 @@ def check_phase(name):
 
 
 RESULTS = ('pass', 'fail', 'warning')
-# A check without a result has its reason as its status.
-NO_RESULT = ('not_requested', 'not_applicable', 'blocked', 'infrastructure_error', 'timeout', 'oom',
+# Skips use not_run, execution problems keep their specific status. Legacy aliases remain readable.
+NO_RESULT = ('not_run', 'not_requested', 'not_applicable', 'blocked', 'infrastructure_error', 'timeout', 'oom',
              'execution_error', 'unknown')
-SKIPPED = {'not_requested': 'not_requested', 'not_applicable': 'not_applicable',
-           'blocked_by_previous_check': 'blocked'}
+SKIPPED = {'not_requested': 'not_run', 'not_applicable': 'not_applicable',
+           'blocked_by_previous_check': 'not_run'}
 
 
 def status_of(issue):
     if issue['category'] == 'skipped':
-        return SKIPPED.get(issue['reason_code'], 'not_requested')
+        return SKIPPED.get(issue['reason_code'], 'not_run')
     return issue['category']
 
 
 def normalize(name, verdict, record):
     """Final status of a check: pass, fail, warning, or the reason it has no result."""
     record = dict(record)
-    if verdict in NO_RESULT:
+    if verdict in ('not_requested', 'blocked'):
+        record.setdefault('reason', 'Not requested' if verdict == 'not_requested' else 'Blocked by an earlier check')
+        return 'not_run', record
+    if verdict == 'not_run' and set(record) <= {'details', 'wall_seconds', 'cpu_seconds', 'memory_peak_mb', 'disk_peak_mb'}:
+        return 'not_run', record
+    if verdict in NO_RESULT and verdict != 'not_run':
         return verdict, record
     issue = category(record, verdict, check_phase(name))
     if issue:

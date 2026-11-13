@@ -187,7 +187,7 @@ def static_results(tasks_dir, out, concurrency):
                   {t.name: task_digest(t) for t in tasks}, 'leak-repair')
     rows = pq.read_table(out / 'results.parquet').to_pylist()
     return {row['task_id']: {name: (value['status'], value.get('details')) for name, value in row.items()
-                             if isinstance(value, dict) and value.get('status') not in (None, 'not_requested')}
+                             if isinstance(value, dict) and value.get('status') not in (None, 'not_run', 'not_requested')}
             for row in rows}
 
 

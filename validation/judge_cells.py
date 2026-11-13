@@ -4,7 +4,8 @@ import json
 
 def record(reviews):
     statuses = [r['status'] for r in reviews]
-    status = ('fail' if 'fail' in statuses else
+    status = ('not_run' if statuses and all(s == 'not_run' for s in statuses) else
+              'fail' if 'fail' in statuses else
               'pass' if statuses and all(s in ('pass', 'warning', 'not_applicable') for s in statuses)
               else 'incomplete')
     result = {'status': status, 'details': '\n\n'.join(r.get('details') or '' for r in reviews)}

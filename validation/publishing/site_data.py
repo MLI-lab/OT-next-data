@@ -47,7 +47,7 @@ def leak_outcome(record):
     return 'p' if text.startswith('false positive') else 'n' if text.startswith('not fixable') else 'u'
 
 
-CODE = {'pass': 'p', 'fail': 'f', 'warning': 'w', 'not_applicable': 'a', 'not_requested': 'r', 'blocked': 'b'}
+CODE = {'pass': 'p', 'fail': 'f', 'warning': 'w', 'not_applicable': 'a', 'not_run': 'r', 'not_requested': 'r', 'blocked': 'b'}
 # Checks without a one-line summary in the rules README.
 FALLBACK = {'verifier_paths': 'Absolute paths the verifier needs that are missing and not named in the instruction.',
             'script_execution_coverage': 'The instruction asks for a script to be written, fixed or run, but the verifier never executes it.'}

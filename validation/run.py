@@ -278,9 +278,14 @@ def normalize_details(row):
         if name in row and isinstance(record, dict):
             row[name], shared[name] = normalize(name, row[name], record)
     for name, value in row.items():
-        if value == 'not_run' and name not in shared:
-            # A check without a result and without evidence: classify it like the others.
-            row[name], _ = normalize(name, value, {})
+        if isinstance(value, dict) and value.get('status') in ('not_requested', 'blocked'):
+            row[name] = {**value, 'status': 'not_run',
+                         'details': value.get('details') or ('Not requested' if value['status'] == 'not_requested' else 'Blocked by an earlier check')}
+        if isinstance(value, str) and value in ('not_run', 'not_requested', 'blocked') and name not in shared:
+            # Normalize skipped legacy states without inventing an execution failure.
+            row[name], record = normalize(name, value, {})
+            if record:
+                shared[name] = record
     if shared or row.get('details') is not None:
         row['details'] = encode(shared)
     return row
@@ -337,7 +342,7 @@ def observations(reports, hashes, dataset='', settings=None):
             if not static:
                 if int(stage) == 5:
                     # One column per rubric criterion with every review of this judge;
-                    # no overall review status (results format 4).
+                    # no overall task-level judge status.
                     row.update(judge_cells(report, item, digest, criteria))
                 name = {1: 'build', 2: 'reference', 3: 'nop',
                         8: 'trace_metrics', 9: 'trajectory_review', 10: 'adversarial',
@@ -452,7 +457,7 @@ def observations(reports, hashes, dataset='', settings=None):
                 # do_not_modify is not blocked: its static stage-0 result stays.
                 blocked_checks = list(STAGE_CHECKS[int(stage)])
                 for name in blocked_checks:
-                    if row.get(name) in (None, 'not_requested'):
+                    if row.get(name) in (None, 'not_run', 'not_requested'):
                         put(name, {'status': 'skipped', 'blocked_by_stage': 1,
                                    'reason': 'The task did not build'})
     return list(rows.values())
@@ -519,17 +524,19 @@ def judge_name(model):
 
 def report_criteria(report):
     """Every criterion any review of this stage-5 report judged."""
-    return sorted({name for item in report.get('items', []) for review in item.get('verdicts') or []
+    return sorted(set(report.get('review_criteria') or []) |
+                  {name for item in report.get('items', []) for review in item.get('verdicts') or []
                    for name in (review.get('checks') or {})})
 
 
 def judge_cells(report, item, digest, criteria=None):
     """Stage-5 cells of one task: per criterion, this judge's reviews in order (review 1, 2, ...).
     A review without a valid verdict for a criterion is `no_verdict`, with the error as its details.
-    Tasks the run did not judge (skipped) get no cells."""
-    if item.get('status') == 'skipped':
-        return {}
+    Tasks the run did not judge have explicit not_run cells."""
     judge = judge_name(report.get('review_model'))
+    if item.get('status') == 'skipped':
+        return {name: {judge: {'status': 'not_run', 'details': item.get('reason') or 'Judge evaluation was skipped'}}
+                for name in (report_criteria(report) if criteria is None else criteria)}
     reviews = sorted(item.get('verdicts') or [], key=lambda review: str(review.get('trial')))
     count = max(int(report.get('review_attempts') or 1), len(reviews))
     error = ('; '.join(map(str, item.get('findings') or [])) or item.get('reason') or 'no valid verdict')[:1000]
@@ -554,11 +561,13 @@ def merge_judge(old, new):
     replaces review N, except that a missing verdict never replaces a verdict (retries)."""
     out = dict(decode_judge(old) or {})
     for judge, value in decode_judge(new).items():
+        if value['status'] == 'not_run' and judge in out and out[judge]['status'] != 'not_run':
+            continue
         kept = [dict(r) for r in judge_reviews(out[judge])] if judge in out else []
         for index, review in enumerate(judge_reviews(value)):
             if index >= len(kept):
                 kept.append(review)
-            elif review['status'] != 'no_verdict' or kept[index]['status'] == 'no_verdict':
+            elif review['status'] != 'no_verdict' or kept[index]['status'] in ('no_verdict', 'not_run'):
                 kept[index] = review
         out[judge] = judge_record(kept)
     return out
@@ -571,6 +580,12 @@ def merge(previous, incoming):
     judge cells: the reviews were of the old files."""
     rows = [normalize_details(r) for r in previous]
     incoming = [normalize_details(r) for r in incoming]
+    judge_models = {}
+    for row in [*rows, *incoming]:
+        for name, value in row.items():
+            judged = decode_judge(value) if name not in BASE else None
+            if judged:
+                judge_models.setdefault(name, set()).update(judged)
     index = {(r['dataset'], r['task_id']): r for r in rows}
     if len(index) != len(rows):
         raise ValueError('Duplicate tasks in results')
@@ -613,9 +628,14 @@ def merge(previous, incoming):
             update = dict(update, automatic_repairs=combine(row.get('automatic_repairs'), update['automatic_repairs']))
         row.update(update)
     for row in rows:
+        for name, models in judge_models.items():
+            judged = dict(decode_judge(row.get(name)) or {})
+            for model in sorted(models):
+                judged.setdefault(model, {'status': 'not_run', 'details': 'No judge evaluation recorded for this task version'})
+            row[name] = judged
         for col in columns:
             if row.get(col) is None:
-                row[col] = 'not_requested'
+                row[col] = 'not_run'
     return sorted(rows, key=lambda r: (r['dataset'], r['task_id']))
 
 
@@ -653,6 +673,8 @@ def cell(name, status, record, repair):
         # The repair loop's decision on a finding it did not repair (not fixable, not recognised, ...), then the finding.
         if not (text or '').startswith(repair['details']):  # a cell read back already carries it
             text = repair['details'] + (f'; check finding: {text}' if text else '')
+    if not text and status == 'not_run':
+        text = 'No evaluation was requested or recorded'
     if text:
         value['details'] = text if len(text) <= 1000 else text[:997] + '...'
     if name in TIMED:
@@ -666,6 +688,9 @@ def uncell(row):
     records, repairs = {}, {}
     for name, value in list(row.items()):
         if name in ('resources_recommended', 'passk_target', 'passk_teacher') and isinstance(value, dict):
+            if value.get('status') in ('not_requested', 'blocked'):
+                row[name] = {**value, 'status': 'not_run',
+                             'details': value.get('details') or ('Not requested' if value['status'] == 'not_requested' else 'Blocked by an earlier check')}
             continue  # Structured evaluation cells retain their own details and values.
         judged = decode_judge(value)
         if judged is not None:
@@ -707,9 +732,21 @@ def write(path, rows):
     from validation.automatic_repairs import RULES as repairable
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    rows = list(rows)
+    judge_models = {}
+    for row in rows:
+        for name, value in row.items():
+            judged = decode_judge(value) if name not in BASE else None
+            if judged:
+                judge_models.setdefault(name, set()).update(judged)
     out = []
     for row in rows:
         row = normalize_details(row)
+        for name, models in judge_models.items():
+            judged = dict(decode_judge(row.get(name)) or {})
+            for model in sorted(models):
+                judged.setdefault(model, {'status': 'not_run', 'details': 'No judge evaluation recorded for this task version'})
+            row[name] = judged
         records = details(row)
         repairs = json.loads(row.pop('automatic_repairs', None) or '{}')
         row.pop('details', None)

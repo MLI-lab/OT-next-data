@@ -16,7 +16,7 @@ def test_partial_update_preserves_other_checks_and_changed_content_resets(tmp_pa
     row, = results.read(path)
     # New task files replace the row: earlier results do not carry over.
     assert row['content_sha256'] == 'b' and row['nproc'] == 'pass'
-    assert row['reference'] == 'not_requested' and row['nop'] == 'not_requested'
+    assert row['reference'] == 'not_run' and row['nop'] == 'not_run'
     assert 'revision' not in row and 'latest' not in row
 
 
@@ -44,7 +44,7 @@ def test_parquet_cells_hold_status_repair_and_one_details_text(tmp_path):
     assert compact(row['nproc']) == {'status': 'pass'} and 'repaired' not in row['nproc']
     assert compact(row['nop']) == {'status': 'fail'}
     assert compact(row['dockerfile-sanity']) == {'status': 'fail', 'details': 'FAIL Dockerfile line 3'}
-    assert compact(row['build']) == {'status': 'not_requested'}
+    assert compact(row['build']) == {'status': 'not_run', 'details': 'No evaluation was requested or recorded'}
     # Reading and writing again keeps the same cells.
     results.write(path, results.read(path))
     assert pq.read_table(path).to_pylist() == [row]
@@ -107,7 +107,7 @@ def test_mixed_nop_baseline_overrides_shuffled_pass_and_blocks_tamper():
             'verifier_tamper': {'status': 'incomplete', 'reason': 'reward 1.0 differs from the no-op runs'}}
     row, = results.observations({3: {'items': [item]}}, {'t': 'hash'})
     assert row['nop'] == row['nop_determinism'] == 'fail'
-    assert row['verifier_tamper'] == 'blocked'
+    assert row['verifier_tamper'] == 'not_run'
     assert results.details(row)['nop_determinism']['normal_rewards'] == [0, 1, 0]
     item['rewards'] = [0, None, 0]
     row, = results.observations({3: {'items': [item]}}, {'t': 'hash'})
@@ -139,8 +139,8 @@ def test_details_are_kept_per_check_and_other_checks_are_preserved(tmp_path):
     recorded = results.details(row)
     assert recorded.pop('nproc') == {'details': 'FAIL make -j'}
     assert 'reference' not in recorded and 'nop' not in recorded
-    assert recorded == {}  # checks that did not run have no text
-    assert row['build'] == 'not_requested'
+    assert all(v.get('details') == 'No evaluation was requested or recorded' for v in recorded.values())
+    assert row['build'] == 'not_run'
     assert row['reference'] == 'pass' and row['nop'] == 'fail'
     schema = pq.read_schema(path)
     assert 'details' not in schema.names and 'reference_details' not in schema.names
@@ -148,7 +148,7 @@ def test_details_are_kept_per_check_and_other_checks_are_preserved(tmp_path):
     assert schema.metadata[b'ot.results.version'] == b'5'
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'b', 'reference': 'not_run'}])
     changed, = results.read(path)
-    assert changed['nproc'] == 'not_requested' and changed['reference'] == 'unknown'
+    assert changed['nproc'] == 'not_run' and changed['reference'] == 'not_run'
 
 
 def test_usable_build_exports_inspection_error_without_blocking_nop():
