@@ -187,6 +187,8 @@ def render_compact(rows, metadata, dataset):
     if metadata.get('included_build_failures'):
         intro += (f" {metadata['included_build_failures']:,} tasks failed Docker-to-Apptainer conversion "
                   'and have no cached image.')
+    if metadata.get('cache_description'):
+        intro += '\n\n' + metadata['cache_description']
     sections = [f'# {title}', intro
                 + (f" The other {len(rows) - payloads:,} tasks failed during the Docker-to-Apptainer image build. "
                    'They are left out of the task file, but their results explain why they failed.'
