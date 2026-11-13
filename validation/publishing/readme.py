@@ -199,8 +199,8 @@ def render_compact(rows, metadata, dataset):
                 '(static checks in stage 0 and execution checks in stages 1 to 3). '
                 'Tasks qualify for subsequent stages when every applicable required rule passes or gives only a warning. '
                 'A failed rule or an incomplete required check excludes the task from the current selection. '
-                'Incomplete means a check errored, timed out or otherwise produced no usable verdict; it does not count as a pass. '
-                'Skipped pass@4 evaluations are usually recorded as `not_run`; `not_requested` also appears, including when repaired tasks await fresh evaluation. '
+                'Incomplete means a check errored, timed out or otherwise produced no usable verdict, it does not count as a pass. '
+                'Skipped pass@4 evaluations are usually recorded as `not_run`, `not_requested` also appears, including when repaired tasks await fresh evaluation. '
                 'Judge cells may have no verdict for that model. '
                 'The file retains existing evaluations, so a task that is now excluded can still have recorded judge or pass@4 results.\n\n'
                 + table(['Rule-check outcome', 'Tasks'], [
@@ -243,7 +243,7 @@ def render_compact(rows, metadata, dataset):
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
                                    ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
                                    ['Not run / awaiting rerun', *[f'{c["not_run"]:,}' for c in distributions]]])
-                        + '\n\n`0/4` means none of the four attempts succeeded; `4/4` means all four succeeded. '
+                        + '\n\n`0/4` means none of the four attempts succeeded, `4/4` means all four succeeded. '
                         'The solved row is the sum of 1/4 through 4/4.')
         for (_, label), counts in zip(models, distributions):
             if counts['success_elsewhere']:
@@ -266,11 +266,11 @@ def render_compact(rows, metadata, dataset):
                     'python filter_tasks.py --out validated\n\n'
                     '# Also require every adjusted-rubric criterion to pass for one judge\n'
                     'python filter_tasks.py --judge qwen --out clean-qwen\n\n'
-                    '# Allow one named criterion to fail; retain all other judge requirements\n'
+                    '# Allow one named criterion to fail, retain all other judge requirements\n'
                     'python filter_tasks.py --judge glm \\\n'
                     '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n'
                     '```\n\n'
-                    'Use `--criteria` to choose which judge criteria to check; otherwise, all eight are used. '
+                    'Use `--criteria` to choose which judge criteria to check, otherwise, all eight are used. '
                     'Qwen and GLM are treated separately. A missing verdict excludes the task. If repeated reviews disagree, a failure takes precedence.')
     if metadata.get('experiment2'):
         cohorts = []
