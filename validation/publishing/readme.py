@@ -246,19 +246,18 @@ def render_compact(rows, metadata, dataset):
         sections.append(metadata['asset_note'])
     sections.append('## Filtering\n\n'
                     'Install `pyarrow`, then put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
-                    'The script first applies the rule-based checks above: warnings are kept, while failed or unfinished checks exclude a task. '
-                    'It also checks that the results describe the same version of each task. It does not filter on pass@k.\n\n'
+                    'The script first applies the rule-based checks above. Warnings are kept, while tasks with a failed or unfinished required check are removed.\n\n'
+                    'To also filter by LLM judge, use `--judge qwen` or `--judge glm`. By default, tasks with any failed criterion or missing verdict for that judge are removed. '
+                    'Use `--allow-fail CRITERION` to allow a named criterion to fail. Repeat `--allow-fail` to allow multiple criteria to fail.\n\n'
                     '```bash\n'
-                    '# Deterministic validation and leakage checks only\n'
+                    '# Rule-based checks only\n'
                     'python filter_tasks.py --out validated\n\n'
-                    '# Also require every adjusted-rubric criterion to pass for one judge\n'
+                    '# Also require all Qwen judge criteria to pass\n'
                     'python filter_tasks.py --judge qwen --out clean-qwen\n\n'
-                    '# Allow one named criterion to fail, retain all other judge requirements\n'
+                    '# Allow this GLM criterion to fail, all other criteria must pass\n'
                     'python filter_tasks.py --judge glm \\\n'
                     '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n'
-                    '```\n\n'
-                    'Use `--criteria` to choose which judge criteria to check, otherwise, all eight are used. '
-                    'Qwen and GLM are treated separately. A missing verdict excludes the task. If repeated reviews disagree, a failure takes precedence.')
+                    '```')
     if metadata.get('experiment2'):
         cohorts = []
         for alias, model in JUDGES.items():
