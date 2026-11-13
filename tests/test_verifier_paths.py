@@ -1033,3 +1033,46 @@ def test_observer_supplies_python_only_when_native_interpreter_is_missing(tmp_pa
     assert record['result']['status'] == 'passed'
     assert record['probe_runtime_sha256'] == 'a'*64
     assert events == ['stage', 'cleanup'] * 3
+
+
+def test_shell_helper_creates_temporary_directory(tmp_path):
+    path = task(tmp_path, '''
+import subprocess
+
+def run(cmd, timeout=60):
+    return subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
+
+def test_pool():
+    backup_dir = '/tmp/pool-backup'
+    pool = '/var/www/repo/pool'
+    run(f'mkdir -p {backup_dir} && mv {pool}/* {backup_dir}/', timeout=10)
+''', instruction='Prepare /var/www/repo.')
+    paths = {p['path']: p for p in rule.inventory(path)['paths']}
+    assert paths['/tmp/pool-backup']['excluded'] == 'verifier_generated'
+    assert rule.assess(record(path))['status'] == 'passed'
+
+
+def test_tmp_input_is_not_blanket_excluded(tmp_path):
+    path = task(tmp_path, "open('/tmp/required-fixture').read()")
+    result = rule.assess(record(path))
+    assert result['status'] == 'failed'
+    assert result['findings'][0]['path'] == '/tmp/required-fixture'
+
+
+def test_non_shell_or_rebound_helper_does_not_create_paths(tmp_path):
+    path = task(tmp_path, '''
+import subprocess
+
+def literal(cmd):
+    return subprocess.run(cmd, shell=False)
+
+def rebound(cmd):
+    cmd = 'true'
+    return subprocess.run(cmd, shell=True)
+
+backup = '/tmp/not-generated'
+literal(f'mkdir -p {backup}')
+rebound(f'mkdir -p {backup}')
+open(backup).read()
+''')
+    assert rule.assess(record(path))['status'] == 'failed'

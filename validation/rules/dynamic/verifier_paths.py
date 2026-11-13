@@ -462,6 +462,27 @@ def python_paths(text, source, offset=0, context=None, depth=0):
         candidates = functions.get(node.func.id, [])
         if len(candidates) != 1:
             continue  # Redefined or not local: leave unclassified.
+        # A local shell wrapper receives a command, not one pathname. Resolve
+        # the caller's f-string before assigning input/output roles to its paths.
+        function = candidates[0]
+        parameters = [*function.args.posonlyargs, *function.args.args]
+        for index, argument in enumerate(node.args[:len(parameters)]):
+            parameter = parameters[index].arg
+            command = resolve(argument, constants)
+            if not command or any(isinstance(n, ast.Name) and n.id == parameter
+                                  and isinstance(n.ctx, ast.Store) for n in ast.walk(function)):
+                continue
+            forwards_shell = any(
+                isinstance(call, ast.Call)
+                and name(call.func) in ('subprocess.run', 'subprocess.call', 'subprocess.check_call',
+                                       'subprocess.check_output', 'subprocess.Popen')
+                and call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == parameter
+                and any(k.arg == 'shell' and isinstance(k.value, ast.Constant) and k.value.value is True
+                        for k in call.keywords)
+                for call in ast.walk(function))
+            if forwards_shell:
+                for target, role in shell_paths(command, context):
+                    emit(target, argument, role)
         for index, argument in enumerate(node.args):
             value = resolve(argument, constants)
             if absolute(value) and value not in classified:
