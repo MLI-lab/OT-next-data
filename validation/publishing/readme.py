@@ -144,31 +144,92 @@ def resource_use(rows):
     return result
 
 
+def complete_batch_distribution(rows, key, k=4):
+    """Use one selected complete calibration batch per task, never pool retries."""
+    counts = Counter()
+    for row in rows:
+        value = row.get(key) or {}
+        state = value.get('status') if isinstance(value, dict) else value
+        if state in (None, 'not_run', 'not_requested', 'not_applicable'):
+            counts['not_run'] += 1
+            continue
+        try:
+            record = document(value.get('details')) if isinstance(value, dict) else {}
+        except (ValueError, TypeError):
+            record = {}
+        batch = record.get('selected_batch') or {}
+        wins, attempts = batch.get('successes'), batch.get('valid_attempts')
+        if (state in ('pass', 'fail') and record.get('k') == k
+                and type(wins) is int and type(attempts) is int and attempts == k and 0 <= wins <= k):
+            counts[wins] += 1
+            if state == 'pass' and wins == 0:
+                counts['success_elsewhere'] += 1
+        else:
+            counts['incomplete'] += 1
+    return counts
+
+
 def render_compact(rows, metadata, dataset):
     """Consumer card generated from the same check cells as the detailed views."""
     from validation.publishing.filter_tasks import (
-        REQUIRED_CHECKS, JUDGES, EXPERIMENT, select, status,
+        REQUIRED_CHECKS, JUDGES, JUDGE_CRITERIA, EXPERIMENT, select, judge_failures,
     )
     rows = latest(rows, dataset)
     rules = metadata.get('required_rules', list(REQUIRED_CHECKS))
     kept, failed, pending = baseline(rows, rules)
     title = metadata.get('title', dataset)
+    payloads = metadata.get('payload_tasks')
+    payload_count = f'{payloads:,}' if isinstance(payloads, int) else UNKNOWN
+    warnings = sum(any(outcome(r, rule) == 'warning' for rule in rules) for r in kept)
     sections = [f'# {title}',
-                table(['Tasks in payload', 'Result records', 'Validation passed¹', 'Failed', 'Incomplete'],
-                      [[metadata.get('payload_tasks', UNKNOWN), len(rows), len(kept), len(failed), len(pending)]]),
-                '¹ Includes warnings and not-applicable checks. The task file is unfiltered; use the filter below. '
-                'AI detection is intentionally excluded by user policy.']
-    eval_rows = []
-    for key, label in [('passk_target', 'Qwen3.5-35B-A3B'), ('passk_teacher', 'GLM-5.3-Flash')]:
-        if any(key in r for r in rows):
-            counts = Counter(status(r.get(key)) for r in rows)
-            eval_rows.append([label, counts['pass'], counts['fail'],
-                              len(rows) - counts['pass'] - counts['fail']])
-    if eval_rows:
-        sections.append('## Recorded pass@4 results\n\n' + table(
-            ['Model', 'At least one success', 'Complete unsolved', 'Incomplete / not run'], eval_rows))
-    sections.append('<details>\n<summary>Validation results by check</summary>\n\n'
+                f"`tasks.parquet` contains {payload_count} task payloads. "
+                f"`results.parquet` records {len(rows):,} tasks, including build failures without a payload.",
+                '## Rule-based checks\n\n'
+                f'Counts below cover all **{len(rows):,} result records**, through deterministic validation and leakage checks. '
+                'Not-applicable checks are accepted. A task with any failure is counted as failed; '
+                'otherwise, a missing or incomplete required check is counted as incomplete.\n\n'
+                + table(['Rule-check outcome', 'Tasks'], [
+                    ['All applicable rules pass, no warnings', f'{len(kept) - warnings:,}'],
+                    ['Passes with warnings, no failures or incomplete checks', f'{warnings:,}'],
+                    ['Total retained by the rule filter', f'{len(kept):,}'],
+                    ['At least one failed rule', f'{len(failed):,}'],
+                    ['Incomplete required checks, no recorded failure', f'{len(pending):,}']])]
+    sections.append('<details>\n<summary>Show results for each rule</summary>\n\n'
                     + rule_table(rows, rules) + '\n\n</details>')
+    judge_rows = []
+    for alias in JUDGES:
+        counts = Counter()
+        for row in kept:
+            failures = judge_failures(row, alias)
+            category = ('incomplete' if failures is None else 'clean' if not failures
+                        else next(iter(failures)) if len(failures) == 1 else 'multiple')
+            counts[category] += 1
+        judge_rows.append(['Qwen3.8-27B' if alias == 'qwen' else 'GLM-5.3-Flash',
+                           *[f'{counts[k]:,}' for k in ('clean', *JUDGE_CRITERIA, 'multiple', 'incomplete')]])
+    sections.append('## LLM-as-a-judge results\n\n'
+                    f'Among the **{len(kept):,} tasks retained by the rule filter**. Clean means all eight criteria pass. '
+                    'Each “only” column counts tasks failing exactly that criterion and passing the other seven. '
+                    'These groups are disjoint; multiple failures and missing verdicts are shown separately.\n\n'
+                    + table(['Judge', 'Clean', *[f'Only {c} fails' for c in JUDGE_CRITERIA],
+                             'Multiple criteria fail', 'Missing / incomplete verdicts'], judge_rows))
+    models = [(key, label) for key, label in [('passk_target', 'Qwen3.5-35B-A3B'), ('passk_teacher', 'GLM-5.3-Flash')]
+              if any(key in r for r in rows)]
+    if models:
+        distributions = [complete_batch_distribution(rows, key) for key, _ in models]
+        sections.append('## Pass@4 results\n\n'
+                        'Task counts by successful attempts in the selected complete four-attempt batch. '
+                        'Calibration retries are not pooled. These counts cover all result records; no judge filter is applied.\n\n'
+                        + table(['Successful attempts', *[label for _, label in models]],
+                                [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
+                                + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
+                                   ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
+                                   ['Not run / awaiting rerun', *[f'{c["not_run"]:,}' for c in distributions]]])
+                        + '\n\n`0/4` means none of the four attempts succeeded; `4/4` means all four succeeded. '
+                        'The solved row is the sum of 1/4 through 4/4.')
+        for (_, label), counts in zip(models, distributions):
+            if counts['success_elsewhere']:
+                sections.append(f"{counts['success_elsewhere']:,} {label} tasks succeeded in another recorded batch "
+                                'but scored 0/4 in the selected batch. They appear under 0/4 here.')
     sections.append('## Files\n\n'
                     '`tasks.parquet` contains task archives; `results.parquet` contains checks, judge verdicts and evaluations. '
                     '`cached_images/` contains environment images and their index. `runtime-manifest.json` maps tasks '

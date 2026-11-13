@@ -7,7 +7,8 @@ import pyarrow.parquet as pq
 import pytest
 
 from validation.publishing import filter_tasks as ft
-from validation.publishing.readme import render_compact
+from validation.publishing.readme import render_compact, complete_batch_distribution
+from validation.run import uncell
 
 
 def row(name='task', failures=()):
@@ -101,3 +102,30 @@ def test_compact_card_counts_are_computed_and_hypothesis_is_not_a_result():
     assert 'not a measured result' in text
     assert 'Previous release' not in text
     assert 'Current coverage' not in text
+    assert 'AI detection' not in text
+
+
+def test_attempt_distribution_uses_selected_batch_not_earlier_successes():
+    def attempt(state, wins, attempts):
+        return {'passk_target': {'status': state, 'details': json.dumps({
+            'k': 4, 'selected_batch': {'successes': wins, 'valid_attempts': attempts},
+            'original_run': {'successes': 4, 'valid_attempts': 4}})}}
+    counts = complete_batch_distribution([
+        attempt('pass', 0, 4), attempt('pass', 2, 4), attempt('pass', 1, 3),
+        {'passk_target': {'status': 'not_requested', 'details': 'Changed task needs rerun'}}
+    ], 'passk_target')
+    assert counts == {0: 1, 2: 1, 'incomplete': 1, 'not_run': 1, 'success_elsewhere': 1}
+
+
+def test_rule_summary_separates_warnings_and_judge_only_groups():
+    clean, warning, fail, incomplete = [row(n) for n in ['clean', 'warning', 'fail', 'incomplete']]
+    warning['repository_history']['status'] = 'warning'
+    fail['nop']['status'] = 'fail'
+    incomplete['build']['status'] = 'execution_error'
+    warning['ANSWER-LEAK']['verdicts'][ft.JUDGES['qwen']] = ['fail']
+    text, kept = render_compact([uncell(r) for r in [clean, warning, fail, incomplete]], {}, 'CalibForge')
+    assert len(kept) == 2
+    assert '| All applicable rules pass, no warnings | 1 |' in text
+    assert '| Passes with warnings, no failures or incomplete checks | 1 |' in text
+    assert '| Qwen3.8-27B | 1 | 1 | 0 |' in text
+    assert text.index('## Rule-based checks') < text.index('## LLM-as-a-judge results')
