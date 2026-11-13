@@ -60,6 +60,28 @@ def test_unresolved_is_unchanged_and_mismatched_evidence_is_rejected():
     assert apply_task(task, row) == (task, row)
 
 
+def test_pending_recommendation_accepts_plain_text_details():
+    task, row = fixture()
+    row['resources_recommended'].update(status='not_requested', details='Task repaired; fresh evaluation required.')
+    assert apply_task(task, row) == (task, row)
+
+
+def test_embedded_image_index_follows_updated_task_hash(tmp_path):
+    task, result = fixture()
+    manifest = {'tasks': {'a': {'content_sha256': task['content_sha256'], 'environments': [{'bundle': 'same-image'}]}},
+                'bundles': {'same-image': {'files': {}}}, 'missing': []}
+    tasks, results = tmp_path/'tasks.parquet', tmp_path/'results.parquet'
+    pq.write_table(pa.Table.from_pylist([task]).replace_schema_metadata({b'ot.images.v1': json.dumps(manifest).encode()}), tasks)
+    pq.write_table(pa.Table.from_pylist([result]), results)
+    apply_parquet(tasks, results)
+    saved = pq.read_table(tasks)
+    updated = json.loads(saved.schema.metadata[b'ot.images.v1'])
+    assert updated['tasks']['a']['content_sha256'] == saved['content_sha256'][0].as_py()
+    assert updated['tasks']['a']['content_sha256'] != task['content_sha256']
+    assert updated['bundles'] == manifest['bundles']
+    assert updated['tasks']['a']['environments'] == manifest['tasks']['a']['environments']
+
+
 def test_parquet_rewrite_keeps_schema_metadata_and_updates_saved_payload(tmp_path):
     task, result = fixture()
     tasks, results = tmp_path/'tasks.parquet', tmp_path/'results.parquet'

@@ -1,4 +1,5 @@
 """Apply revision-matched resource recommendations to packaged task.toml files."""
+import base64
 import copy
 import json
 import os
@@ -20,7 +21,9 @@ def decoded(value):
 def recommendation(row):
     cell = decoded(row.get('resources_recommended'))
     if cell.get('status'):
-        return (cell if cell['status'] == 'resolved' else None), decoded(cell.get('details')).get('recommended_source')
+        if cell['status'] != 'resolved':
+            return None, None
+        return cell, decoded(cell.get('details')).get('recommended_source')
     legacy = decoded(row.get('resources'))
     return (legacy.get('requirements') if legacy.get('status') == 'resolved' else None), legacy.get('source')
 
@@ -103,6 +106,7 @@ def apply_parquet(tasks, results, output_tasks=None):
     destination.parent.mkdir(parents=True, exist_ok=True)
     source = pq.ParquetFile(tasks)
     schema = source.schema_arrow
+    images = json.loads(schema.metadata[b'ot.images.v1']) if schema.metadata and b'ot.images.v1' in schema.metadata else None
     if 'content_sha256' not in schema.names:
         schema = schema.append(pa.field('content_sha256', pa.string()))
     expected, count, changed = {}, 0, 0
@@ -137,7 +141,15 @@ def apply_parquet(tasks, results, output_tasks=None):
                     count += 1
                     applied_indices.add(index)
                     expected[(task['path'], task['content_sha256'])] = recommendation(rows[index])[0]
+                if images is not None and task['path'] in images['tasks']:
+                    images['tasks'][task['path']]['content_sha256'] = task['content_sha256']
                 writer.write_table(pa.Table.from_pylist([task], schema=schema))
+            if images is not None:
+                metadata = {**schema.metadata, b'ot.images.v1': json.dumps(images).encode()}
+                # Arrow restores schema metadata from its serialized schema, ahead
+                # of the plain Parquet footer keys. Keep both copies consistent.
+                encoded = base64.b64encode(schema.with_metadata(metadata).serialize().to_pybytes())
+                writer.add_key_value_metadata({**metadata, b'ARROW:schema': encoded})
         if required - applied_indices:
             missing = sorted(rows[i]['task_id'] for i in required - applied_indices)
             raise ValueError(f'Resolved recommendations missing matching task payloads: {missing[:10]}')
