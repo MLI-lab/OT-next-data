@@ -247,7 +247,8 @@ def render_compact(rows, metadata, dataset):
         sections.append(metadata['asset_note'])
     sections.append('## Filtering\n\n'
                     'Install `pyarrow`, then put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
-                    'The script first applies the rule-based checks above. Warnings are kept, while tasks with a failed or unfinished required check are removed.\n\n'
+                    'The script first applies the rule-based checks above. Warnings are kept, while tasks with a failed or unfinished required check are removed. '
+                    '`--out` names the output folder for the filtered `tasks.parquet`, matching `results.parquet` and a `selection.json` summary.\n\n'
                     'To also filter by LLM judge, use `--judge qwen` or `--judge glm`. By default, tasks with any failed criterion or missing verdict for that judge are removed. '
                     'Use `--allow-fail CRITERION` to allow a named criterion to fail. Repeat `--allow-fail` to allow multiple criteria to fail.\n\n'
                     'To also filter by pass@4, use `--passk-model qwen` (Qwen3.5-35B-A3B) or `--passk-model glm` (GLM-5.3-Flash), '
@@ -270,9 +271,7 @@ def render_compact(rows, metadata, dataset):
                     '# Keep tasks Qwen solved at least once\n'
                     'python filter_tasks.py --passk-model qwen --successes 1 2 3 4 --out qwen-solved\n\n'
                     '# Require a clean Qwen judge review and no GLM successes\n'
-                    'python filter_tasks.py --judge qwen --passk-model glm --successes 0 --out clean-teacher-unsolved\n\n'
-                    '# Keep tasks Qwen solved in exactly one or two of four attempts\n'
-                    'python filter_tasks.py --passk-model qwen --successes 1 2 --out qwen-partly-solved\n'
+                    'python filter_tasks.py --judge qwen --passk-model glm --successes 0 --out clean-teacher-unsolved\n'
                     '```\n\n'
                     'Available criteria, with explanations in the [rubric](https://github.com/MLI-lab/OT-next-data/blob/main/validation/rubrics/rubric_ot/rubric.toml):\n\n'
                     + '\n'.join(f'- `{criterion}`' for criterion in JUDGE_CRITERIA))
