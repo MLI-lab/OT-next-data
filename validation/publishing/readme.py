@@ -248,7 +248,7 @@ def render_compact(rows, metadata, dataset):
     sections.append('## Filtering\n\n'
                     'Install `pyarrow`, then put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
                     'The script first applies the rule-based checks above. Warnings are kept, while tasks with a failed or unfinished required check are removed. '
-                    '`--out` names the output folder, e.g. `--out validated` saves files in `validated/`.\n\n'
+                    '`--out` names the output folder, e.g. `--out validated` saves tasks in `validated/`.\n\n'
                     'To also filter by LLM judge, use `--judge qwen` or `--judge glm`. By default, tasks with any failed criterion or missing verdict for that judge are removed. '
                     'Use `--allow-fail CRITERION` to allow a named criterion to fail. Repeat `--allow-fail` to allow multiple criteria to fail.\n\n'
                     'To also filter by pass@4, use `--passk-model qwen` (Qwen3.5-35B-A3B) or `--passk-model glm` (GLM-5.3-Flash), '
