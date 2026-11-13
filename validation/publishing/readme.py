@@ -237,7 +237,6 @@ def render_compact(rows, metadata, dataset):
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
                                    ['Incomplete batch', *[f'{c["incomplete"]:,}' for c in distributions]],
-                                   ['Not run, excluded by rule checks', *[f'{c["excluded"]:,}' for c in distributions]],
                                    ['Awaiting evaluation or rerun', *[f'{c["awaiting"]:,}' for c in distributions]]]))
         for (_, label), counts in zip(models, distributions):
             if counts['success_elsewhere']:
