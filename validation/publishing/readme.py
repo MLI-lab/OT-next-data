@@ -181,10 +181,14 @@ def render_compact(rows, metadata, dataset):
     payloads = metadata.get('payload_tasks')
     payload_count = f'{payloads:,}' if isinstance(payloads, int) else UNKNOWN
     warnings = sum(any(outcome(r, rule) == 'warning' for rule in rules) for r in kept)
-    sections = [f'# {title}',
-                f"There are **{payload_count} tasks** in `tasks.parquet`. "
-                f"We keep results for all **{len(rows):,} tasks** in `results.parquet`. "
-                + (f"The other {len(rows) - payloads:,} tasks failed during the Docker-to-Apptainer image build. "
+    intro = (f"`tasks.parquet` and `results.parquet` contain all **{len(rows):,} tasks**."
+             if payloads == len(rows) else
+             f"There are **{payload_count} tasks** in `tasks.parquet` and results for all **{len(rows):,} tasks** in `results.parquet`.")
+    if metadata.get('included_build_failures'):
+        intro += (f" {metadata['included_build_failures']:,} tasks failed Docker-to-Apptainer conversion "
+                  'and have no cached image.')
+    sections = [f'# {title}', intro
+                + (f" The other {len(rows) - payloads:,} tasks failed during the Docker-to-Apptainer image build. "
                    'They are left out of the task file, but their results explain why they failed.'
                    if isinstance(payloads, int) and len(rows) > payloads
                    and metadata.get('excluded_build_failures') == len(rows) - payloads else ''),
