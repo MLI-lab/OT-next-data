@@ -171,7 +171,7 @@ def retry_unsettled(args, stage_runs, numbers):
 
 
 BASE = {'dataset', 'task_id', 'content_sha256', 'run', 'details'}
-VERSION = b'4'  # 4: one column per judge rubric criterion (judge -> reviews); no llm_review
+VERSION = b'5'  # 5: criterion JSON maps judges to status/details, retaining repeated reviews
 from validation.outcomes import RESULTS, NO_RESULT
 STATUSES = {*RESULTS, *NO_RESULT}
 # Checks that run their own containers. Each cell records the check's cost over
@@ -458,11 +458,11 @@ def observations(reports, hashes, dataset='', settings=None):
     return list(rows.values())
 
 
-JUDGE_FIELDS = ('verdicts', 'details')
+from validation.judge_cells import decode as decode_judge, record as judge_record, reviews as judge_reviews
 
 
 def is_judge_cell(value):
-    return isinstance(value, dict) and 'verdicts' in value and 'status' not in value
+    return decode_judge(value) is not None
 
 
 def evaluation_column(name, value):
@@ -544,26 +544,23 @@ def judge_cells(report, item, digest, criteria=None):
             else:
                 verdicts.append('no_verdict')
                 texts.append(error)
-        cells[name] = {'verdicts': {judge: verdicts}, 'details': {judge: texts}}
+        cells[name] = {judge: judge_record([{'status': status, 'details': text}
+                                          for status, text in zip(verdicts, texts)])}
     return cells
 
 
 def merge_judge(old, new):
     """Add a judge run to a criterion cell. Other judges are kept. For the same judge, review N
     replaces review N, except that a missing verdict never replaces a verdict (retries)."""
-    if not is_judge_cell(old):
-        return new
-    out = {field: {judge: (list(value) if isinstance(value, list) else value)
-                   for judge, value in (old.get(field) or {}).items()} for field in JUDGE_FIELDS}
-    for judge, verdicts in new['verdicts'].items():
-        kept, texts = out['verdicts'].get(judge, []), out['details'].get(judge, [])
-        for index, (verdict, text) in enumerate(zip(verdicts, new['details'][judge])):
+    out = dict(decode_judge(old) or {})
+    for judge, value in decode_judge(new).items():
+        kept = [dict(r) for r in judge_reviews(out[judge])] if judge in out else []
+        for index, review in enumerate(judge_reviews(value)):
             if index >= len(kept):
-                kept.append(verdict)
-                texts.append(text)
-            elif verdict != 'no_verdict' or kept[index] == 'no_verdict':
-                kept[index], texts[index] = verdict, text
-        out['verdicts'][judge], out['details'][judge] = kept, texts
+                kept.append(review)
+            elif review['status'] != 'no_verdict' or kept[index]['status'] == 'no_verdict':
+                kept[index] = review
+        out[judge] = judge_record(kept)
     return out
 
 
@@ -670,10 +667,12 @@ def uncell(row):
     for name, value in list(row.items()):
         if name in ('resources_recommended', 'passk_target', 'passk_teacher') and isinstance(value, dict):
             continue  # Structured evaluation cells retain their own details and values.
-        if isinstance(value, dict) and 'verdicts' in value and 'status' not in value:
-            row[name] = {field: dict(value.get(field) or []) for field in JUDGE_FIELDS} if value['verdicts'] is not None else None
-            if row[name] is None:
-                del row[name]
+        judged = decode_judge(value)
+        if judged is not None:
+            row[name] = judged
+            continue
+        if isinstance(value, dict) and 'verdicts' in value:
+            row[name] = None
             continue
         if not (isinstance(value, dict) and value.get('status') in STATUSES):
             continue
@@ -697,8 +696,8 @@ def read(path):
     if not Path(path).is_file():
         return []
     table = pq.read_table(path)
-    if (table.schema.metadata or {}).get(b'ot.results.version') not in (b'3', VERSION):
-        raise ValueError(f'{path}: not a results.parquet of format version 3 or 4')
+    if (table.schema.metadata or {}).get(b'ot.results.version') not in (b'3', b'4', VERSION):
+        raise ValueError(f'{path}: not a results.parquet of format version 3, 4 or 5')
     return [normalize_details(uncell(row)) for row in table.to_pylist()]
 
 
@@ -718,19 +717,15 @@ def write(path, rows):
             if isinstance(value, str) and value in STATUSES and name not in BASE:
                 row[name] = cell(name, value, records.get(name), repairs.get(name))
             elif is_judge_cell(value):
-                row[name] = {field: sorted((value.get(field) or {}).items()) for field in JUDGE_FIELDS}
+                row[name] = encode(decode_judge(value))
         out.append(row)
     names = sorted({k for r in out for k in r} | {'dataset', 'task_id', 'content_sha256'})
     checks = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'status' in v}
-    judged = {n for r in out for n, v in r.items() if isinstance(v, dict) and 'verdicts' in v}
     integers = {n for n in names if n.endswith(('_solved', '_attempts', '_successes', '_valid_attempts')) or n in ('cpus', 'memory_mb')}
     def kind(name):
         if name == 'resources_recommended' and name in checks:
             return pa.struct([('cpus', pa.int64()), ('memory_mb', pa.int64()), ('storage_mb', pa.int64()),
                               ('status', pa.string()), ('details', pa.string())])
-        if name in judged:
-            reviews = pa.map_(pa.string(), pa.list_(pa.string()))
-            return pa.struct([('verdicts', reviews), ('details', reviews)])
         if name in checks:
             fields = [('status', pa.string())]
             if name in repairable:

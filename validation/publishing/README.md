@@ -27,6 +27,11 @@ change, the row is replaced and checks not rerun become `not_requested`. The rea
 also accepts the earlier revision format, keeps its latest rows and converts
 `not_run`. A repair that was not recorded stays unknown, not `false`.
 
+Each judge criterion has its own JSON column, keyed by model. Each model has
+`status` and `details`; repeated reviews are retained in `reviews`. Any failing
+review makes the summary `fail`; otherwise missing reviews make it `incomplete`.
+The reader accepts the older `verdicts`/`details` maps too.
+
 Judge columns are matched by task ID: a judge prepares its own task copy with its own
 hash, so judge results never replace the validation row. A second judge is added next
 to the first; a rerun of the same judge replaces its reviews, but a missing verdict never

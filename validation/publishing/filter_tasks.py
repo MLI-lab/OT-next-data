@@ -48,6 +48,21 @@ def baseline_issues(row, checks=REQUIRED_CHECKS):
             if status(row.get(key)) not in ACCEPTED}
 
 
+def judge_statuses(cell):
+    """Read per-judge JSON cells and legacy maps without changing review selection."""
+    if isinstance(cell, str):
+        cell = json.loads(cell)
+    if not isinstance(cell, dict):
+        return {}
+    old = cell.get('verdicts', cell.get('status'))
+    if isinstance(old, (dict, list)):
+        return dict(old)
+    return {model: [r['status'] for r in value['reviews']] if 'reviews' in value
+            else [value['status']]
+            for model, value in cell.items()
+            if isinstance(value, dict) and 'status' in value}
+
+
 def judge_failures(row, judge, criteria=JUDGE_CRITERIA):
     """Return failed criteria, or None when any required review is unresolved.
 
@@ -57,7 +72,7 @@ def judge_failures(row, judge, criteria=JUDGE_CRITERIA):
     failed = set()
     for criterion in criteria:
         cell = row.get(criterion) or {}
-        reviews = dict(cell.get('verdicts') or {}).get(JUDGES.get(judge, judge), [])
+        reviews = judge_statuses(cell).get(JUDGES.get(judge, judge), [])
         if not reviews or any(v not in ACCEPTED | {'fail'} for v in reviews):
             return None
         if 'fail' in reviews:
@@ -143,7 +158,7 @@ def export(tasks, results, out, judge=None, allow_fail=(), experiment2=False,
     rows = table.to_pylist()
     if judge:
         available = {model for row in rows for criterion in criteria
-                     for model in dict((row.get(criterion) or {}).get('verdicts') or {})}
+                     for model in judge_statuses(row.get(criterion))}
         if JUDGES.get(judge, judge) not in available:
             raise ValueError('No verdicts for judge ' + judge + '; available: ' + ', '.join(sorted(available)))
     variants = EXPERIMENT if experiment2 else {'selected': set(allow_fail)}

@@ -129,3 +129,35 @@ def test_rule_summary_separates_warnings_and_judge_only_groups():
     assert '| Passes with warnings, no failures or incomplete checks | 1 |' in text
     assert '| Qwen3.8-27B | 1 | 1 | 0 |' in text
     assert text.index('## Rule-based checks') < text.index('## LLM-as-a-judge results')
+
+
+def test_status_maps_keep_legacy_selection_semantics():
+    import copy
+    legacy = [row('clean'), row('incomplete', ['VERIFIER-ACCEPTS-INCOMPLETE'])]
+    legacy[0]['ANSWER-LEAK']['verdicts'][ft.JUDGES['qwen']] = ['pass', 'no_verdict']
+    current = copy.deepcopy(legacy)
+    for r in current:
+        for criterion in ft.JUDGE_CRITERIA:
+            cell = r[criterion]
+            cell['status'] = list(cell.pop('verdicts').items())
+    for judge in ('qwen', 'glm'):
+        for allowed in ((), ('VERIFIER-ACCEPTS-INCOMPLETE',)):
+            selected, reasons = ft.select(current, judge, allowed)
+            previous, previous_reasons = ft.select(legacy, judge, allowed)
+            assert set(selected) == set(previous)
+            assert reasons == previous_reasons
+
+
+def test_per_judge_json_preserves_all_reviews():
+    from validation.judge_cells import decode
+    legacy = [row('clean'), row('failure', ['VERIFIER-ACCEPTS-INCOMPLETE'])]
+    legacy[0]['ANSWER-LEAK']['verdicts'][ft.JUDGES['qwen']] = ['fail', 'no_verdict']
+    current = [{k: json.dumps(decode(v)) if k in ft.JUDGE_CRITERIA else v
+                for k, v in r.items()} for r in legacy]
+    for judge in ('qwen', 'glm'):
+        for allowed in ((), ('VERIFIER-ACCEPTS-INCOMPLETE',)):
+            selected, reasons = ft.select(current, judge, allowed)
+            previous, previous_reasons = ft.select(legacy, judge, allowed)
+            assert set(selected) == set(previous)
+            assert reasons == previous_reasons
+    assert json.loads(current[0]['ANSWER-LEAK'])[ft.JUDGES['qwen']]['status'] == 'fail'

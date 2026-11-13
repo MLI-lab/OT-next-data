@@ -1,4 +1,5 @@
-"""results.parquet format 4: one column per judge rubric criterion, every review per judge."""
+"""results.parquet format 5: one column per judge rubric criterion, every review per judge."""
+import json
 import pyarrow.parquet as pq
 
 from validation import run as results
@@ -27,14 +28,14 @@ def test_each_criterion_lists_every_review_and_missing_verdicts(tmp_path):
     ], attempts=2), {'t': 'j1', 'u': 'j2', 's': 'j3'})
     row, judged = cells(path)
     assert set(judged) == {'A', 'B'} and 'llm_review' not in row
-    assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail', 'pass']}  # review 1 = attempt 000
-    assert judged['A']['details']['Qwen/Qwen3.8-27B'] == ['A fail (a/000)', 'A pass (a/001)']
+    assert [r['status'] for r in results.judge_reviews(judged['A']['Qwen/Qwen3.8-27B'])] == ['fail', 'pass']  # review 1 = attempt 000
+    assert [r['details'] for r in results.judge_reviews(judged['A']['Qwen/Qwen3.8-27B'])] == ['A fail (a/000)', 'A pass (a/001)']
     _, missing = cells(path, 'u')
-    assert missing['B']['verdicts'] == {'Qwen/Qwen3.8-27B': ['no_verdict', 'no_verdict']}
-    assert 'OOM' in missing['B']['details']['Qwen/Qwen3.8-27B'][0]
+    assert [r['status'] for r in results.judge_reviews(missing['B']['Qwen/Qwen3.8-27B'])] == ['no_verdict', 'no_verdict']
+    assert 'OOM' in missing['B']['Qwen/Qwen3.8-27B']['details']
     _, skipped = cells(path, 's')
     assert skipped == {}
-    assert pq.read_schema(path).metadata[b'ot.results.version'] == b'4'
+    assert pq.read_schema(path).metadata[b'ot.results.version'] == b'5'
 
 
 def test_judges_merge_by_task_id_and_keep_validation_results(tmp_path):
@@ -46,7 +47,7 @@ def test_judges_merge_by_task_id_and_keep_validation_results(tmp_path):
                           {'t': 'judge-copy-2'}, dataset='d')
     row, judged = cells(path)
     assert row['content_sha256'] == 'validated' and row['nop'] == 'pass' and row['verifier_paths'] == 'fail'
-    assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail'], 'zai-org/GLM-5.3-Flash': ['pass']}
+    assert {m: v['status'] for m, v in judged['A'].items()} == {'Qwen/Qwen3.8-27B': 'fail', 'zai-org/GLM-5.3-Flash': 'pass'}
     # New task files replace the row, judge reviews included: they were of the old files.
     results.update(path, [{'dataset': 'd', 'task_id': 't', 'content_sha256': 'repaired', 'nop': 'pass'}])
     row, judged = cells(path)
@@ -59,14 +60,14 @@ def test_same_judge_rerun_replaces_reviews_but_missing_verdicts_never_overwrite(
     qwen = 'openai/qwen38-27b'
     results.export_report(path, stage5(qwen, [{'task': 't', 'status': 'failed', 'verdicts': [review('0', A='fail')], 'findings': ['x']}], 2),
                           {'t': 'h'})
-    assert cells(path)[1]['A']['verdicts']['Qwen/Qwen3.8-27B'] == ['fail', 'no_verdict']
+    assert [r['status'] for r in results.judge_reviews(cells(path)[1]['A']['Qwen/Qwen3.8-27B'])] == ['fail', 'no_verdict']
     # A retry with one review: a missing verdict does not replace review 1 ...
     results.export_report(path, stage5(qwen, [{'task': 't', 'status': 'failed', 'verdicts': [], 'findings': ['oom']}]), {'t': 'h'})
-    assert cells(path)[1]['A']['verdicts']['Qwen/Qwen3.8-27B'] == ['fail', 'no_verdict']
+    assert [r['status'] for r in results.judge_reviews(cells(path)[1]['A']['Qwen/Qwen3.8-27B'])] == ['fail', 'no_verdict']
     # ... and a full rerun replaces both reviews.
     results.export_report(path, stage5(qwen, [{'task': 't', 'status': 'passed', 'verdicts': [review('0', A='pass'), review('1', A='pass')]}], 2),
                           {'t': 'h'})
-    assert cells(path)[1]['A']['verdicts']['Qwen/Qwen3.8-27B'] == ['pass', 'pass']
+    assert [r['status'] for r in results.judge_reviews(cells(path)[1]['A']['Qwen/Qwen3.8-27B'])] == ['pass', 'pass']
 
 
 def test_format_3_files_are_still_read(tmp_path):
@@ -86,4 +87,24 @@ def test_evaluation_reports_with_their_own_repair_records_do_not_replace_validat
     results.export_report(path, report, {'t': 'judge-copy'}, dataset='d')
     row, judged = cells(path)
     assert (row['content_sha256'], row['nop'], row['build']) == ('validated', 'pass', 'pass')
-    assert judged['A']['verdicts'] == {'Qwen/Qwen3.8-27B': ['fail']}
+    assert judged['A']['Qwen/Qwen3.8-27B']['status'] == 'fail'
+
+
+def test_legacy_judge_maps_read_and_rewrite_as_status(tmp_path):
+    import pyarrow as pa
+    path = tmp_path / 'legacy.parquet'
+    reviews = pa.map_(pa.string(), pa.list_(pa.string()))
+    schema = pa.schema([('task_id', pa.string()), ('dataset', pa.string()), ('content_sha256', pa.string()),
+                        ('A', pa.struct([('verdicts', reviews), ('details', reviews)]))],
+                       metadata={b'ot.results.version': b'4'})
+    old = [{'task_id': 't', 'A': {'verdicts': [('model', ['fail', 'pass'])],
+                                'details': [('model', ['first', 'second'])]}},
+           {'task_id': 'u', 'A': None}]
+    pq.write_table(pa.Table.from_pylist(old, schema=schema), path)
+    rows = results.read(path)
+    results.write(path, rows)
+    assert results.read(path) == rows
+    raw = json.loads(pq.read_table(path).to_pylist()[0]['A'])
+    assert raw['model']['status'] == 'fail'
+    assert raw['model']['reviews'] == [{'status': 'fail', 'details': 'first'},
+                                       {'status': 'pass', 'details': 'second'}]

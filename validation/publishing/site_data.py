@@ -170,7 +170,7 @@ def build(name, path):
         for key, value in r.items():
             if results.is_judge_cell(value):
                 criteria.append(key) if key not in criteria else None
-                for judge in value['verdicts']:
+                for judge in value:
                     judges.append(judge) if judge not in judges else None
     # Wall time per task of the checks that run containers (build, reference and no-op runs), where measured.
     import pyarrow.parquet as pq
@@ -208,13 +208,14 @@ def build(name, path):
             cell = r.get(criterion)
             if not results.is_judge_cell(cell):
                 continue
-            judged[criterion] = {judge: ''.join({'pass': 'p', 'fail': 'f'}.get(v, 'm') for v in cell['verdicts'].get(judge, []))
+            judged[criterion] = {judge: ''.join({'pass': 'p', 'fail': 'f'}.get(v, 'm') for v in ([r['status'] for r in results.judge_reviews(cell[judge])] if judge in cell else []))
                                  for judge in judges}
-            for judge, verdicts in cell['verdicts'].items():
-                for i, verdict in enumerate(verdicts):
+            for judge, value in cell.items():
+                for i, review in enumerate(results.judge_reviews(value)):
+                    verdict = review['status']
                     if verdict != 'pass':
                         texts.setdefault('judge', {}).setdefault(criterion, {}).setdefault(judge, []).append(
-                            {'review': i + 1, 'verdict': verdict, 'text': cell['details'][judge][i][:4000]})
+                            {'review': i + 1, 'verdict': verdict, 'text': review['details'][:4000]})
         if judged:
             task['j'] = judged
         passk = {}
