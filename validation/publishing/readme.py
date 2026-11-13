@@ -275,7 +275,10 @@ def render_compact(rows, metadata, dataset):
         sections.append('## Experiment 1: rubric filtering and RL performance\n\n'
                         'River’s `VERIFIER-TOO-WEAK` combined incomplete solutions, where the agent still does part of the work, '
                         'with shortcuts that bypass it. We split these into `VERIFIER-ACCEPTS-INCOMPLETE` and `VERIFIER-ACCEPTS-SHORTCUTS`.\n\n'
-                        '**Hypothesis:** rubric criteria may have different effects on RL performance, so filtering out every task with a failed criterion may not be best. In particular, adding incomplete-only tasks may improve performance compared with clean-only training.\n\n'
+                        '**Hypothesis:** rubric criteria may have different effects on RL performance, so filtering out every task with a failed criterion may not be best.\n\n'
+                        '**Expected results:**\n\n'
+                        '- **Clean + shortcuts-only performs worse than clean**, suggesting filtering with an LLM judge can help.\n'
+                        '- **Clean + incomplete-only performs better than clean**, suggesting rubric criteria have different effects on RL performance.\n\n'
                         '**Setup:** generate three datasets for RL, clean, clean + incomplete-only, and clean + shortcuts-only.\n\n'
                         '```bash\n' + '\n\n'.join(commands) + '\n```')
     if metadata.get('resource_note'):
