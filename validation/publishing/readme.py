@@ -182,12 +182,16 @@ def render_compact(rows, metadata, dataset):
     payload_count = f'{payloads:,}' if isinstance(payloads, int) else UNKNOWN
     warnings = sum(any(outcome(r, rule) == 'warning' for rule in rules) for r in kept)
     sections = [f'# {title}',
-                f"`tasks.parquet` contains {payload_count} task payloads. "
-                f"`results.parquet` records {len(rows):,} tasks, including build failures without a payload.",
+                f"There are **{payload_count} tasks** in `tasks.parquet`. "
+                f"We keep results for all **{len(rows):,} tasks** in `results.parquet`. "
+                + (f"The other {len(rows) - payloads:,} tasks failed during the Docker-to-Apptainer image build. "
+                   'They are left out of the task file, but their results explain why they failed.'
+                   if isinstance(payloads, int) and len(rows) > payloads
+                   and metadata.get('excluded_build_failures') == len(rows) - payloads else ''),
                 '## Rule-based checks\n\n'
-                f'Counts below cover all **{len(rows):,} result records**, through deterministic validation and leakage checks. '
-                'Not-applicable checks are accepted. A task with any failure is counted as failed; '
-                'otherwise, a missing or incomplete required check is counted as incomplete.\n\n'
+                f'We first check all **{len(rows):,} tasks** for setup problems, verifier behaviour and leakage. '
+                'Tasks are kept when every applicable rule passes or gives a warning. '
+                'Any failed rule puts a task in the failed group. Tasks with unfinished checks stay incomplete unless they already have a failure.\n\n'
                 + table(['Rule-check outcome', 'Tasks'], [
                     ['All applicable rules pass, no warnings', f'{len(kept) - warnings:,}'],
                     ['Passes with warnings, no failures or incomplete checks', f'{warnings:,}'],
@@ -207,9 +211,10 @@ def render_compact(rows, metadata, dataset):
         judge_rows.append(['Qwen3.8-27B' if alias == 'qwen' else 'GLM-5.3-Flash',
                            *[f'{counts[k]:,}' for k in ('clean', *JUDGE_CRITERIA, 'multiple', 'incomplete')]])
     sections.append('## LLM-as-a-judge results\n\n'
-                    f'Among the **{len(kept):,} tasks retained by the rule filter**. Clean means all eight criteria pass. '
-                    'Each “only” column counts tasks failing exactly that criterion and passing the other seven. '
-                    'These groups are disjoint; multiple failures and missing verdicts are shown separately.\n\n'
+                    f'This table covers the **{len(kept):,} tasks kept after the rule-based checks**. '
+                    'A task is clean when it passes all eight criteria for that judge. '
+                    'An “only” column means that one criterion fails and the other seven pass. '
+                    'Tasks that fail several criteria, or still need a verdict, have their own columns, so each task is counted once per judge.\n\n'
                     + table(['Judge', 'Clean', *[f'Only {c} fails' for c in JUDGE_CRITERIA],
                              'Multiple criteria fail', 'Missing / incomplete verdicts'], judge_rows))
     models = [(key, label) for key, label in [('passk_target', 'Qwen3.5-35B-A3B'), ('passk_teacher', 'GLM-5.3-Flash')]
@@ -217,8 +222,9 @@ def render_compact(rows, metadata, dataset):
     if models:
         distributions = [complete_batch_distribution(rows, key) for key, _ in models]
         sections.append('## Pass@4 results\n\n'
-                        'Task counts by successful attempts in the selected complete four-attempt batch. '
-                        'Calibration retries are not pooled. These counts cover all result records; no judge filter is applied.\n\n'
+                        'For each model, we count how many of four attempts succeed on a task. '
+                        'When resource calibration produces several batches, we use the selected complete batch rather than combining retries. '
+                        'This table uses all recorded tasks, without filtering on the LLM judges.\n\n'
                         + table(['Successful attempts', *[label for _, label in models]],
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
@@ -231,16 +237,17 @@ def render_compact(rows, metadata, dataset):
                 sections.append(f"{counts['success_elsewhere']:,} {label} tasks succeeded in another recorded batch "
                                 'but scored 0/4 in the selected batch. They appear under 0/4 here.')
     sections.append('## Files\n\n'
-                    '`tasks.parquet` contains task archives; `results.parquet` contains checks, judge verdicts and evaluations. '
-                    '`cached_images/` contains environment images and their index. `runtime-manifest.json` maps tasks '
-                    'to the shared `runtimes/` files. `filter_tasks.py` creates selected task/results pairs.')
+                    '- `tasks.parquet`: the task instructions, files and tests.\n'
+                    '- `results.parquet`: rule checks, judge verdicts and pass@4 results.\n'
+                    '- `cached_images/`: environment images and a manifest showing which task uses each image.\n'
+                    '- `runtime-manifest.json`: links and checksums for the dependencies in the shared `runtimes/` folder.\n'
+                    '- `filter_tasks.py`: a script that selects tasks and saves their matching results.')
     if metadata.get('asset_note'):
         sections.append(metadata['asset_note'])
     sections.append('## Filtering\n\n'
-                    'Install `pyarrow` and put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
-                    'By default, the script requires all recorded default-training validation checks through leakage '
-                    'to pass, warn or be not applicable. Failed, missing and incomplete checks are excluded. '
-                    'Task IDs and payload hashes must match. No pass@k filter is applied.\n\n'
+                    'Install `pyarrow`, then put `filter_tasks.py`, `tasks.parquet` and `results.parquet` in the same directory. '
+                    'The script first applies the rule-based checks above: warnings are kept, while failed or unfinished checks exclude a task. '
+                    'It also checks that the results describe the same version of each task. It does not filter on pass@k.\n\n'
                     '```bash\n'
                     '# Deterministic validation and leakage checks only\n'
                     'python filter_tasks.py --out validated\n\n'
@@ -250,31 +257,31 @@ def render_compact(rows, metadata, dataset):
                     'python filter_tasks.py --judge glm \\\n'
                     '  --allow-fail VERIFIER-ACCEPTS-INCOMPLETE --out glm-with-incomplete\n'
                     '```\n\n'
-                    '`--criteria` optionally selects which judge criteria to enforce; the default is all eight. '
-                    'Judge models are evaluated separately. Missing verdicts are excluded; if repeated reviews disagree, any fail counts as a fail.')
+                    'Use `--criteria` to choose which judge criteria to check; otherwise, all eight are used. '
+                    'Qwen and GLM are treated separately. A missing verdict excludes the task. If repeated reviews disagree, a failure takes precedence.')
     if metadata.get('experiment2'):
         cohorts = []
         for alias, model in JUDGES.items():
             sizes = [len(select(rows, alias, allowed)[0]) for allowed in EXPERIMENT.values()]
             cohorts.append(['Qwen' if alias == 'qwen' else 'GLM', *[f'{n:,}' for n in sizes]])
         sections.append('## Proposed RL experiment\n\n'
-                        '**Experiment 2.1:** train separate RL runs on three datasets for each judge: '
+                        '**Experiment 2.1:** compare RL training on three datasets, using each judge separately: '
                         '**clean**, **clean + VERIFIER-ACCEPTS-INCOMPLETE-only**, and '
                         '**clean + VERIFIER-ACCEPTS-SHORTCUTS-only**. Clean tasks pass every selected judge criterion. '
-                        'An “only” addition fails that criterion and passes the other seven; tasks failing both are excluded. '
-                        'Each augmented dataset contains the same clean core. Judges are Qwen3.8-27B and GLM-5.3-Flash.\n\n'
+                        'The added tasks fail only the named criterion and pass the other seven. Tasks failing both are excluded. '
+                        'Both larger datasets include all the clean tasks. The judges are Qwen3.8-27B and GLM-5.3-Flash.\n\n'
                         + table(['Judge', 'Clean', 'Clean + incomplete-only', 'Clean + shortcuts-only'], cohorts)
-                        + '\n\n**Hypothesis:** relative to clean-only training, adding incomplete-only tasks improves held-out '
-                        'performance, while adding shortcuts-only tasks reduces it. This is a proposed hypothesis, not a measured result. '
-                        'Keep the model, evaluation set, seeds and training budget matched across conditions. Because the added groups '
-                        'differ in size, use a size-matched comparison as a control for data quantity.\n\n'
+                        + '\n\n**Hypothesis:** adding incomplete-only tasks improves performance on the held-out evaluation set compared with clean-only training, '
+                        'while adding shortcuts-only tasks makes it worse. This is a proposed hypothesis, not a measured result.\n\n'
+                        'Use the same model, evaluation set, seeds and training budget for all three runs. '
+                        'The added groups differ in size, so also compare equally sized additions to check whether a change comes from task quality or simply more data.\n\n'
                         '```bash\n'
                         'python filter_tasks.py --judge qwen --experiment-2 --out experiment2/qwen\n'
                         'python filter_tasks.py --judge glm  --experiment-2 --out experiment2/glm\n'
                         '```\n\n'
                         'Each command writes `clean/`, `clean-plus-incomplete/` and `clean-plus-shortcuts/`, each with '
-                        '`tasks.parquet` and `results.parquet`, plus a selection record. Counts use current, version-matched results; '
-                        'repaired tasks without fresh judge verdicts are excluded.')
+                        '`tasks.parquet` and `results.parquet`. A `selection.json` file records which tasks were chosen. '
+                        'The counts above use the current task versions. Repaired tasks are left out until their new judge verdicts are available.')
     if metadata.get('resource_note'):
         sections.append('## Task resources\n\n' + metadata['resource_note'])
     return '\n\n'.join(sections) + '\n', kept
