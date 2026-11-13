@@ -91,8 +91,9 @@ def test_calibrated_passk_workflow_and_resume(tmp_path, monkeypatch):
     # b: only the failed attempt reran, at the same allocation; one round.
     assert len(by['b']['calibration']['rounds']) == 1 and by['b']['passk']['outcome'] == 'unsolved'
     assert by['b']['calibration']['earlier_attempts'] == 1
-    # c: OOM at the maximum -> inconclusive, not unsolved, no rewards counted.
-    assert by['c']['passk']['outcome'] == 'inconclusive' and by['c']['status'] == 'inconclusive' and by['c']['rewards'] == []
+    # c: all four attempts exhausted the allowed memory, so this is a settled 0/4.
+    assert by['c']['passk'].items() >= {'outcome': 'unsolved', 'successes': 0, 'valid_attempts': 4}.items()
+    assert 'Configured maxima' in by['c']['calibration']['reason']
     # Upstream values are kept for comparison.
     assert by['c']['calibration']['upstream'] == {'cpus': 1, 'memory_mb': 2048, 'storage_mb': 10240}
     # Job allocations were written into the task copies; each job ran only the attempts it needed.

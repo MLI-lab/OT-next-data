@@ -27,7 +27,8 @@ A batch is k attempts of one task at one allocation:
   allocation, that allocation is enough, and attempts that hit a limit there count as failed attempts (an agent
   that needs less memory or CPU is the better solution). A task can also be capped (the teacher on a task the
   target model already solved): then resources never go up.
-pass@k counts only the final batch. Unresolved problems make the task inconclusive.
+pass@k counts only the final batch. Resource failures at the allowed ceiling count
+as failed attempts. Unresolved infrastructure problems remain inconclusive.
 """
 from dataclasses import asdict, dataclass, field
 import math
@@ -196,8 +197,18 @@ def decide(batch, allocation, policy, *, round_index, infra_retries_used=0, capp
         if raised and round_index + 1 < policy.max_rounds:
             return Decision('rerun_batch', new, 'resource problem: ' + ', '.join(raised), raised)
         if any(k == 'resource' for k in kinds):
-            why = (f"resource problem at the maximum allocation ({', '.join(capped)})" if capped and not raised
-                   else f'resource problem after {policy.max_rounds} rounds')
+            if not raised:
+                infra = [i for i, k in enumerate(kinds) if k == 'infrastructure']
+                if infra and infra_retries_used < policy.infra_retries:
+                    return Decision('retry_attempts', allocation, 'infrastructure failure', retry=infra)
+                if infra:
+                    return Decision('inconclusive', allocation, f'infrastructure failure after {policy.infra_retries} retries')
+                return Decision('final', allocation,
+                                'No successful trace; resource failures at the allowed maximum for '
+                                + ', '.join(capped) + '. Attempts that hit these limits count as failed. '
+                                + f'Actual allocation: {allocation}. Configured maxima: '
+                                + f'cpus={policy.max_cpus}, memory_mb={policy.max_memory_mb}, storage_mb={policy.max_storage_mb}.')
+            why = f'resource problem after {policy.max_rounds} rounds'
             return Decision('inconclusive', allocation, why)
         # Only the CPU candidate flag remains, the batch itself is resource-valid: keep it (MiMo: a flag
         # means "worth trying more"; at the maximum there is nothing more to try).

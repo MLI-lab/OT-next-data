@@ -82,13 +82,26 @@ def test_disk_and_cpu_problems_double_their_own_resources():
     assert decision.allocation == {'cpus': 4, 'memory_mb': 8192, 'storage_mb': 40960}
 
 
-def test_problem_at_the_maximum_or_after_the_last_round_is_inconclusive():
+def test_resource_exhaustion_at_the_maximum_is_a_failed_final_batch():
     top = {'cpus': 4, 'memory_mb': 16384, 'storage_mb': 40960}
     batch = classified([attempt(reward=None, oom=1)] + [attempt()] * 3, top)
-    assert c.decide(batch, top, POLICY, round_index=1).action == 'inconclusive'
+    decision = c.decide(batch, top, POLICY, round_index=1)
+    assert decision.action == 'final'
+    assert 'memory_mb=16384' in decision.reason
+    assert c.pass_at_k(batch, 4)['successes'] == 0
+    assert c.pass_at_k(batch, 4)['complete']
     batch = classified([attempt(reward=None, oom=1)] + [attempt()] * 3)
     late = c.decide(batch, BASE, POLICY, round_index=POLICY.max_rounds - 1)
     assert late.action == 'inconclusive' and 'rounds' in late.reason
+
+
+def test_resource_ceiling_does_not_hide_infrastructure_failures():
+    top = {'cpus': 4, 'memory_mb': 16384, 'storage_mb': 40960}
+    batch = classified([attempt(reward=None, oom=1),
+                        attempt(reward=None, category='infrastructure_error'), attempt(), attempt()], top)
+    assert c.decide(batch, top, POLICY, round_index=1).action == 'retry_attempts'
+    assert c.decide(batch, top, POLICY, round_index=1,
+                    infra_retries_used=POLICY.infra_retries).action == 'inconclusive'
 
 
 def test_cpu_candidate_reruns_at_double_and_keeps_a_valid_batch_at_the_maximum():
