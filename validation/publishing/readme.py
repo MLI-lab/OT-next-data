@@ -203,7 +203,8 @@ def render_compact(rows, metadata, dataset):
                     ['Passes with warnings, no failures or incomplete checks', f'{warnings:,}'],
                     ['Total retained by the rule filter', f'{len(kept):,}'],
                     ['At least one failed rule', f'{len(failed):,}'],
-                    ['Incomplete required checks, no recorded failure', f'{len(pending):,}']])]
+                    *([['Incomplete required checks, no recorded failure', f'{len(pending):,}']]
+                      if pending else [])])]
     if metadata.get('incomplete_note'):
         sections.append(metadata['incomplete_note'])
     sections.append('<details>\n<summary>Show results for each rule</summary>\n\n'
@@ -230,7 +231,6 @@ def render_compact(rows, metadata, dataset):
     if models:
         distributions = [complete_batch_distribution(rows, key) for key, _ in models]
         sections.append('## Pass@4 results\n\n'
-                        'Successful attempts out of four, using one complete batch per task and no LLM-judge filtering.\n\n'
                         + table(['Successful attempts', *[label for _, label in models]],
                                 [[f'{i}/4', *[f'{c[i]:,}' for c in distributions]] for i in range(5)]
                                 + [['Solved (at least 1/4)', *[f'{sum(c[i] for i in range(1, 5)):,}' for c in distributions]],
