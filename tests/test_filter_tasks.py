@@ -170,3 +170,53 @@ def test_per_judge_json_preserves_all_reviews():
             assert set(selected) == set(previous)
             assert reasons == previous_reasons
     assert json.loads(current[0]['ANSWER-LEAK'])[ft.JUDGES['qwen']]['status'] == 'fail'
+
+
+def passk_cell(wins, state=None, attempts=4):
+    return {'status': state or ('pass' if wins else 'fail'), 'details': json.dumps({
+        'k': 4, 'selected_batch': {'successes': wins, 'valid_attempts': attempts},
+        'original_run': {'successes': 4, 'valid_attempts': 4}})}
+
+
+def test_passk_filter_composes_with_rules_and_independent_judge():
+    rows = [row(str(n)) for n in range(5)]
+    for n, r in enumerate(rows):
+        r['passk_target'] = passk_cell(n)
+        r['passk_teacher'] = passk_cell(4 - n)
+    assert set(ft.select(rows, passk_model='qwen', successes=[1, 2])[0]) == {'1', '2'}
+    rows[0]['nop']['status'] = 'warning'
+    assert set(ft.select(rows, 'qwen', passk_model='glm', successes=[4])[0]) == {'0'}
+    rows[1]['nop']['status'] = 'fail'
+    rows[2]['ANSWER-LEAK']['verdicts'][ft.JUDGES['qwen']] = ['fail']
+    assert not ft.select(rows, 'qwen', passk_model='qwen', successes=[1, 2])[0]
+    assert set(ft.select(rows, 'qwen', ['ANSWER-LEAK'], passk_model='qwen', successes=[1, 2])[0]) == {'2'}
+
+
+def test_passk_zero_keeps_resource_failures_but_not_unfinished_or_previous_successes():
+    rows = [row(n) for n in ('zero', 'unfinished', 'missing', 'short', 'malformed')]
+    rows[0]['passk_target'] = passk_cell(0)
+    rows[1]['passk_target'] = passk_cell(0, 'inconclusive')
+    rows[3]['passk_target'] = passk_cell(0, attempts=3)
+    rows[4]['passk_target'] = {'status': 'fail', 'details': 'No usable result'}
+    selected, reasons = ft.select(rows, passk_model='qwen', successes=[0])
+    assert set(selected) == {'zero'}
+    assert reasons == {'passk_incomplete': 4}
+    assert len(ft.select(rows)[0]) == 5
+
+
+@pytest.mark.parametrize('model,successes', [(None, [0]), ('qwen', None), ('qwen', []), ('other', [1]), ('glm', [5])])
+def test_passk_requires_model_and_valid_counts(model, successes):
+    with pytest.raises(ValueError):
+        ft.select([], passk_model=model, successes=successes)
+
+
+def test_export_records_passk_filter_and_preserves_results(tmp_path):
+    tasks, results = inputs(tmp_path)
+    rows = pq.read_table(results).to_pylist()
+    rows[0]['passk_target'] = passk_cell(2)
+    pq.write_table(pa.Table.from_pylist(rows), results)
+    summary = ft.export(tasks, results, tmp_path / 'out', 'qwen', experiment2=True,
+                        passk_model='qwen', successes=[2, 1, 2])
+    assert summary['passk_filter'] == {'model': 'qwen', 'column': 'passk_target', 'k': 4, 'successes': [1, 2]}
+    assert all(g['tasks'] == 1 for g in summary['groups'].values())
+    assert pq.read_table(tmp_path / 'out/clean/results.parquet').to_pylist() == rows

@@ -1,7 +1,7 @@
 """Filter a task/results Parquet pair; usable standalone with only pyarrow installed.
 
 Example: python filter_tasks.py --judge qwen --experiment-1 --out experiment1/qwen
-No pass@k filter is applied. Warnings stay; missing/incomplete checks do not pass.
+Optional judge and pass@4 filters. Warnings stay; missing/incomplete checks do not pass.
 """
 import argparse
 from collections import Counter
@@ -31,6 +31,7 @@ JUDGE_CRITERIA = (
     'TASK-TRIVIAL', 'VERIFIER-ACCEPTS-INCOMPLETE', 'VERIFIER-ACCEPTS-SHORTCUTS',
 )
 JUDGES = {'qwen': 'Qwen/Qwen3.8-27B', 'glm': 'zai-org/GLM-5.3-Flash'}
+PASSK_MODELS = {'qwen': 'passk_target', 'glm': 'passk_teacher'}
 ACCEPTED = {'pass', 'warning', 'not_applicable'}
 EXPERIMENT = {
     'clean': set(),
@@ -80,7 +81,40 @@ def judge_failures(row, judge, criteria=JUDGE_CRITERIA):
     return failed
 
 
-def select(rows, judge=None, allow_fail=(), criteria=JUDGE_CRITERIA):
+def passk_successes(row, model):
+    """Successful attempts in the selected complete four-attempt batch only."""
+    cell = row.get(PASSK_MODELS[model])
+    if not isinstance(cell, dict) or cell.get('status') not in ('pass', 'fail'):
+        return None
+    details = cell.get('details')
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except ValueError:
+            return None
+    if not isinstance(details, dict) or details.get('k') != 4:
+        return None
+    batch = details.get('selected_batch')
+    if not isinstance(batch, dict):
+        return None
+    successes = batch.get('successes')
+    if type(batch.get('valid_attempts')) is not int or batch['valid_attempts'] != 4 or type(successes) is not int or not 0 <= successes <= 4:
+        return None
+    return successes
+
+
+def validate_passk_filter(model, successes):
+    if model is None and successes is None:
+        return
+    if model not in PASSK_MODELS or not successes:
+        raise ValueError('--passk-model qwen|glm and --successes must be supplied together')
+    if any(type(n) is not int or not 0 <= n <= 4 for n in successes):
+        raise ValueError('--successes must contain integers from 0 to 4')
+
+
+def select(rows, judge=None, allow_fail=(), criteria=JUDGE_CRITERIA,
+           passk_model=None, successes=None):
+    validate_passk_filter(passk_model, successes)
     allowed = set(allow_fail)
     if allowed - set(criteria):
         raise ValueError('Allowed failure must be one of the selected judge criteria')
@@ -102,6 +136,14 @@ def select(rows, judge=None, allow_fail=(), criteria=JUDGE_CRITERIA):
                 continue
             if failures - allowed:
                 reasons['judge_failed_other_criteria'] += 1
+                continue
+        if passk_model:
+            wins = passk_successes(row, passk_model)
+            if wins is None:
+                reasons['passk_incomplete'] += 1
+                continue
+            if wins not in successes:
+                reasons['passk_successes_not_selected'] += 1
                 continue
         selected[name] = row
     return selected, dict(reasons)
@@ -141,15 +183,18 @@ def subset_metadata(metadata, ids):
 
 
 def export(tasks, results, out, judge=None, allow_fail=(), experiment2=False,
-           criteria=JUDGE_CRITERIA):
+           criteria=JUDGE_CRITERIA, passk_model=None, successes=None):
     import pyarrow as pa
     import pyarrow.parquet as pq
     tasks, results, out = Path(tasks), Path(results), Path(out)
+    validate_passk_filter(passk_model, successes)
     if experiment2 and (not judge or allow_fail):
         raise ValueError('--experiment-1 requires --judge and cannot use --allow-fail')
     if allow_fail and not judge:
         raise ValueError('--allow-fail requires --judge')
     table = pq.read_table(results)
+    if passk_model and PASSK_MODELS[passk_model] not in table.column_names:
+        raise ValueError('Missing pass@4 column: ' + PASSK_MODELS[passk_model])
     absent = set(REQUIRED_CHECKS) - set(table.column_names)
     if absent:
         raise ValueError('Missing required validation columns: ' + ', '.join(sorted(absent)))
@@ -162,7 +207,8 @@ def export(tasks, results, out, judge=None, allow_fail=(), experiment2=False,
         if JUDGES.get(judge, judge) not in available:
             raise ValueError('No verdicts for judge ' + judge + '; available: ' + ', '.join(sorted(available)))
     variants = EXPERIMENT if experiment2 else {'selected': set(allow_fail)}
-    groups = {name: select(rows, judge, allowed, criteria) for name, allowed in variants.items()}
+    groups = {name: select(rows, judge, allowed, criteria, passk_model, successes)
+              for name, allowed in variants.items()}
     source = pq.ParquetFile(tasks)
     schemas, writers, paths = {}, {}, {}
     for name, (selected, _) in groups.items():
@@ -207,7 +253,9 @@ def export(tasks, results, out, judge=None, allow_fail=(), experiment2=False,
             return {'path': str(path), 'sha256': hashlib.file_digest(stream, 'sha256').hexdigest()}
     summary = {'inputs': {'tasks': file_identity(tasks), 'results': file_identity(results)},
                'judge': JUDGES.get(judge, judge), 'validation_checks': list(REQUIRED_CHECKS),
-               'judge_criteria': list(criteria) if judge else [], 'passk_filter': None,
+               'judge_criteria': list(criteria) if judge else [],
+               'passk_filter': {'model': passk_model, 'column': PASSK_MODELS[passk_model],
+                                'k': 4, 'successes': sorted(set(successes))} if passk_model else None,
                'warnings_retained': True, 'incomplete_excluded': True, 'groups': {}}
     for name, (selected, excluded) in groups.items():
         folder = paths[name]
@@ -232,9 +280,18 @@ def main():
                         help='Judge criteria to enforce; default = all eight adjusted-rubric criteria')
     parser.add_argument('--experiment-1', '--experiment-2', dest='experiment_2', action='store_true',
                         help='Export all three Experiment 1 groups')
+    parser.add_argument('--passk-model', choices=PASSK_MODELS,
+                        help='Filter completed pass@4 results for Qwen3.5-35B-A3B or GLM-5.3-Flash')
+    parser.add_argument('--successes', type=int, nargs='+', choices=range(5),
+                        help='Keep these numbers of successful attempts out of four, requires --passk-model')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    summary = export(args.tasks, args.results, args.out, args.judge, args.allow_fail, args.experiment_2, args.criteria)
+    try:
+        validate_passk_filter(args.passk_model, args.successes)
+    except ValueError as exc:
+        parser.error(str(exc))
+    summary = export(args.tasks, args.results, args.out, args.judge, args.allow_fail,
+                     args.experiment_2, args.criteria, args.passk_model, args.successes)
     print(json.dumps({k: v['tasks'] for k, v in summary['groups'].items()}, indent=2))
 
 
