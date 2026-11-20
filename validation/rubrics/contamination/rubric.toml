@@ -1,0 +1,258 @@
+# Contamination Detection Rubric v1
+
+## 1. Purpose and scope
+
+This rubric evaluates whether a task can give a model task-specific information or a directly reusable solution for a eval task. It is not a rubric for topical similarity, general capability overlap, or task quality.
+
+The central question is:
+
+> After learning the training task, does the model face substantially less task-specific reasoning when solving the evaluation task?
+
+The unit of analysis is a pair:
+
+```text
+(eval task, train task)
+```
+
+Assess pairs using the complete available evidence where possible: task instruction, input dataset, environment, verifier/tests, reference solution, trajectory/trace, provenance, and revision metadata.
+
+## 2. Definitions
+
+### 2.1 Contamination
+
+Contamination exists when a training task provides information that is directly reusable for solving a eval task. Direct reuse can be through data, code, specification, workflow, algorithm, verifier, environment, exploit, or solution trace.
+
+Contamination does not require lexical or surface-form similarity.
+
+### 2.2 Capability generalization
+
+Capability generalization occurs when the training task only teaches a broad skill—such as Python programming, CSV parsing, logging, or Git usage—and the eval task still requires independently identifying the task-specific objective, algorithm, interface, edge cases, and verification requirements.
+
+Capability generalization alone is not contamination.
+
+## 3. Contamination categories
+
+Apply one or more labels. Labels are not mutually exclusive.
+
+### `data`
+
+The tasks use the same dataset, a shared snapshot, the same generated examples, or highly similar input records whose structure/content reveals the eval solution.
+
+### `codebase`
+
+The tasks use the same repository, source tree, file, bug, patch location, or reusable implementation. Shared open-source dependencies alone are insufficient.
+
+### `specification`
+
+The task contract is substantially shared: same entrypoint, function signature, file paths, field names, output schema, command interface, or acceptance conditions.
+
+### `workflow`
+
+The end-to-end operational procedure is highly similar, including command sequence, tool ordering, debugging sequence, service setup sequence, or data-processing pipeline.
+
+### `solution_trace`
+
+A reference solution, trajectory, command trace, code skeleton, or failure-repair sequence is directly reusable.
+
+### `algorithm`
+
+The tasks require the same executable core algorithm or structural solution, not merely the same broad domain. Examples include the same ReLU black-box extraction method, frame-difference detector, Z3 scheduling model, or polyglot construction technique.
+
+### `verifier`
+
+The tests, assertions, reference outputs, fixtures, scoring logic, or verifier weakness are shared or directly adaptable.
+
+### `environment`
+
+The tasks share a meaningful environment contract: same service topology, configuration layout, ports, paths, Docker setup, installed components, or system state. A common base image alone is not enough.
+
+### `tool_api`
+
+The same specialized tool/API and nearly the same invocation pattern are reusable. Merely using the same language or common utility is not enough.
+
+### `template`
+
+Tasks are generated from the same template or task family with only names, values, paths, or domain framing changed, while the task graph and verifier remain substantially the same.
+
+### `exploit`
+
+The same concrete security bypass, reverse-engineering trick, forensic recovery method, or verifier exploit transfers directly.
+
+### `provenance`
+
+This is an evidence label, not by itself proof of contamination. It records shared source repository, dataset lineage, generator, author, revision, or creation process. Provenance must be temporally plausible for training contamination.
+
+## 4. Exclusion rules
+
+Do not label a pair as contamination solely because it has any of the following:
+
+- the same domain, such as logs, video, databases, or web servers;
+- the same programming language or common tool, such as Python, Git, ffmpeg, Docker, or OpenSSL;
+- the same basic operation, such as reading CSV, parsing JSON, iterating files, or writing JSON;
+- the same generic output format or common `/app` path;
+- common benchmark wording or generic instruction templates;
+- the same open-source dependency without the same code modification or reusable patch;
+- the same broad algorithm family when the core model, constraints, and implementation differ materially;
+- a generic verifier pattern such as checking file existence or parsing JSON;
+- abstract domain knowledge that does not reveal a task-specific solution;
+- a training task created after, or derived from, the eval task when forward training exposure is impossible.
+
+If the pair only improves broad capability, classify it as `C0` or `C1`, not contamination.
+
+## 5. Severity levels
+
+Severity measures transferability, not evidence confidence.
+
+### `C0` — no contamination / exclude
+
+Only incidental overlap exists. The model must independently understand and solve the eval task.
+
+Typical cases: same domain, language, tool, file format, or generic workflow.
+
+### `C1` — weak overlap
+
+Some broad workflow or algorithm-family knowledge transfers, but the task-specific solution must be rediscovered. Inputs, contract, core logic, or verifier differ materially.
+
+### `C2` — moderate contamination
+
+The model can reuse a substantial framework, algorithm pattern, environment pattern, or interface, but must redesign important task-specific parts. Roughly 30–70% of the core implementation or reasoning still needs adaptation.
+
+### `C3` — severe contamination
+
+The main solution strategy, workflow, code skeleton, algorithm, or verifier transfers directly. Only names, paths, parameters, fields, or boundary details require modification.
+
+### `C4` — near duplicate / critical contamination
+
+The training task nearly reveals the eval answer. This includes shared or equivalent datasets, same codebase and modification point, directly reusable solution/trace, same verifier/reference outputs, or a lightly rewritten task that can be solved by copying and making trivial edits.
+
+## 6. Evidence strength
+
+Record confidence separately from severity.
+
+### `high`
+
+Direct evidence exists: identical data, code, verifier, reference solution, trace, or a near-identical specification. Provenance and temporal ordering are consistent.
+
+### `medium`
+
+The structural match is strong, but one important artifact—such as solution code, verifier, or full dataset—is unavailable or not yet compared.
+
+### `low`
+
+The judgment is based mainly on instruction-level or thematic evidence and could be explained by ordinary capability generalization.
+
+Do not reduce severity merely because evidence is incomplete. Instead, lower `confidence` and state what is missing.
+
+## 7. Transferability scale
+
+Record the practical degree of reuse:
+
+```text
+exact        The same artifact or answer can be reused.
+near         Only names, paths, parameters, or small details change.
+structural   The full solution framework transfers, but implementation needs work.
+conceptual   Only abstract knowledge transfers.
+incidental   Similarity is superficial.
+```
+
+`exact` and `near` normally imply `C3` or `C4`. `conceptual` normally implies `C0` or `C1`.
+
+## 8. Recommended scoring procedure
+
+Score each dimension from 0 to 4:
+
+| Dimension | 0 | 4 |
+|---|---|---|
+| Dataset | unrelated | same or shared snapshot |
+| Codebase | no shared code | same file/patch directly reusable |
+| Specification | generic overlap | same contract and acceptance requirements |
+| Workflow | unrelated procedure | same end-to-end procedure |
+| Algorithm | only broad domain overlap | same executable core algorithm |
+| Verifier | unrelated | same tests/reference/weakness |
+| Environment | only base image overlap | same meaningful service/configuration state |
+| Tool/API | common tool only | same specialized calls and parameters |
+| Solution trace | no reuse | directly copyable code/commands/trajectory |
+| Exploit | none | same concrete bypass or exploit |
+
+Suggested mapping:
+
+```text
+0–4    C0
+5–10   C1
+11–18  C2
+19–26  C3
+27–40  C4
+```
+
+The score is a guide, not a substitute for judgment. Explain which dimensions drive the decision.
+
+## 9. Mandatory upgrade rules
+
+Regardless of the total score:
+
+- Same dataset or same generated input snapshot: at least `C3`.
+- Same codebase and same modification point: at least `C3`.
+- Directly reusable solution or trajectory: at least `C3`.
+- Same verifier with adaptable reference data or a reusable loophole: at least `C3`.
+- Lightly renamed/reparameterized duplicate: `C4`.
+- Shared concrete exploit or bypass: at least `C3`.
+- Only same domain, tool, language, or file format: at most `C1`.
+
+If a pair has different dimensions with different severities, use the strongest dimension as the final severity. For example, `workflow=C2` plus `verifier=C4` yields final severity `C4`.
+
+## 10. Temporal and provenance requirements
+
+Separate two questions:
+
+1. Is there substantive overlap?
+2. Could the overlap have caused forward training contamination?
+
+Record provenance where available:
+
+- source repository and commit/revision;
+- dataset name, version, and hash;
+- task generator or template family;
+- creation and publication timestamps;
+- shared author or generation process;
+- whether training was available before eval evaluation/training.
+
+If forward exposure is impossible, label the pair as `overlap_without_causal_contamination` rather than causal contamination.
+
+## 11. Required pair-level report format
+
+Each investigated pair should report:
+
+```yaml
+eval_task: <path or task id>
+training_task: <path or task id>
+classification: exclude | borderline | contamination | overlap_without_causal_contamination
+severity: C0 | C1 | C2 | C3 | C4
+confidence: low | medium | high
+transferability: exact | near | structural | conceptual | incidental
+types:
+  - data
+  - codebase
+  - specification
+  - workflow
+  - solution_trace
+  - algorithm
+  - verifier
+  - environment
+  - tool_api
+  - template
+  - exploit
+  - provenance
+evidence:
+  - <specific file, field, command, code fragment, dataset, or verifier evidence>
+reason: <short explanation of what transfers and why it lowers eval-specific reasoning>
+missing_evidence:
+  - <optional items that would raise or lower confidence>
+```
+
+## 12. Decision principle
+
+The final decision should be conservative and evidence-based:
+
+> Count a pair as contamination only when the training task provides reusable task-specific information, not merely reusable general competence.
+
+When uncertain, preserve the pair as `borderline` with `low` or `medium` confidence rather than upgrading it based only on keywords. When direct data, code, verifier, workflow, exploit, or solution-trace reuse is demonstrated, assign the corresponding severity even if lexical similarity is low.
